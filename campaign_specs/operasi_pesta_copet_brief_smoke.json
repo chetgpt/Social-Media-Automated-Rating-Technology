@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "name": "operasi_pesta_copet_brief_smoke",
+  "project": "operasi_pesta_copet_brief_smoke_20260712_v2",
+  "title": "Operasi Pesta Copet Brief Fulfillment Smoke Test",
+  "timezone": "Asia/Jakarta",
+  "platforms": ["youtube", "tiktok", "instagram", "facebook"],
+  "keywords": {
+    "core": ["Operasi Pesta Copet", "OPC"],
+    "hashtags": [],
+    "entities": [],
+    "optional": [],
+    "campaign": ["bungkus gorengan", "buron wrap"],
+    "exclusions": ["operasi polisi", "operasi premanisme", "pesta rakyat", "copet tertangkap"]
+  },
+  "queries": {
+    "all": [],
+    "youtube": [
+      "Operasi Pesta Copet trailer",
+      "bungkus gorengan Operasi Pesta Copet"
+    ],
+    "tiktok": [
+      "Operasi Pesta Copet",
+      "bungkus gorengan Operasi Pesta Copet"
+    ],
+    "instagram": [
+      "Operasi Pesta Copet",
+      "bungkus gorengan Operasi Pesta Copet"
+    ],
+    "facebook": [
+      "Operasi Pesta Copet",
+      "bungkus gorengan Operasi Pesta Copet"
+    ]
+  },
+  "accounts": {
+    "youtube": [],
+    "tiktok": [
+      {
+        "handle": "imajinari.id",
+        "label": "Imajinari TikTok",
+        "role": "owned",
+        "taxonomy": {"account_type": "brand", "entity": "Imajinari"}
+      },
+      {
+        "handle": "ijal_woi",
+        "label": "Ijal TikTok",
+        "role": "cast",
+        "taxonomy": {"account_type": "talent", "entity": "Ijal"}
+      }
+    ],
+    "instagram": [
+      {
+        "handle": "imajinari.id",
+        "label": "Imajinari Instagram",
+        "role": "owned",
+        "taxonomy": {"account_type": "brand", "entity": "Imajinari"}
+      },
+      {
+        "handle": "iqbaal.e",
+        "label": "Iqbaal Instagram",
+        "role": "cast",
+        "taxonomy": {"account_type": "talent", "entity": "Iqbaal Ramadhan"}
+      }
+    ],
+    "facebook": []
+  },
+  "date_windows": [
+    {
+      "name": "pre_screening_sample",
+      "start": "2026-07-01T00:00:00+07:00",
+      "end": "2026-08-31T23:59:59+07:00"
+    }
+  ],
+  "discovery": {
+    "include_core": false,
+    "include_hashtags": false,
+    "include_campaign": false,
+    "pair_entities_with_core": false,
+    "pair_optional_with_core": false,
+    "anchor_limit": 1,
+    "max_sources_per_platform": 0
+  },
+  "relevance": {
+    "mode": "filter",
+    "review_action": "skip",
+    "accept_threshold": 60,
+    "review_threshold": 30,
+    "require_anchor": true,
+    "anchor_terms": ["Operasi Pesta Copet", "OperasiPestaCopet"],
+    "ambiguous_terms": ["OPC"],
+    "context_terms": ["film", "trailer", "teaser", "bioskop", "Iqbaal Ramadhan"]
+  },
+  "collection": {
+    "videos_per_source": 2,
+    "comments_per_post": 3,
+    "refresh_limit_per_platform": 0,
+    "refresh_after_hours": 6,
+    "report_hours": [24],
+    "transport_mode": "api-first"
+  },
+  "analysis": {
+    "entities": ["Operasi Pesta Copet", "Imajinari", "Iqbaal Ramadhan", "Ijal"],
+    "themes": [
+      {"name": "trailer", "terms": ["trailer", "first look"]},
+      {"name": "activation_wrap", "terms": ["bungkus gorengan", "buron wrap", "gorengan"]},
+      {"name": "festival_production", "terms": ["Pestapora", "pesta pora", "30.000 penonton"]},
+      {"name": "music", "terms": ["soundtrack", "Mati Muda"]}
+    ]
+  },
+  "reporting": {
+    "cadence": ["monthly"],
+    "dimensions": [
+      "conversation_volume",
+      "entity_sentiment",
+      "account_performance",
+      "publisher_narrative",
+      "activation_themes",
+      "trailer_discussion"
+    ],
+    "first_party_dimensions": ["geography", "demographics", "reach", "traffic"]
+  }
+}

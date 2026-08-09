@@ -1,0 +1,2335 @@
+{
+  "schema_version": 1,
+  "name": "gkps_campaign",
+  "project": "gkps_project",
+  "title": "GKPS Campaign",
+  "timezone": "Asia/Jakarta",
+  "platforms": [
+    "youtube"
+  ],
+  "keywords": {
+    "core": [
+      "GKPS"
+    ],
+    "hashtags": [],
+    "entities": [],
+    "optional": [],
+    "campaign": [],
+    "exclusions": []
+  },
+  "queries": {
+    "youtube": [
+      "GKPS"
+    ]
+  },
+  "accounts": {
+    "youtube": [
+      {
+        "name": "namaposogkpspadangbulan9442",
+        "url": "https://www.youtube.com/@namaposogkpspadangbulan9442",
+        "role": "owned"
+      },
+      {
+        "name": "xaklsmkgkps1raya76",
+        "url": "https://www.youtube.com/@xaklsmkgkps1raya76",
+        "role": "owned"
+      },
+      {
+        "name": "gkpssimalingkar1149",
+        "url": "https://www.youtube.com/@gkpssimalingkar1149",
+        "role": "owned"
+      },
+      {
+        "name": "gkps7078",
+        "url": "https://www.youtube.com/@gkps7078",
+        "role": "owned"
+      },
+      {
+        "name": "gkpssibolga3231",
+        "url": "https://www.youtube.com/@gkpssibolga3231",
+        "role": "owned"
+      },
+      {
+        "name": "alumnismpgkpsharanggaol7601",
+        "url": "https://www.youtube.com/@alumnismpgkpsharanggaol7601",
+        "role": "owned"
+      },
+      {
+        "name": "gkpskabanjahekota9348",
+        "url": "https://www.youtube.com/@gkpskabanjahekota9348",
+        "role": "owned"
+      },
+      {
+        "name": "jhonerwindamanik",
+        "url": "https://www.youtube.com/@jhonerwindamanik",
+        "role": "owned"
+      },
+      {
+        "name": "dollsdamanik6933",
+        "url": "https://www.youtube.com/@dollsdamanik6933",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpspontianakresor1847",
+        "url": "https://www.youtube.com/@namaposogkpspontianakresor1847",
+        "role": "owned"
+      },
+      {
+        "name": "missiodeivoicegkpshelvetia2023",
+        "url": "https://www.youtube.com/@missiodeivoicegkpshelvetia2023",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsserangbanten4896",
+        "url": "https://www.youtube.com/@gkpsserangbanten4896",
+        "role": "owned"
+      },
+      {
+        "name": "SeksiBapaGKPSSukamulia",
+        "url": "https://www.youtube.com/@SeksiBapaGKPSSukamulia",
+        "role": "owned"
+      },
+      {
+        "name": "gknsagape",
+        "url": "https://www.youtube.com/@gknsagape",
+        "role": "owned"
+      },
+      {
+        "name": "gkpscempakaputih1191",
+        "url": "https://www.youtube.com/@gkpscempakaputih1191",
+        "role": "owned"
+      },
+      {
+        "name": "Damanik_Chanel",
+        "url": "https://www.youtube.com/@Damanik_Chanel",
+        "role": "owned"
+      },
+      {
+        "name": "gurukripa7967",
+        "url": "https://www.youtube.com/@gurukripa7967",
+        "role": "owned"
+      },
+      {
+        "name": "tamilselvitamilselvi9404",
+        "url": "https://www.youtube.com/@tamilselvitamilselvi9404",
+        "role": "owned"
+      },
+      {
+        "name": "paduansuaradutakasih3817",
+        "url": "https://www.youtube.com/@paduansuaradutakasih3817",
+        "role": "owned"
+      },
+      {
+        "name": "kelasdaudgkpstangerang3695",
+        "url": "https://www.youtube.com/@kelasdaudgkpstangerang3695",
+        "role": "owned"
+      },
+      {
+        "name": "BKMGKPS",
+        "url": "https://www.youtube.com/@BKMGKPS",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsgkpssukabumi6295",
+        "url": "https://www.youtube.com/@gkpsgkpssukabumi6295",
+        "role": "owned"
+      },
+      {
+        "name": "mohabbatgkpsali4062",
+        "url": "https://www.youtube.com/@mohabbatgkpsali4062",
+        "role": "owned"
+      },
+      {
+        "name": "RPLSMGKPS",
+        "url": "https://www.youtube.com/@RPLSMGKPS",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsproduction2329",
+        "url": "https://www.youtube.com/@gkpsproduction2329",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsjemaatancol3386",
+        "url": "https://www.youtube.com/@gkpsjemaatancol3386",
+        "role": "owned"
+      },
+      {
+        "name": "hotlangirsang5968",
+        "url": "https://www.youtube.com/@hotlangirsang5968",
+        "role": "owned"
+      },
+      {
+        "name": "gkpssalemba2001",
+        "url": "https://www.youtube.com/@gkpssalemba2001",
+        "role": "owned"
+      },
+      {
+        "name": "gkpscibinong121",
+        "url": "https://www.youtube.com/@gkpscibinong121",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsdepoktv2110",
+        "url": "https://www.youtube.com/@gkpsdepoktv2110",
+        "role": "owned"
+      },
+      {
+        "name": "sekolahminggugkpscijantung9534",
+        "url": "https://www.youtube.com/@sekolahminggugkpscijantung9534",
+        "role": "owned"
+      },
+      {
+        "name": "rospitasaragih3408",
+        "url": "https://www.youtube.com/@rospitasaragih3408",
+        "role": "owned"
+      },
+      {
+        "name": "gkpshaiti8852",
+        "url": "https://www.youtube.com/@gkpshaiti8852",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSKana",
+        "url": "https://www.youtube.com/@GKPSKana",
+        "role": "owned"
+      },
+      {
+        "name": "ardopurba5451",
+        "url": "https://www.youtube.com/@ardopurba5451",
+        "role": "owned"
+      },
+      {
+        "name": "gpielimabepura2815",
+        "url": "https://www.youtube.com/@gpielimabepura2815",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsrogateresortsiantarii6438",
+        "url": "https://www.youtube.com/@gkpsrogateresortsiantarii6438",
+        "role": "owned"
+      },
+      {
+        "name": "gkpspalembang8097",
+        "url": "https://www.youtube.com/@gkpspalembang8097",
+        "role": "owned"
+      },
+      {
+        "name": "gkpssamarinda4918",
+        "url": "https://www.youtube.com/@gkpssamarinda4918",
+        "role": "owned"
+      },
+      {
+        "name": "GkpsGunungmuliaresorttjberingi",
+        "url": "https://www.youtube.com/@GkpsGunungmuliaresorttjberingi",
+        "role": "owned"
+      },
+      {
+        "name": "GaneshKumar-op6ti",
+        "url": "https://www.youtube.com/@GaneshKumar-op6ti",
+        "role": "owned"
+      },
+      {
+        "name": "gkpssukabumi2542",
+        "url": "https://www.youtube.com/@gkpssukabumi2542",
+        "role": "owned"
+      },
+      {
+        "name": "SekolahMingguGKPSPangkalPinang",
+        "url": "https://www.youtube.com/@SekolahMingguGKPSPangkalPinang",
+        "role": "owned"
+      },
+      {
+        "name": "smgkpspardamean1177",
+        "url": "https://www.youtube.com/@smgkpspardamean1177",
+        "role": "owned"
+      },
+      {
+        "name": "olobolobgkpsresortsiantar3432",
+        "url": "https://www.youtube.com/@olobolobgkpsresortsiantar3432",
+        "role": "owned"
+      },
+      {
+        "name": "kmsgkpspadangbulan",
+        "url": "https://www.youtube.com/@kmsgkpspadangbulan",
+        "role": "owned"
+      },
+      {
+        "name": "ngkps_bandung",
+        "url": "https://www.youtube.com/@ngkps_bandung",
+        "role": "owned"
+      },
+      {
+        "name": "asmgkpssemayang4857",
+        "url": "https://www.youtube.com/@asmgkpssemayang4857",
+        "role": "owned"
+      },
+      {
+        "name": "gkpspurbatongah3497",
+        "url": "https://www.youtube.com/@gkpspurbatongah3497",
+        "role": "owned"
+      },
+      {
+        "name": "sekolahminggugkpssidorame463",
+        "url": "https://www.youtube.com/@sekolahminggugkpssidorame463",
+        "role": "owned"
+      },
+      {
+        "name": "diakoniagkps6203",
+        "url": "https://www.youtube.com/@diakoniagkps6203",
+        "role": "owned"
+      },
+      {
+        "name": "aguspurba7091",
+        "url": "https://www.youtube.com/@aguspurba7091",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpstambun109",
+        "url": "https://www.youtube.com/@namaposogkpstambun109",
+        "role": "owned"
+      },
+      {
+        "name": "wanitagkpskenanganmedan521",
+        "url": "https://www.youtube.com/@wanitagkpskenanganmedan521",
+        "role": "owned"
+      },
+      {
+        "name": "EnglishClubSMAGKPS",
+        "url": "https://www.youtube.com/@EnglishClubSMAGKPS",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpsmentengindah7101",
+        "url": "https://www.youtube.com/@namaposogkpsmentengindah7101",
+        "role": "owned"
+      },
+      {
+        "name": "janhorasvpurba6119",
+        "url": "https://www.youtube.com/@janhorasvpurba6119",
+        "role": "owned"
+      },
+      {
+        "name": "gkpshangtuahmedan5409",
+        "url": "https://www.youtube.com/@gkpshangtuahmedan5409",
+        "role": "owned"
+      },
+      {
+        "name": "muda-mudigkpsrantauprapat4136",
+        "url": "https://www.youtube.com/@muda-mudigkpsrantauprapat4136",
+        "role": "owned"
+      },
+      {
+        "name": "bdrsakti",
+        "url": "https://www.youtube.com/@bdrsakti",
+        "role": "owned"
+      },
+      {
+        "name": "asmgkpskabanjahekota4189",
+        "url": "https://www.youtube.com/@asmgkpskabanjahekota4189",
+        "role": "owned"
+      },
+      {
+        "name": "BapaGKPSPardamean",
+        "url": "https://www.youtube.com/@BapaGKPSPardamean",
+        "role": "owned"
+      },
+      {
+        "name": "OsinPurba",
+        "url": "https://www.youtube.com/@OsinPurba",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsdistrikii",
+        "url": "https://www.youtube.com/@gkpsdistrikii",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSNONGSABATAM",
+        "url": "https://www.youtube.com/@GKPSNONGSABATAM",
+        "role": "owned"
+      },
+      {
+        "name": "sekolahminggugkpsresortdep8682",
+        "url": "https://www.youtube.com/@sekolahminggugkpsresortdep8682",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpsefratapresent1520",
+        "url": "https://www.youtube.com/@namaposogkpsefratapresent1520",
+        "role": "owned"
+      },
+      {
+        "name": "inanggkpsbekasi311",
+        "url": "https://www.youtube.com/@inanggkpsbekasi311",
+        "role": "owned"
+      },
+      {
+        "name": "YouthMinistryGKPS",
+        "url": "https://www.youtube.com/@YouthMinistryGKPS",
+        "role": "owned"
+      },
+      {
+        "name": "seksibapagkpscipayung4967",
+        "url": "https://www.youtube.com/@seksibapagkpscipayung4967",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpsmentengii5855",
+        "url": "https://www.youtube.com/@namaposogkpsmentengii5855",
+        "role": "owned"
+      },
+      {
+        "name": "NGKPSCengkareng",
+        "url": "https://www.youtube.com/@NGKPSCengkareng",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpsmaranathabatam6260",
+        "url": "https://www.youtube.com/@namaposogkpsmaranathabatam6260",
+        "role": "owned"
+      },
+      {
+        "name": "wanitagkpsbogor2367",
+        "url": "https://www.youtube.com/@wanitagkpsbogor2367",
+        "role": "owned"
+      },
+      {
+        "name": "pemudaremajagkpspariksabun3100",
+        "url": "https://www.youtube.com/@pemudaremajagkpspariksabun3100",
+        "role": "owned"
+      },
+      {
+        "name": "gkpstanjungrejo8192",
+        "url": "https://www.youtube.com/@gkpstanjungrejo8192",
+        "role": "owned"
+      },
+      {
+        "name": "rennysinaga8175",
+        "url": "https://www.youtube.com/@rennysinaga8175",
+        "role": "owned"
+      },
+      {
+        "name": "sekolahminggugkpstanjungre7639",
+        "url": "https://www.youtube.com/@sekolahminggugkpstanjungre7639",
+        "role": "owned"
+      },
+      {
+        "name": "SMAGKPSOFFICIAL",
+        "url": "https://www.youtube.com/@SMAGKPSOFFICIAL",
+        "role": "owned"
+      },
+      {
+        "name": "gkpstebingtinggi3950",
+        "url": "https://www.youtube.com/@gkpstebingtinggi3950",
+        "role": "owned"
+      },
+      {
+        "name": "siebapagkpssudirman3743",
+        "url": "https://www.youtube.com/@siebapagkpssudirman3743",
+        "role": "owned"
+      },
+      {
+        "name": "lansiagkpscikoko6476",
+        "url": "https://www.youtube.com/@lansiagkpscikoko6476",
+        "role": "owned"
+      },
+      {
+        "name": "seksiinanggkpscempakaputih7227",
+        "url": "https://www.youtube.com/@seksiinanggkpscempakaputih7227",
+        "role": "owned"
+      },
+      {
+        "name": "GkpsBlogger",
+        "url": "https://www.youtube.com/@GkpsBlogger",
+        "role": "owned"
+      },
+      {
+        "name": "gkpssiporang6797",
+        "url": "https://www.youtube.com/@gkpssiporang6797",
+        "role": "owned"
+      },
+      {
+        "name": "globalknowledgepublicschoo5248",
+        "url": "https://www.youtube.com/@globalknowledgepublicschoo5248",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpstanahkanaanjam6156",
+        "url": "https://www.youtube.com/@namaposogkpstanahkanaanjam6156",
+        "role": "owned"
+      },
+      {
+        "name": "gkpssumbersari4",
+        "url": "https://www.youtube.com/@gkpssumbersari4",
+        "role": "owned"
+      },
+      {
+        "name": "AbnerSumbayak",
+        "url": "https://www.youtube.com/@AbnerSumbayak",
+        "role": "owned"
+      },
+      {
+        "name": "PdtJakardoDamanikSTh",
+        "url": "https://www.youtube.com/@PdtJakardoDamanikSTh",
+        "role": "owned"
+      },
+      {
+        "name": "sektorIVGKPShaleluya",
+        "url": "https://www.youtube.com/@sektorIVGKPShaleluya",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSPARBATUAN",
+        "url": "https://www.youtube.com/@GKPSPARBATUAN",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSPurbasariBaringin",
+        "url": "https://www.youtube.com/@GKPSPurbasariBaringin",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpspasarkemis7838",
+        "url": "https://www.youtube.com/@namaposogkpspasarkemis7838",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSMaranathaMedan",
+        "url": "https://www.youtube.com/@GKPSMaranathaMedan",
+        "role": "owned"
+      },
+      {
+        "name": "parhorjagkps5764",
+        "url": "https://www.youtube.com/@parhorjagkps5764",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsguruall4883",
+        "url": "https://www.youtube.com/@gkpsguruall4883",
+        "role": "owned"
+      },
+      {
+        "name": "yayasanpendidikangkps9682",
+        "url": "https://www.youtube.com/@yayasanpendidikangkps9682",
+        "role": "owned"
+      },
+      {
+        "name": "gkpspersatuanbaruofficial4694",
+        "url": "https://www.youtube.com/@gkpspersatuanbaruofficial4694",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsdepokofficial5299",
+        "url": "https://www.youtube.com/@gkpsdepokofficial5299",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpsgraharaya99",
+        "url": "https://www.youtube.com/@namaposogkpsgraharaya99",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsproduction8306",
+        "url": "https://www.youtube.com/@gkpsproduction8306",
+        "role": "owned"
+      },
+      {
+        "name": "sekolahminggugkpsresortcem6611",
+        "url": "https://www.youtube.com/@sekolahminggugkpsresortcem6611",
+        "role": "owned"
+      },
+      {
+        "name": "yessicapurba6193",
+        "url": "https://www.youtube.com/@yessicapurba6193",
+        "role": "owned"
+      },
+      {
+        "name": "gnanasekhar9690",
+        "url": "https://www.youtube.com/@gnanasekhar9690",
+        "role": "owned"
+      },
+      {
+        "name": "eklesiagkpsbatam9607",
+        "url": "https://www.youtube.com/@eklesiagkpsbatam9607",
+        "role": "owned"
+      },
+      {
+        "name": "HotmiarHaloho",
+        "url": "https://www.youtube.com/@HotmiarHaloho",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsrantauprapat7132",
+        "url": "https://www.youtube.com/@gkpsrantauprapat7132",
+        "role": "owned"
+      },
+      {
+        "name": "sekolahminggugkpsancol2872",
+        "url": "https://www.youtube.com/@sekolahminggugkpsancol2872",
+        "role": "owned"
+      },
+      {
+        "name": "gkpschannel2408",
+        "url": "https://www.youtube.com/@gkpschannel2408",
+        "role": "owned"
+      },
+      {
+        "name": "smgkps3714",
+        "url": "https://www.youtube.com/@smgkps3714",
+        "role": "owned"
+      },
+      {
+        "name": "multimediagkps52",
+        "url": "https://www.youtube.com/@multimediagkps52",
+        "role": "owned"
+      },
+      {
+        "name": "gkpscibuburchannel4476",
+        "url": "https://www.youtube.com/@gkpscibuburchannel4476",
+        "role": "owned"
+      },
+      {
+        "name": "GkpsGriyaMartubungMedan",
+        "url": "https://www.youtube.com/@GkpsGriyaMartubungMedan",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSJambiPertama",
+        "url": "https://www.youtube.com/@GKPSJambiPertama",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsbekasi",
+        "url": "https://www.youtube.com/@gkpsbekasi",
+        "role": "owned"
+      },
+      {
+        "name": "sektorrogategkpssarimatond8251",
+        "url": "https://www.youtube.com/@sektorrogategkpssarimatond8251",
+        "role": "owned"
+      },
+      {
+        "name": "nextgengkps2757",
+        "url": "https://www.youtube.com/@nextgengkps2757",
+        "role": "owned"
+      },
+      {
+        "name": "gkpssintang7128",
+        "url": "https://www.youtube.com/@gkpssintang7128",
+        "role": "owned"
+      },
+      {
+        "name": "sekolahminggugkpskebonjeru8016",
+        "url": "https://www.youtube.com/@sekolahminggugkpskebonjeru8016",
+        "role": "owned"
+      },
+      {
+        "name": "tataibadahgkpsbatuonom8997",
+        "url": "https://www.youtube.com/@tataibadahgkpsbatuonom8997",
+        "role": "owned"
+      },
+      {
+        "name": "MCK649",
+        "url": "https://www.youtube.com/@MCK649",
+        "role": "owned"
+      },
+      {
+        "name": "sekolahminggugkpskebayoran3625",
+        "url": "https://www.youtube.com/@sekolahminggugkpskebayoran3625",
+        "role": "owned"
+      },
+      {
+        "name": "gkpshaleluya526",
+        "url": "https://www.youtube.com/@gkpshaleluya526",
+        "role": "owned"
+      },
+      {
+        "name": "gkpskana1512",
+        "url": "https://www.youtube.com/@gkpskana1512",
+        "role": "owned"
+      },
+      {
+        "name": "seksibapagkpscempakaputih8145",
+        "url": "https://www.youtube.com/@seksibapagkpscempakaputih8145",
+        "role": "owned"
+      },
+      {
+        "name": "gkpscempakaputih437",
+        "url": "https://www.youtube.com/@gkpscempakaputih437",
+        "role": "owned"
+      },
+      {
+        "name": "robertsaragih4296",
+        "url": "https://www.youtube.com/@robertsaragih4296",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsbandungtimur2000",
+        "url": "https://www.youtube.com/@gkpsbandungtimur2000",
+        "role": "owned"
+      },
+      {
+        "name": "Gkpspootulupatti",
+        "url": "https://www.youtube.com/@Gkpspootulupatti",
+        "role": "owned"
+      },
+      {
+        "name": "kavirayadav3498",
+        "url": "https://www.youtube.com/@kavirayadav3498",
+        "role": "owned"
+      },
+      {
+        "name": "TimMusikGKPSPekanbaru",
+        "url": "https://www.youtube.com/@TimMusikGKPSPekanbaru",
+        "role": "owned"
+      },
+      {
+        "name": "albengkpskebchannel2969",
+        "url": "https://www.youtube.com/@albengkpskebchannel2969",
+        "role": "owned"
+      },
+      {
+        "name": "wanitagkps_cibubur",
+        "url": "https://www.youtube.com/@wanitagkps_cibubur",
+        "role": "owned"
+      },
+      {
+        "name": "dorahelsa3285",
+        "url": "https://www.youtube.com/@dorahelsa3285",
+        "role": "owned"
+      },
+      {
+        "name": "febrysaragih9097",
+        "url": "https://www.youtube.com/@febrysaragih9097",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsjemaatteladan6244",
+        "url": "https://www.youtube.com/@gkpsjemaatteladan6244",
+        "role": "owned"
+      },
+      {
+        "name": "naposogkps7545",
+        "url": "https://www.youtube.com/@naposogkps7545",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpssukabumi1576",
+        "url": "https://www.youtube.com/@namaposogkpssukabumi1576",
+        "role": "owned"
+      },
+      {
+        "name": "gkpspekanbaru4162",
+        "url": "https://www.youtube.com/@gkpspekanbaru4162",
+        "role": "owned"
+      },
+      {
+        "name": "gkpspekalongan1298",
+        "url": "https://www.youtube.com/@gkpspekalongan1298",
+        "role": "owned"
+      },
+      {
+        "name": "smgkpsresortcikoko3589",
+        "url": "https://www.youtube.com/@smgkpsresortcikoko3589",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSTanahKanaanJambi",
+        "url": "https://www.youtube.com/@GKPSTanahKanaanJambi",
+        "role": "owned"
+      },
+      {
+        "name": "PdtJhonRilmanSinagaSThMA",
+        "url": "https://www.youtube.com/@PdtJhonRilmanSinagaSThMA",
+        "role": "owned"
+      },
+      {
+        "name": "ngkps_jambi",
+        "url": "https://www.youtube.com/@ngkps_jambi",
+        "role": "owned"
+      },
+      {
+        "name": "sekolahminggugkps5433",
+        "url": "https://www.youtube.com/@sekolahminggugkps5433",
+        "role": "owned"
+      },
+      {
+        "name": "timdiakoniagkpsdistrik2mas834",
+        "url": "https://www.youtube.com/@timdiakoniagkpsdistrik2mas834",
+        "role": "owned"
+      },
+      {
+        "name": "smgkpsresortcililitan8316",
+        "url": "https://www.youtube.com/@smgkpsresortcililitan8316",
+        "role": "owned"
+      },
+      {
+        "name": "sdswastagkpssaribudolok5065",
+        "url": "https://www.youtube.com/@sdswastagkpssaribudolok5065",
+        "role": "owned"
+      },
+      {
+        "name": "officialpemudagkpspemudapu4838",
+        "url": "https://www.youtube.com/@officialpemudagkpspemudapu4838",
+        "role": "owned"
+      },
+      {
+        "name": "ristianisaragih6368",
+        "url": "https://www.youtube.com/@ristianisaragih6368",
+        "role": "owned"
+      },
+      {
+        "name": "gkpstvchannel",
+        "url": "https://www.youtube.com/@gkpstvchannel",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpspdtjwismar6898",
+        "url": "https://www.youtube.com/@namaposogkpspdtjwismar6898",
+        "role": "owned"
+      },
+      {
+        "name": "gkpspalangkaraya",
+        "url": "https://www.youtube.com/@gkpspalangkaraya",
+        "role": "owned"
+      },
+      {
+        "name": "sekolahminggudistrik7324",
+        "url": "https://www.youtube.com/@sekolahminggudistrik7324",
+        "role": "owned"
+      },
+      {
+        "name": "petrusputradairisy.p.sinag9040",
+        "url": "https://www.youtube.com/@petrusputradairisy.p.sinag9040",
+        "role": "owned"
+      },
+      {
+        "name": "gkpspadangbulantv1885",
+        "url": "https://www.youtube.com/@gkpspadangbulantv1885",
+        "role": "owned"
+      },
+      {
+        "name": "gkpssalemba650",
+        "url": "https://www.youtube.com/@gkpssalemba650",
+        "role": "owned"
+      },
+      {
+        "name": "ErwinsyahSaragih-r2t",
+        "url": "https://www.youtube.com/@ErwinsyahSaragih-r2t",
+        "role": "owned"
+      },
+      {
+        "name": "GkpsPalangkaraya-mr2ds",
+        "url": "https://www.youtube.com/@GkpsPalangkaraya-mr2ds",
+        "role": "owned"
+      },
+      {
+        "name": "rbmgkps1727",
+        "url": "https://www.youtube.com/@rbmgkps1727",
+        "role": "owned"
+      },
+      {
+        "name": "outvideosgkpsbishunpura6761",
+        "url": "https://www.youtube.com/@outvideosgkpsbishunpura6761",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsbogor9274",
+        "url": "https://www.youtube.com/@gkpsbogor9274",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpscikarang6916",
+        "url": "https://www.youtube.com/@namaposogkpscikarang6916",
+        "role": "owned"
+      },
+      {
+        "name": "saragihellovanly16",
+        "url": "https://www.youtube.com/@saragihellovanly16",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSTV-q2t",
+        "url": "https://www.youtube.com/@GKPSTV-q2t",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsmakotaay1471",
+        "url": "https://www.youtube.com/@gkpsmakotaay1471",
+        "role": "owned"
+      },
+      {
+        "name": "pemudagkpsklender1858",
+        "url": "https://www.youtube.com/@pemudagkpsklender1858",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsressortsetianegara585",
+        "url": "https://www.youtube.com/@gkpsressortsetianegara585",
+        "role": "owned"
+      },
+      {
+        "name": "gkpscipayung2483",
+        "url": "https://www.youtube.com/@gkpscipayung2483",
+        "role": "owned"
+      },
+      {
+        "name": "HUT44GKPSBekasi",
+        "url": "https://www.youtube.com/@HUT44GKPSBekasi",
+        "role": "owned"
+      },
+      {
+        "name": "malaikatpelindung8908",
+        "url": "https://www.youtube.com/@malaikatpelindung8908",
+        "role": "owned"
+      },
+      {
+        "name": "martuasimarmata3987",
+        "url": "https://www.youtube.com/@martuasimarmata3987",
+        "role": "owned"
+      },
+      {
+        "name": "smgkpsresortbekasi",
+        "url": "https://www.youtube.com/@smgkpsresortbekasi",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsmentengindah8933",
+        "url": "https://www.youtube.com/@gkpsmentengindah8933",
+        "role": "owned"
+      },
+      {
+        "name": "gkps-gmartubungchannel4343",
+        "url": "https://www.youtube.com/@gkps-gmartubungchannel4343",
+        "role": "owned"
+      },
+      {
+        "name": "kebsusgkpscikoko697",
+        "url": "https://www.youtube.com/@kebsusgkpscikoko697",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsnongsa678",
+        "url": "https://www.youtube.com/@gkpsnongsa678",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSAEKKANOPAN24",
+        "url": "https://www.youtube.com/@GKPSAEKKANOPAN24",
+        "role": "owned"
+      },
+      {
+        "name": "GkpsT.Pitchampatti",
+        "url": "https://www.youtube.com/@GkpsT.Pitchampatti",
+        "role": "owned"
+      },
+      {
+        "name": "arisngirsang1046",
+        "url": "https://www.youtube.com/@arisngirsang1046",
+        "role": "owned"
+      },
+      {
+        "name": "smgkpsklender1906",
+        "url": "https://www.youtube.com/@smgkpsklender1906",
+        "role": "owned"
+      },
+      {
+        "name": "gulshangkps1478",
+        "url": "https://www.youtube.com/@gulshangkps1478",
+        "role": "owned"
+      },
+      {
+        "name": "GKPS-Gunungsitoli",
+        "url": "https://www.youtube.com/@GKPS-Gunungsitoli",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsresortbinjai8192",
+        "url": "https://www.youtube.com/@gkpsresortbinjai8192",
+        "role": "owned"
+      },
+      {
+        "name": "erwinsaragih6687",
+        "url": "https://www.youtube.com/@erwinsaragih6687",
+        "role": "owned"
+      },
+      {
+        "name": "lensahitam1141",
+        "url": "https://www.youtube.com/@lensahitam1141",
+        "role": "owned"
+      },
+      {
+        "name": "sky7396",
+        "url": "https://www.youtube.com/@sky7396",
+        "role": "owned"
+      },
+      {
+        "name": "NgkpsUP2",
+        "url": "https://www.youtube.com/@NgkpsUP2",
+        "role": "owned"
+      },
+      {
+        "name": "rolandihsitumorang4135",
+        "url": "https://www.youtube.com/@rolandihsitumorang4135",
+        "role": "owned"
+      },
+      {
+        "name": "GkpsRamakrishnapuramprimarysch",
+        "url": "https://www.youtube.com/@GkpsRamakrishnapuramprimarysch",
+        "role": "owned"
+      },
+      {
+        "name": "natalbersamagkpsgkpihki9645",
+        "url": "https://www.youtube.com/@natalbersamagkpsgkpihki9645",
+        "role": "owned"
+      },
+      {
+        "name": "remaja-asmgkpspekanbaru9962",
+        "url": "https://www.youtube.com/@remaja-asmgkpspekanbaru9962",
+        "role": "owned"
+      },
+      {
+        "name": "RSChannel-09",
+        "url": "https://www.youtube.com/@RSChannel-09",
+        "role": "owned"
+      },
+      {
+        "name": "asmgkpsresorttanjungpinang2202",
+        "url": "https://www.youtube.com/@asmgkpsresorttanjungpinang2202",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsdiateitupa7461",
+        "url": "https://www.youtube.com/@gkpsdiateitupa7461",
+        "role": "owned"
+      },
+      {
+        "name": "buletingkpsbatuajiresortba2699",
+        "url": "https://www.youtube.com/@buletingkpsbatuajiresortba2699",
+        "role": "owned"
+      },
+      {
+        "name": "sekolahminggugkpsmenteng4718",
+        "url": "https://www.youtube.com/@sekolahminggugkpsmenteng4718",
+        "role": "owned"
+      },
+      {
+        "name": "gkpstangerang",
+        "url": "https://www.youtube.com/@gkpstangerang",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsgunungsitoli7921",
+        "url": "https://www.youtube.com/@gkpsgunungsitoli7921",
+        "role": "owned"
+      },
+      {
+        "name": "pemudaigkpspenielpematangs4656",
+        "url": "https://www.youtube.com/@pemudaigkpspenielpematangs4656",
+        "role": "owned"
+      },
+      {
+        "name": "vijayselvamgkps2020",
+        "url": "https://www.youtube.com/@vijayselvamgkps2020",
+        "role": "owned"
+      },
+      {
+        "name": "PankajSharma-uh8ps",
+        "url": "https://www.youtube.com/@PankajSharma-uh8ps",
+        "role": "owned"
+      },
+      {
+        "name": "wccsopoudameigkps3625",
+        "url": "https://www.youtube.com/@wccsopoudameigkps3625",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsfamily8553",
+        "url": "https://www.youtube.com/@gkpsfamily8553",
+        "role": "owned"
+      },
+      {
+        "name": "sekolahminggugkpspdt.j.wis9944",
+        "url": "https://www.youtube.com/@sekolahminggugkpspdt.j.wis9944",
+        "role": "owned"
+      },
+      {
+        "name": "sekolahminggugkpsbinjai8447",
+        "url": "https://www.youtube.com/@sekolahminggugkpsbinjai8447",
+        "role": "owned"
+      },
+      {
+        "name": "NamaposoGKPSBogor",
+        "url": "https://www.youtube.com/@NamaposoGKPSBogor",
+        "role": "owned"
+      },
+      {
+        "name": "youtubegkps3778",
+        "url": "https://www.youtube.com/@youtubegkps3778",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsresortpaneitongah8096",
+        "url": "https://www.youtube.com/@gkpsresortpaneitongah8096",
+        "role": "owned"
+      },
+      {
+        "name": "iloveubiblegodgkps8736",
+        "url": "https://www.youtube.com/@iloveubiblegodgkps8736",
+        "role": "owned"
+      },
+      {
+        "name": "SundaySchoolChoirSSCGKPSCIBUBU",
+        "url": "https://www.youtube.com/@SundaySchoolChoirSSCGKPSCIBUBU",
+        "role": "owned"
+      },
+      {
+        "name": "ypgkps4745",
+        "url": "https://www.youtube.com/@ypgkps4745",
+        "role": "owned"
+      },
+      {
+        "name": "gkpskebonjeruk8018",
+        "url": "https://www.youtube.com/@gkpskebonjeruk8018",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsbaganbatu2714",
+        "url": "https://www.youtube.com/@gkpsbaganbatu2714",
+        "role": "owned"
+      },
+      {
+        "name": "GustianySaragih",
+        "url": "https://www.youtube.com/@GustianySaragih",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsfeldkirch9085",
+        "url": "https://www.youtube.com/@gkpsfeldkirch9085",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSPurbaTongah",
+        "url": "https://www.youtube.com/@GKPSPurbaTongah",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsgloriasagulungofficial2633",
+        "url": "https://www.youtube.com/@gkpsgloriasagulungofficial2633",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpsbatuonom",
+        "url": "https://www.youtube.com/@namaposogkpsbatuonom",
+        "role": "owned"
+      },
+      {
+        "name": "crosssaragih9742",
+        "url": "https://www.youtube.com/@crosssaragih9742",
+        "role": "owned"
+      },
+      {
+        "name": "InggouGKPSkota",
+        "url": "https://www.youtube.com/@InggouGKPSkota",
+        "role": "owned"
+      },
+      {
+        "name": "sdgkpsirambungmerah3637",
+        "url": "https://www.youtube.com/@sdgkpsirambungmerah3637",
+        "role": "owned"
+      },
+      {
+        "name": "gkps.gaming222",
+        "url": "https://www.youtube.com/@gkps.gaming222",
+        "role": "owned"
+      },
+      {
+        "name": "km5_sdsgkpspasar3",
+        "url": "https://www.youtube.com/@km5_sdsgkpspasar3",
+        "role": "owned"
+      },
+      {
+        "name": "bapamurahsenyum",
+        "url": "https://www.youtube.com/@bapamurahsenyum",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpsbanesiantarii2897",
+        "url": "https://www.youtube.com/@namaposogkpsbanesiantarii2897",
+        "role": "owned"
+      },
+      {
+        "name": "meitrigustikasaragihwccsop3543",
+        "url": "https://www.youtube.com/@meitrigustikasaragihwccsop3543",
+        "role": "owned"
+      },
+      {
+        "name": "albengkpskebchannel3083",
+        "url": "https://www.youtube.com/@albengkpskebchannel3083",
+        "role": "owned"
+      },
+      {
+        "name": "gkpstanjungpiayu1039",
+        "url": "https://www.youtube.com/@gkpstanjungpiayu1039",
+        "role": "owned"
+      },
+      {
+        "name": "smremajagkpskenangan2725",
+        "url": "https://www.youtube.com/@smremajagkpskenangan2725",
+        "role": "owned"
+      },
+      {
+        "name": "gkpspamulang182",
+        "url": "https://www.youtube.com/@gkpspamulang182",
+        "role": "owned"
+      },
+      {
+        "name": "sekolahminggugkpsmaranatha8107",
+        "url": "https://www.youtube.com/@sekolahminggugkpsmaranatha8107",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsancol2680",
+        "url": "https://www.youtube.com/@gkpsancol2680",
+        "role": "owned"
+      },
+      {
+        "name": "sekolahminggugkpskm.7764",
+        "url": "https://www.youtube.com/@sekolahminggugkpskm.7764",
+        "role": "owned"
+      },
+      {
+        "name": "rajeshgautamgkps1969",
+        "url": "https://www.youtube.com/@rajeshgautamgkps1969",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsbatam2058",
+        "url": "https://www.youtube.com/@gkpsbatam2058",
+        "role": "owned"
+      },
+      {
+        "name": "naposogkpstigaraksa8360",
+        "url": "https://www.youtube.com/@naposogkpstigaraksa8360",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSPERSIAPANHARVESTCILEUNGSI",
+        "url": "https://www.youtube.com/@GKPSPERSIAPANHARVESTCILEUNGSI",
+        "role": "owned"
+      },
+      {
+        "name": "wccsopoudameigkps2692",
+        "url": "https://www.youtube.com/@wccsopoudameigkps2692",
+        "role": "owned"
+      },
+      {
+        "name": "WanitaGKPSSibarou",
+        "url": "https://www.youtube.com/@WanitaGKPSSibarou",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsbungasampang8311",
+        "url": "https://www.youtube.com/@gkpsbungasampang8311",
+        "role": "owned"
+      },
+      {
+        "name": "smkgkps3psiantarofficial",
+        "url": "https://www.youtube.com/@smkgkps3psiantarofficial",
+        "role": "owned"
+      },
+      {
+        "name": "MUSIKGKPSPANDUANBERNYANYI",
+        "url": "https://www.youtube.com/@MUSIKGKPSPANDUANBERNYANYI",
+        "role": "owned"
+      },
+      {
+        "name": "gkpstigaraksa2387",
+        "url": "https://www.youtube.com/@gkpstigaraksa2387",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSPONTIANAKOFFICIAL",
+        "url": "https://www.youtube.com/@GKPSPONTIANAKOFFICIAL",
+        "role": "owned"
+      },
+      {
+        "name": "radopurba2374",
+        "url": "https://www.youtube.com/@radopurba2374",
+        "role": "owned"
+      },
+      {
+        "name": "gkpspurbsaribaringin",
+        "url": "https://www.youtube.com/@gkpspurbsaribaringin",
+        "role": "owned"
+      },
+      {
+        "name": "sekolahminggugkpssimalingk210",
+        "url": "https://www.youtube.com/@sekolahminggugkpssimalingk210",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpsdistriki4511",
+        "url": "https://www.youtube.com/@namaposogkpsdistriki4511",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpsresortmedantim690",
+        "url": "https://www.youtube.com/@namaposogkpsresortmedantim690",
+        "role": "owned"
+      },
+      {
+        "name": "sekolahminggugkpscempakapu7622",
+        "url": "https://www.youtube.com/@sekolahminggugkpscempakapu7622",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSPVILPakam",
+        "url": "https://www.youtube.com/@GKPSPVILPakam",
+        "role": "owned"
+      },
+      {
+        "name": "sormapurba629",
+        "url": "https://www.youtube.com/@sormapurba629",
+        "role": "owned"
+      },
+      {
+        "name": "ngkpsbekasi",
+        "url": "https://www.youtube.com/@ngkpsbekasi",
+        "role": "owned"
+      },
+      {
+        "name": "CristoferRedondo-zc7lf",
+        "url": "https://www.youtube.com/@CristoferRedondo-zc7lf",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsbanjarmasin5447",
+        "url": "https://www.youtube.com/@gkpsbanjarmasin5447",
+        "role": "owned"
+      },
+      {
+        "name": "gkpssurabaya7657",
+        "url": "https://www.youtube.com/@gkpssurabaya7657",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSKotaBengkulu",
+        "url": "https://www.youtube.com/@GKPSKotaBengkulu",
+        "role": "owned"
+      },
+      {
+        "name": "gkpspancurbatu6739",
+        "url": "https://www.youtube.com/@gkpspancurbatu6739",
+        "role": "owned"
+      },
+      {
+        "name": "sekolahminggugkpsbatuaji4400",
+        "url": "https://www.youtube.com/@sekolahminggugkpsbatuaji4400",
+        "role": "owned"
+      },
+      {
+        "name": "junipsipayung4842",
+        "url": "https://www.youtube.com/@junipsipayung4842",
+        "role": "owned"
+      },
+      {
+        "name": "gkpspdt.j.wismarsaragih9085",
+        "url": "https://www.youtube.com/@gkpspdt.j.wismarsaragih9085",
+        "role": "owned"
+      },
+      {
+        "name": "gyankunjpathshala",
+        "url": "https://www.youtube.com/@gyankunjpathshala",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsancol5675",
+        "url": "https://www.youtube.com/@gkpsancol5675",
+        "role": "owned"
+      },
+      {
+        "name": "sieinanggkpsbinjai4519",
+        "url": "https://www.youtube.com/@sieinanggkpsbinjai4519",
+        "role": "owned"
+      },
+      {
+        "name": "seksiBapaGKPSCIJANTUNGSyHOP",
+        "url": "https://www.youtube.com/@seksiBapaGKPSCIJANTUNGSyHOP",
+        "role": "owned"
+      },
+      {
+        "name": "siebapagkpsrantaulaban-tt160",
+        "url": "https://www.youtube.com/@siebapagkpsrantaulaban-tt160",
+        "role": "owned"
+      },
+      {
+        "name": "sekolahminggugkpsaugusthei4321",
+        "url": "https://www.youtube.com/@sekolahminggugkpsaugusthei4321",
+        "role": "owned"
+      },
+      {
+        "name": "gkpssiturituri2427",
+        "url": "https://www.youtube.com/@gkpssiturituri2427",
+        "role": "owned"
+      },
+      {
+        "name": "asmgkpstanjungberingin4443",
+        "url": "https://www.youtube.com/@asmgkpstanjungberingin4443",
+        "role": "owned"
+      },
+      {
+        "name": "robsonTudolfGirsang",
+        "url": "https://www.youtube.com/@robsonTudolfGirsang",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsberastagi7170",
+        "url": "https://www.youtube.com/@gkpsberastagi7170",
+        "role": "owned"
+      },
+      {
+        "name": "sdgkps4346",
+        "url": "https://www.youtube.com/@sdgkps4346",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsbandungselatan7573",
+        "url": "https://www.youtube.com/@gkpsbandungselatan7573",
+        "role": "owned"
+      },
+      {
+        "name": "official.ipteksmagkps1raya",
+        "url": "https://www.youtube.com/@official.ipteksmagkps1raya",
+        "role": "owned"
+      },
+      {
+        "name": "gkpskpdurian2138",
+        "url": "https://www.youtube.com/@gkpskpdurian2138",
+        "role": "owned"
+      },
+      {
+        "name": "gkpspremam",
+        "url": "https://www.youtube.com/@gkpspremam",
+        "role": "owned"
+      },
+      {
+        "name": "SeksiBapaGKPSCikoko",
+        "url": "https://www.youtube.com/@SeksiBapaGKPSCikoko",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsnagoriasih1796",
+        "url": "https://www.youtube.com/@gkpsnagoriasih1796",
+        "role": "owned"
+      },
+      {
+        "name": "gkpspihani9739",
+        "url": "https://www.youtube.com/@gkpspihani9739",
+        "role": "owned"
+      },
+      {
+        "name": "gkpskpdurianresortmedanuta9342",
+        "url": "https://www.youtube.com/@gkpskpdurianresortmedanuta9342",
+        "role": "owned"
+      },
+      {
+        "name": "gkpstuktuksamosir7432",
+        "url": "https://www.youtube.com/@gkpstuktuksamosir7432",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpsdenpasar2170",
+        "url": "https://www.youtube.com/@namaposogkpsdenpasar2170",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSBatuajiBatam",
+        "url": "https://www.youtube.com/@GKPSBatuajiBatam",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpsresortmedanbar6246",
+        "url": "https://www.youtube.com/@namaposogkpsresortmedanbar6246",
+        "role": "owned"
+      },
+      {
+        "name": "gkpspamulangtv667",
+        "url": "https://www.youtube.com/@gkpspamulangtv667",
+        "role": "owned"
+      },
+      {
+        "name": "gkpssitunggaling3822",
+        "url": "https://www.youtube.com/@gkpssitunggaling3822",
+        "role": "owned"
+      },
+      {
+        "name": "pemudagkpsht4858",
+        "url": "https://www.youtube.com/@pemudagkpsht4858",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSPamulang",
+        "url": "https://www.youtube.com/@GKPSPamulang",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsharapanindah",
+        "url": "https://www.youtube.com/@gkpsharapanindah",
+        "role": "owned"
+      },
+      {
+        "name": "SabarUhur",
+        "url": "https://www.youtube.com/@SabarUhur",
+        "role": "owned"
+      },
+      {
+        "name": "smkgkps1rayaok859",
+        "url": "https://www.youtube.com/@smkgkps1rayaok859",
+        "role": "owned"
+      },
+      {
+        "name": "delapanofficial6382",
+        "url": "https://www.youtube.com/@delapanofficial6382",
+        "role": "owned"
+      },
+      {
+        "name": "gkpssalemba122",
+        "url": "https://www.youtube.com/@gkpssalemba122",
+        "role": "owned"
+      },
+      {
+        "name": "seksisekolahminggugkpsreso5223",
+        "url": "https://www.youtube.com/@seksisekolahminggugkpsreso5223",
+        "role": "owned"
+      },
+      {
+        "name": "gkpslubangbuaya5177",
+        "url": "https://www.youtube.com/@gkpslubangbuaya5177",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsresortbandung1961",
+        "url": "https://www.youtube.com/@gkpsresortbandung1961",
+        "role": "owned"
+      },
+      {
+        "name": "GayathiriKesavan-bi4zo",
+        "url": "https://www.youtube.com/@GayathiriKesavan-bi4zo",
+        "role": "owned"
+      },
+      {
+        "name": "sekolahminggugkpsbogor5994",
+        "url": "https://www.youtube.com/@sekolahminggugkpsbogor5994",
+        "role": "owned"
+      },
+      {
+        "name": "SMKGKPS1RAYA-zn4uq",
+        "url": "https://www.youtube.com/@SMKGKPS1RAYA-zn4uq",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSBalikpapan",
+        "url": "https://www.youtube.com/@GKPSBalikpapan",
+        "role": "owned"
+      },
+      {
+        "name": "UCMzWFwum6KyYE6w6StyOFSQ",
+        "url": "https://www.youtube.com/channel/UCMzWFwum6KyYE6w6StyOFSQ",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsfamily2964",
+        "url": "https://www.youtube.com/@gkpsfamily2964",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsbahsulung1311",
+        "url": "https://www.youtube.com/@gkpsbahsulung1311",
+        "role": "owned"
+      },
+      {
+        "name": "gkpssemayang1906",
+        "url": "https://www.youtube.com/@gkpssemayang1906",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpsteladan9031",
+        "url": "https://www.youtube.com/@namaposogkpsteladan9031",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsbandarlampung1703",
+        "url": "https://www.youtube.com/@gkpsbandarlampung1703",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpsdiateitupa3526",
+        "url": "https://www.youtube.com/@namaposogkpsdiateitupa3526",
+        "role": "owned"
+      },
+      {
+        "name": "wanitagkpssalemba950",
+        "url": "https://www.youtube.com/@wanitagkpssalemba950",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSPAMATANGRAYA",
+        "url": "https://www.youtube.com/@GKPSPAMATANGRAYA",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpsbengkulu6406",
+        "url": "https://www.youtube.com/@namaposogkpsbengkulu6406",
+        "role": "owned"
+      },
+      {
+        "name": "seksibapagkpstambun3618",
+        "url": "https://www.youtube.com/@seksibapagkpstambun3618",
+        "role": "owned"
+      },
+      {
+        "name": "ngkpstangkahanbaru7503",
+        "url": "https://www.youtube.com/@ngkpstangkahanbaru7503",
+        "role": "owned"
+      },
+      {
+        "name": "sekolahminggugkpscikoko6054",
+        "url": "https://www.youtube.com/@sekolahminggugkpscikoko6054",
+        "role": "owned"
+      },
+      {
+        "name": "bkmgkpschannel9834",
+        "url": "https://www.youtube.com/@bkmgkpschannel9834",
+        "role": "owned"
+      },
+      {
+        "name": "gkps144vikramangalam5",
+        "url": "https://www.youtube.com/@gkps144vikramangalam5",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpscempakaputih2190",
+        "url": "https://www.youtube.com/@namaposogkpscempakaputih2190",
+        "role": "owned"
+      },
+      {
+        "name": "naposogkpsbagaduh3248",
+        "url": "https://www.youtube.com/@naposogkpsbagaduh3248",
+        "role": "owned"
+      },
+      {
+        "name": "lansianaomi",
+        "url": "https://www.youtube.com/@lansianaomi",
+        "role": "owned"
+      },
+      {
+        "name": "sdsgkpssibarou3022",
+        "url": "https://www.youtube.com/@sdsgkpssibarou3022",
+        "role": "owned"
+      },
+      {
+        "name": "pemudagkpssinargunung4611",
+        "url": "https://www.youtube.com/@pemudagkpssinargunung4611",
+        "role": "owned"
+      },
+      {
+        "name": "vijaya6447",
+        "url": "https://www.youtube.com/@vijaya6447",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsresortcempakaputih4644",
+        "url": "https://www.youtube.com/@gkpsresortcempakaputih4644",
+        "role": "owned"
+      },
+      {
+        "name": "laskarkristusgkpsbekasi6703",
+        "url": "https://www.youtube.com/@laskarkristusgkpsbekasi6703",
+        "role": "owned"
+      },
+      {
+        "name": "masapod8728",
+        "url": "https://www.youtube.com/@masapod8728",
+        "role": "owned"
+      },
+      {
+        "name": "bapagkpsresortcengkarengja8453",
+        "url": "https://www.youtube.com/@bapagkpsresortcengkarengja8453",
+        "role": "owned"
+      },
+      {
+        "name": "officialgkpskarawang8625",
+        "url": "https://www.youtube.com/@officialgkpskarawang8625",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsbangunsaribu8820",
+        "url": "https://www.youtube.com/@gkpsbangunsaribu8820",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSCirebon23",
+        "url": "https://www.youtube.com/@GKPSCirebon23",
+        "role": "owned"
+      },
+      {
+        "name": "NamaposoGKPSTigarunggu",
+        "url": "https://www.youtube.com/@NamaposoGKPSTigarunggu",
+        "role": "owned"
+      },
+      {
+        "name": "ekopurba-il1ig",
+        "url": "https://www.youtube.com/@ekopurba-il1ig",
+        "role": "owned"
+      },
+      {
+        "name": "gayethrigayethri3614",
+        "url": "https://www.youtube.com/@gayethrigayethri3614",
+        "role": "owned"
+      },
+      {
+        "name": "gkpscikarang7835",
+        "url": "https://www.youtube.com/@gkpscikarang7835",
+        "role": "owned"
+      },
+      {
+        "name": "PutraPurba69",
+        "url": "https://www.youtube.com/@PutraPurba69",
+        "role": "owned"
+      },
+      {
+        "name": "priyagkps",
+        "url": "https://www.youtube.com/@priyagkps",
+        "role": "owned"
+      },
+      {
+        "name": "hitsgkps4739",
+        "url": "https://www.youtube.com/@hitsgkps4739",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsyogya4564",
+        "url": "https://www.youtube.com/@gkpsyogya4564",
+        "role": "owned"
+      },
+      {
+        "name": "pemudagkpskampungdurian9086",
+        "url": "https://www.youtube.com/@pemudagkpskampungdurian9086",
+        "role": "owned"
+      },
+      {
+        "name": "SekolahMingguGKPSDepok",
+        "url": "https://www.youtube.com/@SekolahMingguGKPSDepok",
+        "role": "owned"
+      },
+      {
+        "name": "rikhosimarmata6265",
+        "url": "https://www.youtube.com/@rikhosimarmata6265",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsefratapematangsiantar8833",
+        "url": "https://www.youtube.com/@gkpsefratapematangsiantar8833",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpsmarindal7336",
+        "url": "https://www.youtube.com/@namaposogkpsmarindal7336",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSPasarKemis",
+        "url": "https://www.youtube.com/@GKPSPasarKemis",
+        "role": "owned"
+      },
+      {
+        "name": "gkpstigabalata9046",
+        "url": "https://www.youtube.com/@gkpstigabalata9046",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpsdepok3001",
+        "url": "https://www.youtube.com/@namaposogkpsdepok3001",
+        "role": "owned"
+      },
+      {
+        "name": "sekolahminggugkpssambubaru2732",
+        "url": "https://www.youtube.com/@sekolahminggugkpssambubaru2732",
+        "role": "owned"
+      },
+      {
+        "name": "ngkpssungaibuaya2618",
+        "url": "https://www.youtube.com/@ngkpssungaibuaya2618",
+        "role": "owned"
+      },
+      {
+        "name": "gkpstajurhalang",
+        "url": "https://www.youtube.com/@gkpstajurhalang",
+        "role": "owned"
+      },
+      {
+        "name": "J120GKPSResortMentengIndah",
+        "url": "https://www.youtube.com/@J120GKPSResortMentengIndah",
+        "role": "owned"
+      },
+      {
+        "name": "smgkpspasarkemis9631",
+        "url": "https://www.youtube.com/@smgkpspasarkemis9631",
+        "role": "owned"
+      },
+      {
+        "name": "smgkpsgraharaya3282",
+        "url": "https://www.youtube.com/@smgkpsgraharaya3282",
+        "role": "owned"
+      },
+      {
+        "name": "donnysimarmata5306",
+        "url": "https://www.youtube.com/@donnysimarmata5306",
+        "role": "owned"
+      },
+      {
+        "name": "LitaPurba-l8x",
+        "url": "https://www.youtube.com/@LitaPurba-l8x",
+        "role": "owned"
+      },
+      {
+        "name": "pemudagkpssudirman1513",
+        "url": "https://www.youtube.com/@pemudagkpssudirman1513",
+        "role": "owned"
+      },
+      {
+        "name": "Chelsealingga123",
+        "url": "https://www.youtube.com/@Chelsealingga123",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsbelawan608",
+        "url": "https://www.youtube.com/@gkpsbelawan608",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsgraharaya9621",
+        "url": "https://www.youtube.com/@gkpsgraharaya9621",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsdesapon9167",
+        "url": "https://www.youtube.com/@gkpsdesapon9167",
+        "role": "owned"
+      },
+      {
+        "name": "eightersumbayak2818",
+        "url": "https://www.youtube.com/@eightersumbayak2818",
+        "role": "owned"
+      },
+      {
+        "name": "timkreatifnatalgkpsbogor2051",
+        "url": "https://www.youtube.com/@timkreatifnatalgkpsbogor2051",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsfamily495",
+        "url": "https://www.youtube.com/@gkpsfamily495",
+        "role": "owned"
+      },
+      {
+        "name": "stmgkps9319",
+        "url": "https://www.youtube.com/@stmgkps9319",
+        "role": "owned"
+      },
+      {
+        "name": "InangGKPSPardamean",
+        "url": "https://www.youtube.com/@InangGKPSPardamean",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpsresortpolonia5155",
+        "url": "https://www.youtube.com/@namaposogkpsresortpolonia5155",
+        "role": "owned"
+      },
+      {
+        "name": "NamaposoSidorame",
+        "url": "https://www.youtube.com/@NamaposoSidorame",
+        "role": "owned"
+      },
+      {
+        "name": "RumahDoaBersinar",
+        "url": "https://www.youtube.com/@RumahDoaBersinar",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSPadangBulan",
+        "url": "https://www.youtube.com/@GKPSPadangBulan",
+        "role": "owned"
+      },
+      {
+        "name": "sekolahminggugkpshangtuahm4812",
+        "url": "https://www.youtube.com/@sekolahminggugkpshangtuahm4812",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpsdistrikvii8520",
+        "url": "https://www.youtube.com/@namaposogkpsdistrikvii8520",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSTarakan",
+        "url": "https://www.youtube.com/@GKPSTarakan",
+        "role": "owned"
+      },
+      {
+        "name": "KM7SMPGKPS3PS",
+        "url": "https://www.youtube.com/@KM7SMPGKPS3PS",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsresortmedanselatan5987",
+        "url": "https://www.youtube.com/@gkpsresortmedanselatan5987",
+        "role": "owned"
+      },
+      {
+        "name": "sahmanpurba2674",
+        "url": "https://www.youtube.com/@sahmanpurba2674",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsharapanindah3966",
+        "url": "https://www.youtube.com/@gkpsharapanindah3966",
+        "role": "owned"
+      },
+      {
+        "name": "asmremajagkpstambun9196",
+        "url": "https://www.youtube.com/@asmremajagkpstambun9196",
+        "role": "owned"
+      },
+      {
+        "name": "gsm_asm_rsmgkpskenangan8409",
+        "url": "https://www.youtube.com/@gsm_asm_rsmgkpskenangan8409",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpssudirman352",
+        "url": "https://www.youtube.com/@namaposogkpssudirman352",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSJlnJendSudirman",
+        "url": "https://www.youtube.com/@GKPSJlnJendSudirman",
+        "role": "owned"
+      },
+      {
+        "name": "gkpssampit995",
+        "url": "https://www.youtube.com/@gkpssampit995",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSPalembang",
+        "url": "https://www.youtube.com/@GKPSPalembang",
+        "role": "owned"
+      },
+      {
+        "name": "KM7_SDSWASTAGKPS1PEMATANGSIANT",
+        "url": "https://www.youtube.com/@KM7_SDSWASTAGKPS1PEMATANGSIANT",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSKlender",
+        "url": "https://www.youtube.com/@GKPSKlender",
+        "role": "owned"
+      },
+      {
+        "name": "pemudagkpsdepok2157",
+        "url": "https://www.youtube.com/@pemudagkpsdepok2157",
+        "role": "owned"
+      },
+      {
+        "name": "GKPS123",
+        "url": "https://www.youtube.com/@GKPS123",
+        "role": "owned"
+      },
+      {
+        "name": "gkpstanahkanaan7683",
+        "url": "https://www.youtube.com/@gkpstanahkanaan7683",
+        "role": "owned"
+      },
+      {
+        "name": "remajagkpspekanbaru6797",
+        "url": "https://www.youtube.com/@remajagkpspekanbaru6797",
+        "role": "owned"
+      },
+      {
+        "name": "LitbangGKPS",
+        "url": "https://www.youtube.com/@LitbangGKPS",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpshelvetia1165",
+        "url": "https://www.youtube.com/@namaposogkpshelvetia1165",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsbandung",
+        "url": "https://www.youtube.com/@gkpsbandung",
+        "role": "owned"
+      },
+      {
+        "name": "GkpsIt",
+        "url": "https://www.youtube.com/@GkpsIt",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSCijantung",
+        "url": "https://www.youtube.com/@GKPSCijantung",
+        "role": "owned"
+      },
+      {
+        "name": "joshuagirsang8691",
+        "url": "https://www.youtube.com/@joshuagirsang8691",
+        "role": "owned"
+      },
+      {
+        "name": "KM5_SMPSWTGKPS3",
+        "url": "https://www.youtube.com/@KM5_SMPSWTGKPS3",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsgloria",
+        "url": "https://www.youtube.com/@gkpsgloria",
+        "role": "owned"
+      },
+      {
+        "name": "horaijingaringging1132",
+        "url": "https://www.youtube.com/@horaijingaringging1132",
+        "role": "owned"
+      },
+      {
+        "name": "smpswastagkps13sibarou31",
+        "url": "https://www.youtube.com/@smpswastagkps13sibarou31",
+        "role": "owned"
+      },
+      {
+        "name": "ellisrypurbaapt4960",
+        "url": "https://www.youtube.com/@ellisrypurbaapt4960",
+        "role": "owned"
+      },
+      {
+        "name": "Gkps70",
+        "url": "https://www.youtube.com/@Gkps70",
+        "role": "owned"
+      },
+      {
+        "name": "sekolahminggugkpssyaloomka1278",
+        "url": "https://www.youtube.com/@sekolahminggugkpssyaloomka1278",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpsdistrikixoffic335",
+        "url": "https://www.youtube.com/@namaposogkpsdistrikixoffic335",
+        "role": "owned"
+      },
+      {
+        "name": "seksiinanggkpskpdurian3191",
+        "url": "https://www.youtube.com/@seksiinanggkpskpdurian3191",
+        "role": "owned"
+      },
+      {
+        "name": "sektor1gkpspasar6",
+        "url": "https://www.youtube.com/@sektor1gkpspasar6",
+        "role": "owned"
+      },
+      {
+        "name": "gkpspadangbulan8867",
+        "url": "https://www.youtube.com/@gkpspadangbulan8867",
+        "role": "owned"
+      },
+      {
+        "name": "asmgkpshelvetia9005",
+        "url": "https://www.youtube.com/@asmgkpshelvetia9005",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSCililitan",
+        "url": "https://www.youtube.com/@GKPSCililitan",
+        "role": "owned"
+      },
+      {
+        "name": "msgkpskisaran6759",
+        "url": "https://www.youtube.com/@msgkpskisaran6759",
+        "role": "owned"
+      },
+      {
+        "name": "bkmgkps7810",
+        "url": "https://www.youtube.com/@bkmgkps7810",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsguruall1893",
+        "url": "https://www.youtube.com/@gkpsguruall1893",
+        "role": "owned"
+      },
+      {
+        "name": "gkpssampit5322",
+        "url": "https://www.youtube.com/@gkpssampit5322",
+        "role": "owned"
+      },
+      {
+        "name": "ngkpscijantung",
+        "url": "https://www.youtube.com/@ngkpscijantung",
+        "role": "owned"
+      },
+      {
+        "name": "VGBapaGKPSDepok",
+        "url": "https://www.youtube.com/@VGBapaGKPSDepok",
+        "role": "owned"
+      },
+      {
+        "name": "smgkpsjambi6135",
+        "url": "https://www.youtube.com/@smgkpsjambi6135",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsmarindal1800",
+        "url": "https://www.youtube.com/@gkpsmarindal1800",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsbatammediacentre8005",
+        "url": "https://www.youtube.com/@gkpsbatammediacentre8005",
+        "role": "owned"
+      },
+      {
+        "name": "GemendeKoorGKPSCipayung-w8k",
+        "url": "https://www.youtube.com/@GemendeKoorGKPSCipayung-w8k",
+        "role": "owned"
+      },
+      {
+        "name": "Km_6SmkGkps2Pematangsian-mj2jn",
+        "url": "https://www.youtube.com/@Km_6SmkGkps2Pematangsian-mj2jn",
+        "role": "owned"
+      },
+      {
+        "name": "gkpssemarang5813",
+        "url": "https://www.youtube.com/@gkpssemarang5813",
+        "role": "owned"
+      },
+      {
+        "name": "youthministrygkps1413",
+        "url": "https://www.youtube.com/@youthministrygkps1413",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsbandungselatan4207",
+        "url": "https://www.youtube.com/@gkpsbandungselatan4207",
+        "role": "owned"
+      },
+      {
+        "name": "gkpspalembang7542",
+        "url": "https://www.youtube.com/@gkpspalembang7542",
+        "role": "owned"
+      },
+      {
+        "name": "sekolahminggugkpsgaperta4020",
+        "url": "https://www.youtube.com/@sekolahminggugkpsgaperta4020",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSGARINGGING",
+        "url": "https://www.youtube.com/@GKPSGARINGGING",
+        "role": "owned"
+      },
+      {
+        "name": "sdswastagkps1pematangsiantar",
+        "url": "https://www.youtube.com/@sdswastagkps1pematangsiantar",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpsmaranathamedan9801",
+        "url": "https://www.youtube.com/@namaposogkpsmaranathamedan9801",
+        "role": "owned"
+      },
+      {
+        "name": "naposogkpssaribudolog8276",
+        "url": "https://www.youtube.com/@naposogkpssaribudolog8276",
+        "role": "owned"
+      },
+      {
+        "name": "rbmgkpsbahsulung4254",
+        "url": "https://www.youtube.com/@rbmgkpsbahsulung4254",
+        "role": "owned"
+      },
+      {
+        "name": "Bapa_PamSi",
+        "url": "https://www.youtube.com/@Bapa_PamSi",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSResortUjungBatu",
+        "url": "https://www.youtube.com/@GKPSResortUjungBatu",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpsresortbandung4392",
+        "url": "https://www.youtube.com/@namaposogkpsresortbandung4392",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsresortcengkareng6376",
+        "url": "https://www.youtube.com/@gkpsresortcengkareng6376",
+        "role": "owned"
+      },
+      {
+        "name": "NamaposoGKPSMarubunLokkung",
+        "url": "https://www.youtube.com/@NamaposoGKPSMarubunLokkung",
+        "role": "owned"
+      },
+      {
+        "name": "OFFICIAL_SMAGKPS1",
+        "url": "https://www.youtube.com/@OFFICIAL_SMAGKPS1",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSPalangkaRaya-s6y",
+        "url": "https://www.youtube.com/@GKPSPalangkaRaya-s6y",
+        "role": "owned"
+      },
+      {
+        "name": "HUTGuru78",
+        "url": "https://www.youtube.com/@HUTGuru78",
+        "role": "owned"
+      },
+      {
+        "name": "pemudagkpsaekkanopan5259",
+        "url": "https://www.youtube.com/@pemudagkpsaekkanopan5259",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSMEDANTENGGARA",
+        "url": "https://www.youtube.com/@GKPSMEDANTENGGARA",
+        "role": "owned"
+      },
+      {
+        "name": "pplmgcreativetimes1945",
+        "url": "https://www.youtube.com/@pplmgcreativetimes1945",
+        "role": "owned"
+      },
+      {
+        "name": "GKPS1903",
+        "url": "https://www.youtube.com/@GKPS1903",
+        "role": "owned"
+      },
+      {
+        "name": "GKPS2019",
+        "url": "https://www.youtube.com/@GKPS2019",
+        "role": "owned"
+      },
+      {
+        "name": "gkpsdistrikdelapan",
+        "url": "https://www.youtube.com/@gkpsdistrikdelapan",
+        "role": "owned"
+      },
+      {
+        "name": "Sarimatondangku",
+        "url": "https://www.youtube.com/@Sarimatondangku",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSSukabumi",
+        "url": "https://www.youtube.com/@GKPSSukabumi",
+        "role": "owned"
+      },
+      {
+        "name": "seksibapagkpsmerekraya821",
+        "url": "https://www.youtube.com/@seksibapagkpsmerekraya821",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSToys",
+        "url": "https://www.youtube.com/@GKPSToys",
+        "role": "owned"
+      },
+      {
+        "name": "GKPSSINASIH",
+        "url": "https://www.youtube.com/@GKPSSINASIH",
+        "role": "owned"
+      },
+      {
+        "name": "gkpskebayoran9888",
+        "url": "https://www.youtube.com/@gkpskebayoran9888",
+        "role": "owned"
+      },
+      {
+        "name": "gabriellaputri78",
+        "url": "https://www.youtube.com/@gabriellaputri78",
+        "role": "owned"
+      },
+      {
+        "name": "kuriagkpsrambungmerah5977",
+        "url": "https://www.youtube.com/@kuriagkpsrambungmerah5977",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpsharapanindah9277",
+        "url": "https://www.youtube.com/@namaposogkpsharapanindah9277",
+        "role": "owned"
+      },
+      {
+        "name": "namaposogkpsresortsiantari3728",
+        "url": "https://www.youtube.com/@namaposogkpsresortsiantari3728",
+        "role": "owned"
+      },
+      {
+        "name": "sekolahminggugkpshaleluya4669",
+        "url": "https://www.youtube.com/@sekolahminggugkpshaleluya4669",
+        "role": "owned"
+      }
+    ]
+  },
+  "discovery": {
+    "include_core": true,
+    "include_hashtags": false,
+    "include_campaign": false,
+    "pair_entities_with_core": false,
+    "pair_optional_with_core": false,
+    "anchor_limit": 0,
+    "max_sources_per_platform": 0
+  },
+  "relevance": {
+    "mode": "off",
+    "review_action": "skip",
+    "accept_threshold": 60,
+    "review_threshold": 30,
+    "require_anchor": false,
+    "anchor_terms": [
+      "GKPS"
+    ],
+    "ambiguous_terms": [],
+    "context_terms": []
+  },
+  "collection": {
+    "videos_per_source": 0,
+    "discovery_candidates_per_source": 0,
+    "comments_per_post": 0,
+    "refresh_limit_per_platform": 0,
+    "refresh_after_hours": 0,
+    "report_hours": [],
+    "transport_mode": "api-first"
+  },
+  "storage": {
+    "provider": "none",
+    "root_folder_name": "Social Listening Projects",
+    "account_hint": "",
+    "mount_path": "",
+    "archive_raw_runs": true,
+    "archive_backlog": true,
+    "raw_run_archive_timing": "final",
+    "upload_compiled": false,
+    "upload_logs": false,
+    "snapshot_database": true,
+    "delete_local_after_upload": false,
+    "required": false,
+    "chunk_size_mb": 16,
+    "max_retries": 7
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "name": "agensi_rumah_tangga",
+  "core_terms": [
+    "agensi rumah tangga"
+  ],
+  "token_terms": [
+    "agensi",
+    "rumah",
+    "tangga"
+  ],
+  "hashtags": [
+    "agensirumahtangga"
+  ],
+  "aliases": [
+    "film agensi rumah tangga"
+  ],
+  "entities": [],
+  "context_terms": [
+    "film",
+    "trailer",
+    "teaser",
+    "poster",
+    "bioskop",
+    "official",
+    "rilis",
+    "tayang",
+    "sutradara",
+    "produser"
+  ],
+  "generic_terms": [
+    "agensi",
+    "rumah",
+    "tangga",
+    "art",
+    "prt"
+  ],
+  "exclusion_terms": [
+    "lowongan",
+    "loker",
+    "pembantu rumah tangga",
+    "asisten rumah tangga",
+    "penyalur art",
+    "jasa art",
+    "jasa pembantu",
+    "gaji art",
+    "yayasan",
+    "baby sitter",
+    "babysitter",
+    "driver",
+    "cleaning service"
+  ],
+  "trusted_sources": [],
+  "accept_threshold": 70,
+  "review_threshold": 40
+}

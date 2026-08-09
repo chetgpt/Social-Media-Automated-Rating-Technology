@@ -11,6 +11,9 @@ Older multiplatform LISTEN/reporting code is retained in
 `LEGACY_LISTEN.md`, but it is not an active LISTEN, AUDIT, or ENGAGE execution
 path.
 
+See `SOURCE_SCOPE.md` for the source-backup boundary, including which files
+are active, legacy reference material, or intentionally kept out of Git.
+
 Chat shortcuts:
 
 ```text

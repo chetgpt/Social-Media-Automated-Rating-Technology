@@ -1,0 +1,78 @@
+{
+  "name": "operasi_pesta_copet",
+  "core_terms": [
+    "operasi pesta copet",
+    "oprasi pesta copet",
+    "opersi pesta copet"
+  ],
+  "hashtags": [
+    "operasipestacopet",
+    "oprasipestacopet"
+  ],
+  "aliases": [
+    "operasi pesta pora",
+    "operasi pestapora",
+    "operasipestapora"
+  ],
+  "entities": [
+    "iqbaal ramadhan",
+    "iqbaal",
+    "baale",
+    "imajinari",
+    "edy khemod",
+    "edykhemod",
+    "ernest prakasa",
+    "dipa andika",
+    "kawai labiba",
+    "kawailabiba",
+    "zulfa maharani",
+    "zulfamaharani",
+    "kristo immanuel",
+    "vincent rompies",
+    "boss creator",
+    "angin segar films",
+    "anginsegarfilms"
+  ],
+  "context_terms": [
+    "film",
+    "trailer",
+    "teaser",
+    "poster",
+    "bioskop",
+    "official",
+    "rilis",
+    "tayang",
+    "sutradara",
+    "produser",
+    "27 agustus 2026",
+    "pestapora"
+  ],
+  "generic_terms": [
+    "operasi",
+    "pesta",
+    "copet",
+    "pencopet",
+    "kecopetan",
+    "film"
+  ],
+  "exclusion_terms": [
+    "operasi hidung",
+    "operasi polisi",
+    "operasi cipta kondisi",
+    "pesta miras",
+    "pesta rakyat",
+    "polres",
+    "tni",
+    "psk",
+    "kecopetan di acara"
+  ],
+  "trusted_sources": [
+    "imajinari",
+    "imajinari.id",
+    "boss.creator",
+    "anginsegarfilms",
+    "ernestprakasa"
+  ],
+  "accept_threshold": 70,
+  "review_threshold": 40
+}

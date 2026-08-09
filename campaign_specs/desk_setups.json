@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "name": "desk_setups",
+  "project": "desk_setups",
+  "title": "Desk Setups Campaign",
+  "timezone": "Asia/Jakarta",
+  "platforms": ["tiktok"],
+  "keywords": {
+    "core": ["desk setup", "gaming setup"],
+    "hashtags": ["desksetup", "gamingsetup", "workspace"],
+    "entities": [],
+    "optional": [],
+    "campaign": [],
+    "exclusions": []
+  },
+  "queries": {
+    "all": [],
+    "youtube": [],
+    "tiktok": [],
+    "instagram": [],
+    "facebook": [],
+    "x": []
+  },
+  "accounts": {
+    "youtube": [],
+    "tiktok": [],
+    "instagram": [],
+    "facebook": [],
+    "x": []
+  },
+  "date_windows": [],
+  "discovery": {
+    "include_core": true,
+    "include_hashtags": true,
+    "include_campaign": false,
+    "pair_entities_with_core": false,
+    "pair_optional_with_core": false,
+    "anchor_limit": 2,
+    "max_sources_per_platform": 0
+  },
+  "relevance": {
+    "mode": "off",
+    "review_action": "skip",
+    "accept_threshold": 60,
+    "review_threshold": 30,
+    "require_anchor": false,
+    "anchor_terms": [],
+    "ambiguous_terms": [],
+    "context_terms": []
+  },
+  "collection": {
+    "videos_per_source": 50,
+    "discovery_candidates_per_source": 50,
+    "comments_per_post": 200,
+    "refresh_limit_per_platform": 20,
+    "refresh_after_hours": 6,
+    "report_hours": [24, 72],
+    "transport_mode": "api-first"
+  },
+  "profiles": {
+    "enabled": false,
+    "limit_per_run": 100,
+    "cache_days": 14,
+    "browser_fallback": true
+  },
+  "analysis": {
+    "enabled": false,
+    "mode": "shadow",
+    "provider": "manual",
+    "model": "",
+    "analysis_version": "native-text-v4",
+    "max_posts_per_run": 50,
+    "max_comments_per_post": 200,
+    "max_attempts": 3,
+    "fact_check": {
+      "enabled": true,
+      "require_citations": true,
+      "google_search_grounding": true,
+      "max_claims": 10,
+      "max_sources_per_claim": 3
+    },
+    "scoring": {
+      "formula_version": "social-review-v1",
+      "dimensions": [
+        {
+          "key": "integrity_and_evidence",
+          "label": "Integrity and evidence",
+          "description": "Factual support for informational content.",
+          "weight": 20
+        }
+      ],
+      "conversation_enabled": true,
+      "conversation_weight": 20,
+      "max_conversation_adjustment": 10
+    },
+    "publication": {
+      "positive_only": true,
+      "recommendation_only": true,
+      "disclose_automation": true,
+      "minimum_public_score": 70,
+      "require_novel_value": true,
+      "require_strength_and_recommendation": true,
+      "require_evidence_refs": true,
+      "allow_public_scores": false,
+      "allow_internal_diagnostics": false,
+      "allowed_value_types": [
+        "answer",
+        "fact_correction",
+        "verified_context",
+        "useful_gap",
+        "clarifying_question"
+      ],
+      "minimum_characters": 20,
+      "maximum_characters": 1000,
+      "public_rating": {
+        "enabled": true,
+        "placeholder": "{PUBLIC_RATING}",
+        "template": "{score}/10"
+      },
+      "language": {
+        "mode": "auto",
+        "default": "id"
+      }
+    }
+  },
+  "publication": {
+    "enabled": false,
+    "daily_limit_per_account": 50,
+    "hourly_limit_per_account": 5,
+    "min_minutes_between_posts": 10,
+    "require_fresh_evidence_hours": 6,
+    "retry_failed_after_hours": 24,
+    "max_publish_attempts": 3
+  }
+}

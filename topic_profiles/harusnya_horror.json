@@ -1,0 +1,53 @@
+{
+  "name": "harusnya_horror",
+  "core_terms": [
+    "harusnya horror",
+    "harusnya horor"
+  ],
+  "token_terms": [
+    "harusnya",
+    "horror",
+    "horor"
+  ],
+  "hashtags": [
+    "harusnyahorror",
+    "harusnyahoror"
+  ],
+  "aliases": [
+    "film harusnya horror",
+    "film harusnya horor"
+  ],
+  "entities": [],
+  "context_terms": [
+    "film",
+    "trailer",
+    "teaser",
+    "poster",
+    "bioskop",
+    "official",
+    "rilis",
+    "tayang",
+    "sutradara",
+    "produser",
+    "horor",
+    "horror"
+  ],
+  "generic_terms": [
+    "harusnya",
+    "horror",
+    "horor",
+    "film"
+  ],
+  "exclusion_terms": [
+    "cerita horor",
+    "kisah horor",
+    "rumah horor",
+    "game horror",
+    "makeup horror",
+    "horror story",
+    "urban legend"
+  ],
+  "trusted_sources": [],
+  "accept_threshold": 70,
+  "review_threshold": 40
+}

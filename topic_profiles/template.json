@@ -1,0 +1,50 @@
+{
+  "name": "replace_with_topic_name",
+  "core_terms": [
+    "exact topic phrase"
+  ],
+  "token_terms": [
+    "important",
+    "individual",
+    "topic",
+    "words"
+  ],
+  "hashtags": [
+    "exacthashtag"
+  ],
+  "aliases": [
+    "old name",
+    "common typo",
+    "abbreviation"
+  ],
+  "entities": [
+    "brand",
+    "person",
+    "company",
+    "product",
+    "campaign"
+  ],
+  "context_terms": [
+    "category",
+    "industry",
+    "event",
+    "release",
+    "location"
+  ],
+  "generic_terms": [
+    "single",
+    "ambiguous",
+    "query",
+    "words"
+  ],
+  "exclusion_terms": [
+    "known unrelated phrase",
+    "different meaning"
+  ],
+  "trusted_sources": [
+    "official_account",
+    "official.domain"
+  ],
+  "accept_threshold": 70,
+  "review_threshold": 40
+}

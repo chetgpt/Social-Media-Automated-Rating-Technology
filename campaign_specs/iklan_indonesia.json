@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "name": "iklan_indonesia",
+  "project": "iklan_indonesia",
+  "title": "Iklan Indonesia",
+  "timezone": "Asia/Jakarta",
+  "platforms": ["youtube", "tiktok", "instagram", "facebook", "x"],
+  "keywords": {
+    "core": ["IKLAN"],
+    "hashtags": ["iklan"],
+    "entities": ["Indonesia"],
+    "optional": ["commercial", "commercials", "advertisement", "advertising", "promosi"],
+    "campaign": [],
+    "exclusions": []
+  },
+  "queries": {
+    "all": ["IKLAN Indonesia", "iklan Indonesia", "commercial Indonesia"],
+    "youtube": [],
+    "tiktok": [],
+    "instagram": [],
+    "facebook": [],
+    "x": []
+  },
+  "accounts": {
+    "youtube": [],
+    "tiktok": [],
+    "instagram": [],
+    "facebook": [],
+    "x": []
+  },
+  "date_windows": [],
+  "discovery": {
+    "include_core": true,
+    "include_hashtags": true,
+    "include_campaign": false,
+    "pair_entities_with_core": true,
+    "pair_optional_with_core": true,
+    "anchor_limit": 0,
+    "max_sources_per_platform": 0
+  },
+  "relevance": {
+    "mode": "filter",
+    "review_action": "scrape",
+    "accept_threshold": 30,
+    "review_threshold": 10,
+    "require_anchor": false,
+    "anchor_terms": ["iklan", "commercial", "advertisement", "advertising", "promosi"],
+    "ambiguous_terms": [],
+    "context_terms": ["indonesia", "jakarta", "viral", "tv", "televisi", "brand"]
+  },
+  "collection": {
+    "videos_per_source": 0,
+    "discovery_candidates_per_source": 0,
+    "comments_per_post": 0,
+    "refresh_limit_per_platform": 0,
+    "refresh_after_hours": 0,
+    "report_hours": [24, 72, 168],
+    "transport_mode": "api-first"
+  },
+  "storage": {
+    "provider": "none",
+    "required": false
+  }
+}

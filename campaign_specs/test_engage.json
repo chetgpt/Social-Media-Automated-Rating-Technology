@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "name": "test_engage",
+  "project": "test_engage_project_v2",
+  "title": "Test Engage Mode V2",
+  "timezone": "Asia/Jakarta",
+  "platforms": [
+    "tiktok"
+  ],
+  "keywords": {
+    "core": [
+      "mechanical keyboard build"
+    ]
+  },
+  "queries": {
+    "all": [],
+    "youtube": [],
+    "tiktok": [],
+    "instagram": [],
+    "facebook": [],
+    "x": []
+  },
+  "accounts": {
+    "youtube": [],
+    "tiktok": [],
+    "instagram": [],
+    "facebook": [],
+    "x": []
+  },
+  "date_windows": [],
+  "discovery": {
+    "include_core": true,
+    "include_hashtags": false,
+    "include_campaign": false,
+    "pair_entities_with_core": false,
+    "pair_optional_with_core": false,
+    "anchor_limit": 1,
+    "max_sources_per_platform": 1
+  },
+  "relevance": {
+    "mode": "filter",
+    "review_action": "skip",
+    "accept_threshold": 30,
+    "review_threshold": 10,
+    "require_anchor": false,
+    "anchor_terms": [],
+    "ambiguous_terms": [],
+    "context_terms": []
+  },
+  "collection": {
+    "videos_per_source": 1,
+    "discovery_candidates_per_source": 1,
+    "comments_per_post": 2,
+    "refresh_limit_per_platform": 0,
+    "refresh_after_hours": 0,
+    "report_hours": [
+      24
+    ],
+    "transport_mode": "api-first",
+    "keywords": [
+      "home espresso setup"
+    ]
+  },
+  "profiles": {
+    "enabled": false
+  },
+  "analysis": {
+    "enabled": true,
+    "mode": "shadow",
+    "provider": "manual",
+    "model": "",
+    "analysis_version": "native-text-v4",
+    "max_posts_per_run": 1,
+    "max_comments_per_post": 5,
+    "max_attempts": 1,
+    "fact_check": {
+      "enabled": false
+    },
+    "scoring": {
+      "formula_version": "social-review-v1",
+      "dimensions": [
+        {
+          "key": "quality",
+          "weight": 1.0,
+          "minimum_required": 0
+        }
+      ],
+      "conversation_enabled": false,
+      "post_weight": 80,
+      "conversation_weight": 20,
+      "max_conversation_adjustment": 10,
+      "require_core_content_for_publication": false,
+      "video_requires_transcript_or_subtitle": false,
+      "genre_mode": "auto"
+    },
+    "publication": {
+      "mode": "live",
+      "require_approval": false,
+      "positive_only": false,
+      "min_public_score": 0,
+      "recommendation_only": true,
+      "require_strength_and_recommendation": false,
+      "require_score": false,
+      "require_publication_decision": false,
+      "require_novel_value": false,
+      "require_evidence_refs": false,
+      "require_fresh_evidence": false,
+      "min_confidence": 0,
+      "min_data_completeness": 0,
+      "min_public_comment_characters": 10,
+      "max_public_comment_characters": 500,
+      "max_evidence_age_minutes": 60,
+      "max_draft_age_minutes": 60,
+      "daily_limit": 1,
+      "allowed_platforms": [
+        "tiktok"
+      ],
+      "allowed_value_types": [],
+      "disclose_automation": true,
+      "allow_public_scores": true,
+      "public_rating": {
+        "enabled": true
+      },
+      "language": {
+        "mode": "auto",
+        "default": "id"
+      },
+      "allow_internal_diagnostics": false
+    }
+  },
+  "storage": {
+    "provider": "none",
+    "required": false
+  }
+}
