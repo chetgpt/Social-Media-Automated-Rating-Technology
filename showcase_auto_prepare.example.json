@@ -1,0 +1,9 @@
+{
+  "schema_version": "tiktok-showcase-auto-prepare-v1",
+  "enabled": false,
+  "public_media_verified": false,
+  "capture_root": "D:\\Kita Co. Lab\\MAIN Backup for Antigravity\\TEST Tiktok Scraper Modules\\comments_data\\publication_captures",
+  "public_directory": "D:\\replace-with-your-served-directory\\tiktok-showcases",
+  "public_base_url": "https://media.example.com/tiktok-showcases",
+  "ffmpeg_path": "C:\\ffmpeg-2023-09-07-git-9c9f48e7f2-full_build\\bin\\ffmpeg.exe"
+}

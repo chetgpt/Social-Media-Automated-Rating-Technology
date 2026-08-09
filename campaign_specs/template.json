@@ -1,0 +1,220 @@
+{
+  "schema_version": 1,
+  "name": "client_campaign",
+  "project": "client_campaign_v1",
+  "title": "Client Campaign",
+  "timezone": "Asia/Jakarta",
+  "platforms": ["youtube", "tiktok", "instagram", "facebook", "x"],
+  "keywords": {
+    "core": ["brand or campaign name"],
+    "hashtags": ["BrandOrCampaign"],
+    "entities": ["spokesperson or product"],
+    "optional": ["generic term"],
+    "campaign": ["campaign activation phrase"],
+    "exclusions": ["known unrelated phrase"]
+  },
+  "queries": {
+    "all": [],
+    "youtube": [],
+    "tiktok": [],
+    "instagram": [],
+    "facebook": [],
+    "x": []
+  },
+  "accounts": {
+    "youtube": [
+      {"name": "Official channel", "url": "https://www.youtube.com/@example", "role": "owned"}
+    ],
+    "tiktok": [
+      {"handle": "example", "role": "owned"}
+    ],
+    "instagram": [
+      {"handle": "example", "role": "owned"}
+    ],
+    "facebook": [
+      {"url": "https://www.facebook.com/example", "role": "owned"}
+    ],
+    "x": [
+      {"handle": "example", "role": "owned"}
+    ]
+  },
+  "date_windows": [
+    {"name": "monitoring", "start": "2026-01-01T00:00:00+07:00", "end": "2026-01-31T23:59:59+07:00"}
+  ],
+  "discovery": {
+    "include_core": true,
+    "include_hashtags": true,
+    "include_campaign": true,
+    "pair_entities_with_core": true,
+    "pair_optional_with_core": true,
+    "anchor_limit": 2,
+    "max_sources_per_platform": 0
+  },
+  "relevance": {
+    "mode": "filter",
+    "review_action": "skip",
+    "accept_threshold": 60,
+    "review_threshold": 30,
+    "require_anchor": true,
+    "anchor_terms": ["full brand, product, campaign, or topic name"],
+    "ambiguous_terms": ["short acronym or collision-prone alias"],
+    "context_terms": ["product category", "campaign context"]
+  },
+  "collection": {
+    "videos_per_source": 0,
+    "discovery_candidates_per_source": 0,
+    "comments_per_post": 0,
+    "refresh_limit_per_platform": 20,
+    "refresh_after_hours": 6,
+    "report_hours": [24, 72],
+    "transport_mode": "api-first"
+  },
+  "profiles": {
+    "enabled": false,
+    "limit_per_run": 100,
+    "cache_days": 14,
+    "browser_fallback": true
+  },
+  "analysis": {
+    "enabled": true,
+    "mode": "shadow",
+    "provider": "manual",
+    "model": "",
+    "analysis_version": "native-text-v4",
+    "max_posts_per_run": 20,
+    "max_comments_per_post": 200,
+    "max_attempts": 3,
+    "fact_check": {
+      "enabled": true,
+      "require_citations": true,
+      "google_search_grounding": true,
+      "max_claims": 10,
+      "max_sources_per_claim": 3
+    },
+    "scoring": {
+      "formula_version": "social-review-v1",
+      "dimensions": [
+        {
+          "key": "integrity_and_evidence",
+          "label": "Integrity and evidence",
+          "description": "Factual support for informational content, or authenticity and internal coherence for opinion, entertainment, and creative content.",
+          "weight": 20
+        },
+        {
+          "key": "substance_and_audience_value",
+          "label": "Substance and audience value",
+          "description": "The post's practical, intellectual, emotional, or entertainment value for its intended audience.",
+          "weight": 20
+        },
+        {
+          "key": "clarity_and_craft",
+          "label": "Clarity and craft",
+          "description": "How clearly, coherently, and effectively the available native text communicates.",
+          "weight": 15
+        },
+        {
+          "key": "context_and_completeness",
+          "label": "Context and completeness",
+          "description": "Whether important qualifications, conditions, and context are present.",
+          "weight": 15
+        },
+        {
+          "key": "originality_and_perspective",
+          "label": "Originality and perspective",
+          "description": "Whether the post offers a specific, distinctive, or meaningfully framed perspective.",
+          "weight": 10
+        },
+        {
+          "key": "audience_fit",
+          "label": "Audience fit",
+          "description": "How relevant, accessible, and appropriate the post is for its likely audience.",
+          "weight": 10
+        },
+        {
+          "key": "responsibility_and_safety",
+          "label": "Responsibility and safety",
+          "description": "Whether the post avoids unsupported harmful guidance and misleading framing.",
+          "weight": 10
+        }
+      ],
+      "conversation_enabled": true,
+      "conversation_dimensions": [
+        {"key": "relevant_contribution", "label": "Relevant contribution", "weight": 25},
+        {"key": "specific_useful_information", "label": "Specific useful information", "weight": 25},
+        {"key": "meaningful_perspective_diversity", "label": "Meaningful perspective diversity", "weight": 15},
+        {"key": "question_resolution", "label": "Question resolution", "weight": 15},
+        {"key": "creator_responsiveness", "label": "Creator responsiveness", "weight": 10},
+        {"key": "civility_and_responsibility", "label": "Civility and responsibility", "weight": 10}
+      ],
+      "post_weight": 80,
+      "conversation_weight": 20,
+      "max_conversation_adjustment": 10,
+      "require_core_content_for_publication": true,
+      "video_requires_transcript_or_subtitle": true,
+      "genre_mode": "auto"
+    },
+    "publication": {
+      "mode": "shadow",
+      "require_approval": true,
+      "positive_only": true,
+      "min_public_score": 70,
+      "recommendation_only": true,
+      "require_strength_and_recommendation": true,
+      "require_score": true,
+      "require_publication_decision": true,
+      "require_novel_value": true,
+      "require_evidence_refs": true,
+      "require_fresh_evidence": true,
+      "min_confidence": 75,
+      "min_data_completeness": 70,
+      "min_public_comment_characters": 20,
+      "max_public_comment_characters": 1000,
+      "max_evidence_age_minutes": 60,
+      "max_draft_age_minutes": 60,
+      "daily_limit": 5,
+      "allowed_platforms": ["youtube", "tiktok", "instagram", "facebook", "x"],
+      "allowed_value_types": [
+        "answer",
+        "fact_correction",
+        "verified_context",
+        "useful_gap",
+        "clarifying_question"
+      ],
+      "disclose_automation": true,
+      "allow_public_scores": true,
+      "public_rating": {
+        "enabled": true,
+        "required": true,
+        "scale": 10,
+        "increment": 0.1,
+        "placeholder": "{PUBLIC_RATING}"
+      },
+      "language": {
+        "mode": "auto",
+        "default": "id",
+        "fixed": "",
+        "secondary": "",
+        "match_creator_tone": true,
+        "allow_code_switching": true,
+        "neutral_on_low_confidence": true
+      },
+      "allow_internal_diagnostics": false
+    }
+  },
+  "storage": {
+    "provider": "google-drive",
+    "root_folder_name": "Social Listening Projects",
+    "account_hint": "",
+    "mount_path": "I:\\My Drive",
+    "archive_raw_runs": true,
+    "archive_backlog": true,
+    "raw_run_archive_timing": "final",
+    "upload_compiled": true,
+    "upload_logs": true,
+    "snapshot_database": true,
+    "delete_local_after_upload": false,
+    "required": true,
+    "chunk_size_mb": 16,
+    "max_retries": 7
+  }
+}

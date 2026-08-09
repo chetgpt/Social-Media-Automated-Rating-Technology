@@ -1,0 +1,72 @@
+# Python runtime
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Local credentials and authenticated browser state
+.env
+.env.*
+!.env.example
+*storage_state*.json
+tiktok_scraper/data/tiktok_cookies.json
+tiktok_scraper/data/tiktok_tokens.json
+metrics_tiktok_scraper/data/tiktok_cookies.json
+metrics_tiktok_scraper/data/tiktok_tokens.json
+tiktok_content_posting_token*.json
+showcase_secrets/
+showcase_auto_prepare.json
+.google_drive/
+client_secret*.json
+google_drive_credentials*.json
+google_drive_token*.json
+
+# Harvested data, reports, and runtime state
+comments_data/
+analysis_reports/
+FINAL_OUTPUT_SUNFLOWER/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
+*.db-shm
+*.db-wal
+*.log
+evidence_packet_*.json
+analysis_results.jsonl
+latest_queue.json
+all_known_users.json
+operasi_pesta_copet_users.json
+test_payload_*.json
+test_payload_*.html
+
+# Workspace-local scratch, tool caches, and generated queues
+.wrangler/
+scratch/
+tmp/
+logs/
+/*.jsonl
+/tmp_*.json
+/*.html
+/*.pdf
+/*.png
+/*.sql
+/*.bak
+/*.original
+*.pid
+db_check.txt
+fb_names_debug.txt
+
+# Browser diagnostics
+tiktok_dom_dump.html
+standalone_page.html
+standalone_headed*.png
+standalone_page.png
+
+# Local editor and OS files
+.vscode/
+.DS_Store
+Thumbs.db
