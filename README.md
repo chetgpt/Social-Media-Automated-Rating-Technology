@@ -1,11 +1,13 @@
-# TikTok LISTEN, AUDIT, and ENGAGE
+# TikTok PULSE, LISTEN, AUDIT, and ENGAGE
 
-This workspace has three active TikTok-only workflow modes. `LISTEN` collects
-and stores exact evidence. `AUDIT` collects, analyzes, scores, and stores a
-provisional portfolio report without creating replies. `ENGAGE` continues from
-evidence and analysis through drafting and independent review, and permits
-guarded publication only after presentation-bound explicit user authorization
-for every exact response.
+This workspace has three canonical durable TikTok-only workflow modes plus one
+quick-look mode. `LISTEN` collects and stores exact evidence. `AUDIT` collects,
+analyzes, scores, and stores a provisional portfolio report without creating
+replies. `ENGAGE` continues from evidence and analysis through drafting and
+independent review, and permits guarded publication only after
+presentation-bound explicit user authorization for every exact response.
+`PULSE` (chat alias `QUICK AUDIT`) is a separate noncanonical, ephemeral sample
+that favors speed and never creates a response or publication path.
 
 Older multiplatform LISTEN/reporting code is retained in
 `LEGACY_LISTEN.md`, but it is not an active LISTEN, AUDIT, or ENGAGE execution
@@ -17,6 +19,10 @@ are active, legacy reference material, or intentionally kept out of Git.
 Chat shortcuts:
 
 ```text
+PULSE: 3D printing, 5 posts
+QUICK AUDIT: 3D printing, 5 posts
+PULSE CREATOR: @maker, 5 posts
+PULSE URL: https://www.tiktok.com/@maker/video/1234567890
 LISTEN: 3D printing, 50 posts
 LISTEN CREATOR: @maker, ALL
 AUDIT: 3D printing, 50 posts
@@ -38,6 +44,22 @@ Use `& $EngagePython` in place of `py -3` in the examples below. Bare
 shadow it, and this machine's `py -3` launcher is not registered.
 
 ## Workflow boundaries
+
+PULSE has a separate quick path:
+
+```text
+authenticated Profile 7/account preflight
+-> one bounded shallow topic/profile pass or one direct URL
+-> one compact built-in-AI analysis batch
+-> display noncanonical quick signals and coverage
+-> discard
+-> stop
+```
+
+PULSE does not use canonical exact-count evidence, project/master databases,
+run IDs, stored queues/reports, hashes, resume/refresh, drafting, review,
+authorization, or publication. It may return `X/N` from its one pass. Its
+result cannot be promoted into LISTEN, AUDIT, or ENGAGE.
 
 LISTEN has one terminal sequence:
 
@@ -80,13 +102,14 @@ authenticated social-browser/account preflight
 -> one receipt and ENGAGE-state update per response
 ```
 
-Collection never authorizes publication. A request for `N` posts succeeds only
-with `N` unique evidence-ready TikTok post IDs. If bounded discovery cannot
-produce `N`, the run records `collection_incomplete: X/N`, stops, and does not
-analyze, draft, or publish the underfilled batch. The common 50-post example is
-not a ceiling: the pipeline derives its count from the run and supports larger
-requests without silently truncating them to 50. Its related-query discovery
-plan scales from `N` as well, rather than stopping at a fixed query frontier.
+Canonical collection never authorizes publication. A LISTEN, AUDIT, or ENGAGE
+request for `N` posts succeeds only with `N` unique evidence-ready TikTok post
+IDs. If bounded discovery cannot produce `N`, the run records
+`collection_incomplete: X/N`, stops, and does not analyze, draft, or publish the
+underfilled batch. The common 50-post example is not a ceiling: the pipeline
+derives its count from the run and supports larger requests without silently
+truncating them to 50. Its related-query discovery plan scales from `N` as
+well, rather than stopping at a fixed query frontier.
 
 The requested collection count is not a guaranteed comment quota. Analysis can
 skip any post for which no safe, grounded, useful response exists. Conversely,
@@ -112,12 +135,12 @@ truth for that run's exact-count and later workflow gates.
 
 The executing model does not depend on the user to start a browser.
 `engage_tiktok.py collect` automatically starts or reuses Microsoft Edge's
-existing `Profile 7`, then verifies the local connection, TikTok session, and
-active TikTok handle before collecting anything. Profile 7 may be visibly
+existing `Profile 7` for canonical workflows; `quick_audit_tiktok.py collect`
+owns the same preflight for PULSE. Both verify the local connection, TikTok
+session, and active TikTok handle before discovery. Profile 7 may be visibly
 labelled `Profile 1` in Edge; the profile directory is the canonical identity.
-It is expected to contain logged-in sessions for multiple social networks.
-The launcher retries one transient startup failure inside the same preflight
-before marking the run browser-blocked.
+It is expected to contain logged-in sessions for multiple social networks. The
+launcher retries one transient startup failure inside the same preflight.
 
 These low-level commands are available for diagnosis:
 
@@ -127,7 +150,7 @@ These low-level commands are available for diagnosis:
 ```
 
 Both commands are idempotent and are restricted to Edge's real user-data root,
-profile directory `Profile 7`, in `existing_profile_attach` mode. Active
+profile directory `Profile 7`, in `existing_profile_attach` mode. Active PULSE,
 LISTEN, AUDIT, and ENGAGE workflows never create or substitute Edge Default, a
 managed/temporary browser profile, or an in-app browser.
 
@@ -138,6 +161,54 @@ navigation cannot be resolved after retry, or the active handle is wrong.
 active handle is captured and bound to the run automatically.
 
 Workers open temporary tabs and never close the shared browser.
+
+## Quick audit (PULSE)
+
+Use the required interpreter and one of these shallow collection commands:
+
+```powershell
+& $EngagePython .\quick_audit_tiktok.py collect --topic "3D printing" --posts 5
+& $EngagePython .\quick_audit_tiktok.py collect --creator "@maker" --posts 5
+& $EngagePython .\quick_audit_tiktok.py collect `
+  --url "https://www.tiktok.com/@maker/video/1234567890"
+```
+
+The command prints an ephemeral `snapshot` plus one compact `analysis_input`.
+The interactive built-in Codex/Antigravity model analyzes every sampled row in
+one batch. It then passes a JSON object containing `snapshot` and `analyses` to
+the pure validator through standard input:
+
+```powershell
+$PulseBundleJson | & $EngagePython .\quick_audit_tiktok.py report `
+  --actor codex-pulse-analysis
+```
+
+`$PulseBundleJson` must contain serialized JSON text, not a formatted PowerShell
+object. The result shows requested, sampled, analyzed, rated, and unrated counts;
+per-post source links; evidence omissions; confidence; limitations; and three
+equal-weight `/10` signals: `quick_content_signal`,
+`quick_interest_signal`, and bounded-80/20 `quick_overall_signal`. These are
+quick sample signals, not canonical AUDIT portfolio ratings or public-comment
+ratings.
+
+For speed, PULSE uses only directly returned caption/description, current
+public metrics, and any direct visual description. It omits deep audiovisual
+interpretation, transcripts/subtitles, comment text, replies, global-new
+deduplication, adaptive replacements, and terminal profile inventory. A row
+with metrics but no semantic text stays sampled and is explicitly `unrated`.
+There is no hidden post-count ceiling, but PULSE makes only one bounded page,
+so large targets are likely partial and are no longer a flash operation.
+
+Every result carries this boundary:
+
+```text
+NON-CANONICAL, EPHEMERAL SNAPSHOT — sample-based; not a full AUDIT, not a creator/person rating, not publication eligibility, and not comparable across runs.
+```
+
+PULSE does not write audit evidence/results to project or master databases and
+cannot accept `ALL`, refresh, resume, database, draft, review, authorization,
+handoff, or publication arguments. Use a fresh canonical AUDIT when durable,
+deep, reproducible scoring is required.
 
 ## 2. Collect exactly the requested number
 
@@ -687,6 +758,7 @@ batch stops at the first failed or uncertain result by default.
 ## Commands and tests
 
 ```powershell
+& $EngagePython quick_audit_tiktok.py --help
 & $EngagePython engage_tiktok.py --help
 & $EngagePython engage_tiktok.py --database <database> status --run-id <run-id>
 & $EngagePython engage_tiktok.py --database <database> audit-report --run-id <run-id>

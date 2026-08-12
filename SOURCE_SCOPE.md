@@ -6,9 +6,9 @@ authenticated workstation state.
 
 ## Active workflow source
 
-`AGENTS.md` and `WORKFLOWS.md` define the binding TikTok-only LISTEN, AUDIT,
-ENGAGE, publication, and comment-showcase paths. The active implementation is
-centered on `engage_tiktok.py`, `social_browser.py`,
+`AGENTS.md` and `WORKFLOWS.md` define the binding TikTok-only PULSE, LISTEN,
+AUDIT, ENGAGE, publication, and comment-showcase paths. The active
+implementation is centered on `quick_audit_tiktok.py`, `engage_tiktok.py`, `social_browser.py`,
 `tiktok_master_database.py`, the guarded publication/showcase modules, and
 their tests.
 
@@ -17,7 +17,7 @@ their tests.
 Some source is retained because it provides reusable profile, enrichment,
 export, storage, and test support. Older multi-platform collectors and metrics
 modules may also be retained for reference. Their presence does not authorize
-their use for LISTEN, AUDIT, or ENGAGE.
+their use for PULSE, LISTEN, AUDIT, or ENGAGE.
 
 In particular, `incremental_project.py`, `run_scraper.py`,
 `metrics_tiktok_scraper/`, and older platform scrapers are legacy/reference

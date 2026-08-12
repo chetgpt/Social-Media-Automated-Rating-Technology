@@ -1,11 +1,12 @@
 # TikTok ENGAGE Workspace Contract
 
 This workspace is operated as a TikTok-only evidence and engagement project
-with three active workflow modes: `LISTEN` collects evidence, `AUDIT` collects
-and analyzes evidence, and `ENGAGE` continues through response work. Older
-multiplatform collection and reporting code may remain in the repository for
-reference, but it is not a default workflow and must not be used to run a
-LISTEN, AUDIT, or ENGAGE request.
+with three canonical durable workflow modes: `LISTEN` collects evidence,
+`AUDIT` collects and analyzes evidence, and `ENGAGE` continues through response
+work. `PULSE` (also called `QUICK AUDIT`) is a separate noncanonical, ephemeral
+quick-look mode. Older multiplatform collection and reporting code may remain
+in the repository for reference, but it is not a default workflow and must not
+be used to run a LISTEN, AUDIT, ENGAGE, or PULSE request.
 
 Treat the shortcuts and gates below as persistent instructions in every task
 opened from this workspace.
@@ -39,6 +40,15 @@ opened from this workspace.
   `refresh_known` for a fixed number of stale known posts owned by that exact
   creator, analyzes the new observations, stores the creator report, and
   stops. It never clears or changes comment-publication history.
+- `PULSE: <topic>, <positive sample amount>` or
+  `QUICK AUDIT: <topic>, <positive sample amount>` runs one shallow topic
+  discovery pass, analyzes the sample with the interactive built-in AI,
+  displays noncanonical quick signals, discards the packet, and stops.
+- `PULSE CREATOR: <@handle or profile URL>, <positive sample amount>` takes one
+  finite profile-order sample. It never accepts `ALL`, inventories the full
+  profile, or claims a creator rating.
+- `PULSE URL: <canonical TikTok video or photo URL>` analyzes one shallow
+  direct-post observation. It is still noncanonical and ephemeral.
 - `ENGAGE: <topic>, <post amount>` defaults to `ENGAGE SHADOW`.
 - `ENGAGE CREATOR: <@handle or profile URL>, <post amount or ALL>` defaults to
   `ENGAGE SHADOW` and replaces topic search with exact-owner profile
@@ -73,7 +83,7 @@ and perform no outbound TikTok action.
 
 ## Required Python Interpreter
 
-On this workstation, run ENGAGE scripts with
+On this workstation, run active workspace scripts with
 `C:\Users\DELL\AppData\Local\Programs\Python\Python311\python.exe`. Do not use
 bare `python` from the workspace and do not use `py -3`; the launcher is not
 registered for this installation. Models must resolve and invoke the real
@@ -93,8 +103,9 @@ Before TikTok discovery, live collection or evidence refresh, or any outbound
 TikTok action:
 
 1. The executing model must start or reuse Profile 7 itself. The
-   `engage_tiktok.py collect` command performs this automatically before
-   collection. For diagnosis, the equivalent low-level commands are
+   `engage_tiktok.py collect` command performs this automatically for canonical
+   runs; `quick_audit_tiktok.py collect` owns the same preflight for PULSE. For
+   diagnosis, the equivalent low-level commands are
    `<required-python> social_browser.py start` and
    `<required-python> social_browser.py status`.
 2. Verify that the local debugging connection is reachable, the connected
@@ -105,10 +116,12 @@ TikTok action:
    open and close temporary tabs but never close the browser.
 
 Built-in AI analysis, AUDIT report generation, drafting, independent review,
-response storage, `show-response`, and authorization operate only on stored
-evidence and local workflow state. They must not start, attach to, or
-revalidate Profile 7. Revalidate only when TikTok is actually accessed: during
-collection or an evidence refresh, and immediately before publication.
+response storage, `show-response`, and authorization operate only on the
+already collected packet or stored evidence. They must not start, attach to, or
+revalidate Profile 7. PULSE performs its immediate analysis from the emitted
+in-memory packet after its one preflight; canonical modes use local workflow
+state. Revalidate only when TikTok is actually accessed: during collection or
+an evidence refresh, and immediately before publication.
 
 Never ask the user merely to start Edge: first attempt the automatic Profile 7
 startup/reuse path. Never substitute Edge Default, a managed or temporary
@@ -125,6 +138,10 @@ publication. Never print or persist cookie values, authorization headers, or
 session tokens; ENGAGE browser credentials remain in memory only.
 
 ## Exact Collection Contract
+
+This exact-count and persistence contract applies to canonical `LISTEN`,
+`AUDIT`, and `ENGAGE` runs. PULSE follows the separate best-effort sampling
+contract below and must never represent its `X/N` sample as canonical evidence.
 
 A request for `N` posts succeeds only when exactly `N` unique TikTok post IDs
 have evidence-ready records. Search results, duplicate URLs, inaccessible
@@ -245,6 +262,68 @@ collection and master-registry synchronization; an analysis export from that
 run must be rejected. `AUDIT` creates `workflow=audit`, must use shadow mode,
 and permits only the collection and analysis/report stages described below.
 `ENGAGE` creates `workflow=engage`.
+
+## Required PULSE Sequence
+
+Every PULSE request must use this separate stopping path:
+
+```text
+Profile_7_browser_and_account_preflight
+-> one_bounded_topic_or_creator_pass_or_one_direct_URL
+-> deduplicate_within_the_sample
+-> shallow_in_memory_projection
+-> one_compact_built_in_AI_analysis_batch
+-> deterministic_noncanonical_quick_signals
+-> display
+-> discard
+-> stop
+```
+
+Use only `quick_audit_tiktok.py`. Its `collect` command emits a compact JSON
+packet to standard output. The current interactive Codex/Antigravity model must
+analyze every sampled row in one batch without an external LLM API, then pass
+`{snapshot, analyses}` through the `report --actor <built-in-AI-identity>`
+validator on standard input. The report command is local and must not touch
+Profile 7.
+
+PULSE's positive `N` is a sample target, not an exact evidence-ready contract.
+It makes one search page or one finite profile page and may return `X/N` with
+the reason. It does not expand related queries, hydrate replacements, enumerate
+a terminal creator frontier, consult the global-new registry, or fail the whole
+sample merely because `X < N`. `ALL`, refresh, resume, and promotion into a
+canonical run are invalid. A fresh LISTEN, AUDIT, or ENGAGE collection is
+required for canonical use.
+
+The shallow packet may retain only the canonical post ID/URL and creator,
+observation time, caption or description when directly returned, current
+public metrics, and an explicit directly available visual description. Deep
+audiovisual interpretation, transcript/subtitle retrieval, comment text,
+replies, and unseen photo/carousel semantics are omitted for speed. A row with
+no caption or direct visual description remains `unrated`; metrics alone must
+not be used to guess content quality.
+
+PULSE creates no project or master database row, run ID, checkpoint, queue
+file, evidence/report hash, stored report, response type, draft, review,
+presentation, approval token, authorization, handoff, publication row, or
+receipt. Required output flags are `non_canonical=true`, `ephemeral=true`,
+`persisted=false`, `not_person_rating=true`, and
+`publication_eligible=false`. Every result must show requested, sampled,
+analyzed, rated, and unrated counts; sampling method; per-post links; present
+and omitted fields; signal denominators; confidence; limitations; and this
+banner:
+
+```text
+NON-CANONICAL, EPHEMERAL SNAPSHOT — sample-based; not a full AUDIT, not a creator/person rating, not publication eligibility, and not comparable across runs.
+```
+
+For each rateable row, the AI supplies `post_quality_score` and the shallow
+interest proxy `conversation_value_score` on 0-100 scales. Code reuses the
+bounded 80/20 arithmetic only to calculate `quick_overall_score`; it must not
+call that result canonical `analysis_score`, `conversation_value`,
+`engage_suitability`, or a public-comment rating. Aggregate equal-weight means
+are displayed as `quick_content_signal`, `quick_interest_signal`, and
+`quick_overall_signal` on `/10`, with decimal round-half-up to one decimal.
+Zero rateable rows produce unavailable signals rather than `0.0`.
 
 ## Required AUDIT Sequence
 
@@ -598,12 +677,13 @@ reservation, submit-intent, and outcome transitions must commit atomically.
 
 ## Prohibited Active-Workflow Paths
 
-- Never use `incremental_project.py` or `run_scraper.py` for LISTEN, AUDIT, or
-  ENGAGE. They are bulk LISTEN-era orchestrators and can trigger campaign-wide
-  sweeps.
+- Never use `incremental_project.py` or `run_scraper.py` for LISTEN, AUDIT,
+  ENGAGE, or PULSE. They are bulk LISTEN-era orchestrators and can trigger
+  campaign-wide sweeps.
 - Use only verified targeted TikTok discovery/collection paths. A single-post
-  fetch must accept a specific TikTok URL or video ID; a batch collector must
-  enforce the exact-count contract above.
+  fetch must accept a specific TikTok URL or video ID. Canonical LISTEN, AUDIT,
+  and ENGAGE batch collectors must enforce the exact-count contract above;
+  PULSE alone uses its documented one-pass `X/N` sampling contract.
 - Never use direct SQL injection, fabricated analysis rows, manual approval
   scripts, empty-packet hashes, or hash-repair scripts to bypass workflow
   state.
@@ -614,5 +694,8 @@ reservation, submit-intent, and outcome transitions must commit atomically.
   Never fabricate, reuse, or transfer an approval token to a different identity, target, response, or review.
 - Never infer live authorization from scraping, testing, analysis, drafting,
   AI review, `show-response`, `NO-API`, or `SHADOW`. Live authorization must be explicit.
+- Never write a PULSE packet or result into canonical workflow state, use it to
+  draft a response, or treat its quick signals as authorization or publication
+  eligibility.
 
 See `WORKFLOWS.md` for the operational sequence and examples.

@@ -1,10 +1,10 @@
 # Gemini 3.1 Pro TikTok Workflow Adapter
 
-**Adapter version:** 4.0.0
+**Adapter version:** 5.0.0
 
 **Applies to:** Gemini 3.1 Pro / Antigravity agentic execution in this workspace
 
-**Active workflows:** TikTok `LISTEN`, `AUDIT`, and `ENGAGE`
+**Active workflows:** TikTok `PULSE`, `LISTEN`, `AUDIT`, and `ENGAGE`
 
 This document is a model-specific execution adapter. It is deliberately short
 and does not redefine the workspace workflow.
@@ -53,6 +53,11 @@ already established by the current task.
 
 ## 3. New-project state contract
 
+This section applies to canonical LISTEN, AUDIT, and ENGAGE runs. PULSE is
+ephemeral: it creates no project slug, project/master database row, run ID, or
+resumable state. Never create or inspect a canonical run merely to execute a
+PULSE request.
+
 A new project creates a new local workflow scope; it does **not** create a new
 browser identity. Derive a filesystem-safe project slug and use:
 
@@ -83,10 +88,12 @@ The only permitted social browser is Microsoft Edge's real user-data root,
 directory `Profile 7`, in `existing_profile_attach` mode. Its visible Edge
 label may be `Profile 1`; the directory name is the canonical identity.
 
-The first state-changing workflow command must be the applicable
+The first state-changing canonical workflow command must be the applicable
 `engage_tiktok.py collect` or `resume-collect`. That command owns automatic
-Profile 7 startup or reuse. Do not ask the user to start Edge first. Do not run
-a separate low-level browser startup before every project.
+Profile 7 startup or reuse. For PULSE, `quick_audit_tiktok.py collect` owns the
+same Profile 7 preflight without creating canonical workflow state. Do not ask
+the user to start Edge first. Do not run a separate low-level browser startup
+before every project.
 
 Low-level commands are diagnostic only:
 
@@ -145,14 +152,28 @@ Never fall back to another browser/profile, lower the requested count, or create
 a replacement run.
 
 Profile 7 is accessed only for collection/refresh and immediately before an
-authorized outbound TikTok action. Analysis, AUDIT aggregation, drafting,
-review, storage, presentation, and authorization use local stored state and
-must not start, attach to, or revalidate the browser.
+authorized outbound TikTok action. PULSE analysis uses the already emitted
+ephemeral packet; canonical analysis, AUDIT aggregation, drafting, review,
+storage, presentation, and authorization use local state. None of those AI or
+local stages may start, attach to, or revalidate the browser.
 
 ## 5. Workflow routing and stopping boundaries
 
 Parse the user's shortcut according to `AGENTS.md`. When ambiguous, choose
 `ENGAGE SHADOW` and perform no outbound action.
+
+### PULSE / QUICK AUDIT
+
+```text
+browser preflight -> one shallow bounded sample -> one built-in AI batch
+-> deterministic noncanonical quick signals -> display -> discard -> stop
+```
+
+Route `QUICK AUDIT` to PULSE. Use only `quick_audit_tiktok.py`; do not create a
+canonical run or database. PULSE accepts a positive topic/creator sample or one
+direct post URL. It rejects `ALL`, refresh, resume, deep exact-count expansion,
+and every response/publication operation. An `X/N` sample is a valid visibly
+partial result. Metrics-only rows must be `unrated`, never guessed.
 
 ### LISTEN
 
@@ -196,6 +217,35 @@ an approval token in an attempt log.
 Use current CLI help as the final authority. These are shape examples, not
 hardcoded project values.
 
+### PULSE quick snapshot
+
+```powershell
+& $EngagePython .\quick_audit_tiktok.py collect `
+  --topic "3D printing" --posts 5
+
+& $EngagePython .\quick_audit_tiktok.py collect `
+  --creator "@maker" --posts 5
+
+& $EngagePython .\quick_audit_tiktok.py collect `
+  --url "https://www.tiktok.com/@maker/video/1234567890"
+```
+
+The command returns `snapshot` and `analysis_input` on standard output. Analyze
+all sampled posts once with built-in Gemini/Antigravity—never an external LLM
+API—and pass an ephemeral object containing `snapshot` and `analyses` to:
+
+```powershell
+$PulseBundleJson | & $EngagePython .\quick_audit_tiktok.py report `
+  --actor antigravity-gemini31-pulse
+```
+
+`$PulseBundleJson` is serialized JSON text, not a formatted PowerShell object.
+Do not write the packet to a project queue/database or invoke Profile 7 again
+during analysis/reporting. Present the mandatory noncanonical/ephemeral banner,
+counts, denominators, links, omissions, confidence, quick signals, and
+limitations; then discard the packet. Never call PULSE `audit_complete` or use
+its output in AUDIT/ENGAGE.
+
 ### New topic collection
 
 ```powershell
@@ -235,7 +285,8 @@ settings on resume.
 
 ### Built-in AI queue operations
 
-Use only canonical queue export/import commands with `--run-id` and `--file`.
+For canonical modes, use only canonical queue export/import commands with
+`--run-id` and `--file`.
 Every import also supplies the required `--actor`. Do not use `--input` or
 `--output`.
 
@@ -258,6 +309,13 @@ required. For a creator `ALL` run, the verified terminal inventory determines
 the frozen requested count.
 
 ## 7. Observable attempt ledger
+
+The durable attempt-ledger requirements below apply to canonical workflow
+evaluation. PULSE's default contract is ephemeral, so do not create a
+`comments_data/model_attempts` directory or persist its extracted packet,
+analyses, or scores. For PULSE, report only a sanitized observable command
+summary in chat. If a human explicitly requests an evaluation log, record
+command metadata only and keep the TikTok packet/results out of it.
 
 For model evaluation, create a sanitized attempt directory under:
 
@@ -320,9 +378,12 @@ Before declaring a task complete, verify:
 
 - the required Python interpreter and workspace were used;
 - only verified Edge directory `Profile 7` was used;
+- PULSE, when requested, used only the shallow ephemeral runner, displayed its
+  noncanonical banner and coverage, left no project/master run, and stopped
+  without any outbound action;
 - bridge origin and per-command disposition were reported without inference;
-- the local and master databases contain the same run and counters;
-- exact collection reached its immutable requested count;
+- for canonical modes, the local and master databases contain the same run and
+  counters and exact collection reached its immutable requested count;
 - no AI stage touched Profile 7;
 - LISTEN, AUDIT, and SHADOW stopped at their required boundaries;
 - ENGAGE drafting and review actors were independent;
