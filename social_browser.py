@@ -65,6 +65,11 @@ AUTH_COOKIE_RULES = {
     },
 }
 
+# Keep watcher process handles alive for the lifetime of the Python workflow.
+# Some Windows hosts tear down the consent watcher when its final Popen handle
+# is collected even though the child was started in a new process group.
+_OWNED_EDGE_BRIDGE_WATCHERS: dict[int, subprocess.Popen[bytes]] = {}
+
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -641,7 +646,7 @@ def start_edge_bridge_watcher(
     profile_name: str,
     window_handle: int,
 ) -> subprocess.Popen[bytes]:
-    return subprocess.Popen(
+    watcher = subprocess.Popen(
         edge_bridge_arguments(
             "watch",
             profile_name,
@@ -656,6 +661,8 @@ def start_edge_bridge_watcher(
             | getattr(subprocess, "CREATE_NO_WINDOW", 0)
         ),
     )
+    _OWNED_EDGE_BRIDGE_WATCHERS[watcher.pid] = watcher
+    return watcher
 
 
 def process_is_running(pid: int) -> bool:
@@ -712,7 +719,7 @@ def stop_verified_process_tree(pid: int, markers: list[str], label: str) -> None
     command_line = process_command_line(pid)
     if not all(marker.casefold() in command_line.casefold() for marker in markers):
         raise RuntimeError(f"Refusing to stop PID {pid}: it is not the {label}")
-    subprocess.run(
+    completed = subprocess.run(
         ["taskkill.exe", "/PID", str(pid), "/T", "/F"],
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
@@ -720,19 +727,39 @@ def stop_verified_process_tree(pid: int, markers: list[str], label: str) -> None
         timeout=15,
         check=False,
     )
+    for _ in range(20):
+        if not process_is_running(pid):
+            return
+        time.sleep(0.1)
+    raise RuntimeError(
+        f"Failed to stop the {label} process tree for PID {pid} "
+        f"(taskkill exit {completed.returncode})"
+    )
 
 
 def stop_edge_bridge_watcher(pid: int) -> None:
-    stop_verified_process_tree(
-        pid,
-        [str(LIVE_DEBUG_HELPER), "-Command watch"],
-        "Profile 7 consent watcher",
-    )
+    try:
+        stop_verified_process_tree(
+            pid,
+            [str(LIVE_DEBUG_HELPER), "-Command watch"],
+            "Profile 7 consent watcher",
+        )
+    except Exception:
+        # Preserve ownership if process identity could not be verified or the
+        # stop failed. A later status check can still safely reconcile it.
+        raise
+    else:
+        _OWNED_EDGE_BRIDGE_WATCHERS.pop(pid, None)
 
 
 def edge_bridge_watcher_is_running(pid: int) -> bool:
     """Return true only for a watcher launched by this workspace copy."""
+    owned = _OWNED_EDGE_BRIDGE_WATCHERS.get(pid)
+    if owned is not None and owned.poll() is not None:
+        _OWNED_EDGE_BRIDGE_WATCHERS.pop(pid, None)
+        return False
     if not process_is_running(pid):
+        _OWNED_EDGE_BRIDGE_WATCHERS.pop(pid, None)
         return False
     command_line = process_command_line(pid).casefold()
     return (

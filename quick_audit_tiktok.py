@@ -1275,13 +1275,16 @@ def main(argv: Sequence[str] | None = None) -> int:
                 payload.get("analyses"),
                 actor=args.actor,
             )
-        print(json.dumps(output, ensure_ascii=False, sort_keys=True))
+        # Windows PowerShell can attach a legacy cp1252 stdout even when the
+        # TikTok packet contains emoji or non-Latin text. ASCII-escaped JSON is
+        # lossless after parsing and cannot fail at the console encoding step.
+        print(json.dumps(output, ensure_ascii=True, sort_keys=True))
         return 0
     except PulseBrowserError as exc:
         print(
             json.dumps(
                 {"status": "browser_blocked", "error": _safe_error_message(exc)},
-                ensure_ascii=False,
+                ensure_ascii=True,
                 sort_keys=True,
             )
         )
@@ -1290,7 +1293,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(
             json.dumps(
                 {"status": "error", "error": _safe_error_message(exc)},
-                ensure_ascii=False,
+                ensure_ascii=True,
                 sort_keys=True,
             )
         )

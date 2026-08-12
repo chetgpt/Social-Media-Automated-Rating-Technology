@@ -1,5 +1,8 @@
 import asyncio
+import base64
+import os
 from pathlib import Path
+import subprocess
 from types import SimpleNamespace
 
 import pytest
@@ -20,6 +23,188 @@ from social_browser import (
     profile_identity_from_arguments,
     read_live_debugging_endpoint,
 )
+
+
+def test_live_debugging_watcher_classifies_only_transient_uia_failures():
+    helper = Path(social_browser.LIVE_DEBUG_HELPER).resolve()
+    script = r"""
+$tokens = $null
+$errors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseFile(
+    $env:EDGE_HELPER_UNDER_TEST,
+    [ref]$tokens,
+    [ref]$errors
+)
+if ($errors.Count -gt 0) { throw $errors[0].Message }
+$functionAst = $ast.Find({
+    param($node)
+    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+    $node.Name -eq 'Test-TransientUiAutomationException'
+}, $true)
+if ($null -eq $functionAst) { throw 'classifier function missing' }
+Invoke-Expression $functionAst.Extent.Text
+$comFailure = Test-TransientUiAutomationException -Exception (
+    [System.Runtime.InteropServices.COMException]::new(
+        'object disconnected',
+        -2147417848
+    )
+)
+$permanentComFailure = Test-TransientUiAutomationException -Exception (
+    [System.Runtime.InteropServices.COMException]::new(
+        'UIAutomation access denied',
+        -2147024891
+    )
+)
+$staleElement = Test-TransientUiAutomationException -Exception (
+    [System.InvalidOperationException]::new('Element is no longer available')
+)
+$startupFailure = Test-TransientUiAutomationException -Exception (
+    [System.InvalidOperationException]::new('invalid startup configuration')
+)
+[Console]::WriteLine(
+    "$comFailure,$permanentComFailure,$staleElement,$startupFailure"
+)
+"""
+    environment = os.environ.copy()
+    environment["EDGE_HELPER_UNDER_TEST"] = str(helper)
+    encoded_script = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
+    completed = subprocess.run(
+        [
+            "powershell.exe",
+            "-NoProfile",
+            "-NonInteractive",
+            "-EncodedCommand",
+            encoded_script,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+        env=environment,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip().splitlines()[-1] == "True,False,True,False"
+
+
+def test_failed_taskkill_does_not_claim_verified_process_stopped(monkeypatch):
+    pid = 24679
+    monkeypatch.setattr(social_browser, "process_is_running", lambda *_args: True)
+    monkeypatch.setattr(
+        social_browser,
+        "process_command_line",
+        lambda *_args: "powershell edge_live_debugging.ps1 -Command watch",
+    )
+    monkeypatch.setattr(
+        social_browser.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=5),
+    )
+    monkeypatch.setattr(social_browser.time, "sleep", lambda *_args: None)
+
+    with pytest.raises(RuntimeError, match="Failed to stop.*taskkill exit 5"):
+        social_browser.stop_verified_process_tree(
+            pid,
+            ["edge_live_debugging.ps1", "-Command watch"],
+            "Profile 7 consent watcher",
+        )
+
+
+def test_start_edge_bridge_watcher_retains_owned_process_handle(monkeypatch):
+    class FakeWatcher:
+        pid = 24680
+
+        @staticmethod
+        def poll():
+            return None
+
+    watcher = FakeWatcher()
+    popen_calls = []
+    monkeypatch.setattr(
+        social_browser,
+        "edge_bridge_arguments",
+        lambda *args, **kwargs: ["powershell.exe", "watch"],
+    )
+    monkeypatch.setattr(
+        social_browser.subprocess,
+        "Popen",
+        lambda *args, **kwargs: popen_calls.append((args, kwargs)) or watcher,
+    )
+    social_browser._OWNED_EDGE_BRIDGE_WATCHERS.clear()
+    try:
+        started = social_browser.start_edge_bridge_watcher("Profile 7", 1234)
+
+        assert started is watcher
+        assert social_browser._OWNED_EDGE_BRIDGE_WATCHERS[watcher.pid] is watcher
+        assert len(popen_calls) == 1
+    finally:
+        social_browser._OWNED_EDGE_BRIDGE_WATCHERS.clear()
+
+
+def test_dead_owned_edge_bridge_watcher_is_forgotten(monkeypatch):
+    class DeadWatcher:
+        @staticmethod
+        def poll():
+            return 1
+
+    pid = 24681
+    social_browser._OWNED_EDGE_BRIDGE_WATCHERS.clear()
+    social_browser._OWNED_EDGE_BRIDGE_WATCHERS[pid] = DeadWatcher()
+    monkeypatch.setattr(
+        social_browser,
+        "process_is_running",
+        lambda *_args: (_ for _ in ()).throw(
+            AssertionError("owned watcher death should be resolved from Popen")
+        ),
+    )
+
+    assert social_browser.edge_bridge_watcher_is_running(pid) is False
+    assert pid not in social_browser._OWNED_EDGE_BRIDGE_WATCHERS
+
+
+def test_verified_watcher_stop_releases_owned_process_handle(monkeypatch):
+    class LiveWatcher:
+        @staticmethod
+        def poll():
+            return None
+
+    pid = 24682
+    stopped = []
+    social_browser._OWNED_EDGE_BRIDGE_WATCHERS.clear()
+    social_browser._OWNED_EDGE_BRIDGE_WATCHERS[pid] = LiveWatcher()
+    monkeypatch.setattr(
+        social_browser,
+        "stop_verified_process_tree",
+        lambda *args: stopped.append(args),
+    )
+
+    social_browser.stop_edge_bridge_watcher(pid)
+
+    assert stopped and stopped[0][0] == pid
+    assert pid not in social_browser._OWNED_EDGE_BRIDGE_WATCHERS
+
+
+def test_unverified_watcher_stop_preserves_owned_process_handle(monkeypatch):
+    class LiveWatcher:
+        @staticmethod
+        def poll():
+            return None
+
+    pid = 24683
+    watcher = LiveWatcher()
+    social_browser._OWNED_EDGE_BRIDGE_WATCHERS.clear()
+    social_browser._OWNED_EDGE_BRIDGE_WATCHERS[pid] = watcher
+    monkeypatch.setattr(
+        social_browser,
+        "stop_verified_process_tree",
+        lambda *args: (_ for _ in ()).throw(RuntimeError("identity mismatch")),
+    )
+
+    with pytest.raises(RuntimeError, match="identity mismatch"):
+        social_browser.stop_edge_bridge_watcher(pid)
+
+    assert social_browser._OWNED_EDGE_BRIDGE_WATCHERS[pid] is watcher
+    social_browser._OWNED_EDGE_BRIDGE_WATCHERS.clear()
 
 
 def test_designated_profile_configuration_is_stable(tmp_path: Path):

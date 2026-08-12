@@ -40,6 +40,37 @@ function Write-Result {
     [Console]::WriteLine(($Value | ConvertTo-Json -Compress))
 }
 
+function Test-TransientUiAutomationException {
+    param([System.Exception]$Exception)
+
+    $current = $Exception
+    while ($null -ne $current) {
+        $typeName = $current.GetType().FullName
+        if ($typeName -eq "System.Windows.Automation.ElementNotAvailableException") {
+            return $true
+        }
+        if (
+            $typeName -eq "System.Runtime.InteropServices.COMException" -and
+            $current.HResult -in @(
+                -2147417848, # RPC_E_DISCONNECTED (0x80010108)
+                -2147023174, # RPC_S_SERVER_UNAVAILABLE (0x800706BA)
+                -2147220995, # CO_E_OBJNOTCONNECTED (0x800401FD)
+                -2147220991  # UIA_E_ELEMENTNOTAVAILABLE (0x80040201)
+            )
+        ) {
+            return $true
+        }
+        if (
+            $current.Message -match
+            "(?i)(element.*(no longer|not).*available|UI\s*Automation.*(disconnected|unavailable|no longer exists)|UIA.*(disconnected|unavailable)|RPC server.*unavailable|object.*disconnected|window handle.*invalid)"
+        ) {
+            return $true
+        }
+        $current = $current.InnerException
+    }
+    return $false
+}
+
 function Get-EdgeWindows {
     $root = [System.Windows.Automation.AutomationElement]::RootElement
     $windows = $root.FindAll(
@@ -48,13 +79,16 @@ function Get-EdgeWindows {
     )
     $result = @()
     foreach ($window in $windows) {
-        if ($window.Current.ClassName -notlike "Chrome_WidgetWin*") {
-            continue
-        }
         try {
+            if ($window.Current.ClassName -notlike "Chrome_WidgetWin*") {
+                continue
+            }
             $process = Get-Process -Id $window.Current.ProcessId -ErrorAction Stop
         }
         catch {
+            # Top-level windows can disappear between RootElement.FindAll and
+            # reading Current properties. A stale entry is not a watcher
+            # failure; the next scan will observe the replacement window.
             continue
         }
         if ($process.ProcessName -eq "msedge") {
@@ -220,51 +254,67 @@ if ($Command -eq "approve" -or $Command -eq "watch") {
         [DateTime]::UtcNow.AddSeconds([Math]::Max(1, $TimeoutSeconds))
     }
     do {
-        $candidateWindows = @()
-        $preferred = Find-ProfileWindow -PreferredHandle $WindowHandle
-        if ($null -ne $preferred) {
-            $candidateWindows += $preferred
-        }
-        foreach ($candidate in @(Get-EdgeWindows)) {
-            if (
-                $candidate.Current.Name -like "* - $ProfileDisplayName - Microsoft*Edge*" -and
-                ($null -eq $preferred -or
-                    $candidate.Current.NativeWindowHandle -ne $preferred.Current.NativeWindowHandle)
-            ) {
-                $candidateWindows += $candidate
+        try {
+            $candidateWindows = @()
+            $preferred = Find-ProfileWindow -PreferredHandle $WindowHandle
+            if ($null -ne $preferred) {
+                $candidateWindows += $preferred
             }
-        }
-        foreach ($window in $candidateWindows) {
-            $nameCondition = New-Object System.Windows.Automation.PropertyCondition(
-                [System.Windows.Automation.AutomationElement]::NameProperty,
-                "Allow"
-            )
-            $buttons = $window.FindAll(
-                [System.Windows.Automation.TreeScope]::Descendants,
-                $nameCondition
-            )
-            foreach ($button in $buttons) {
+            foreach ($candidate in @(Get-EdgeWindows)) {
                 if (
-                    $button.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and
-                    $button.Current.IsEnabled -and
-                    -not $button.Current.IsOffscreen -and
-                    (Test-RemoteDebuggingAllowButton -Button $button -Window $window)
+                    $candidate.Current.Name -like "* - $ProfileDisplayName - Microsoft*Edge*" -and
+                    ($null -eq $preferred -or
+                        $candidate.Current.NativeWindowHandle -ne $preferred.Current.NativeWindowHandle)
                 ) {
-                    $invoke = $button.GetCurrentPattern(
-                        [System.Windows.Automation.InvokePattern]::Pattern
-                    )
-                    $invoke.Invoke()
-                    if ($Command -eq "approve") {
-                        Write-Result @{
-                            success = $true
-                            action = "approved"
-                            process_id = $window.Current.ProcessId
-                            window_handle = $window.Current.NativeWindowHandle
+                    $candidateWindows += $candidate
+                }
+            }
+            foreach ($window in $candidateWindows) {
+                $nameCondition = New-Object System.Windows.Automation.PropertyCondition(
+                    [System.Windows.Automation.AutomationElement]::NameProperty,
+                    "Allow"
+                )
+                $buttons = $window.FindAll(
+                    [System.Windows.Automation.TreeScope]::Descendants,
+                    $nameCondition
+                )
+                foreach ($button in $buttons) {
+                    if (
+                        $button.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and
+                        $button.Current.IsEnabled -and
+                        -not $button.Current.IsOffscreen -and
+                        (Test-RemoteDebuggingAllowButton -Button $button -Window $window)
+                    ) {
+                        $invoke = $button.GetCurrentPattern(
+                            [System.Windows.Automation.InvokePattern]::Pattern
+                        )
+                        $invoke.Invoke()
+                        if ($Command -eq "approve") {
+                            Write-Result @{
+                                success = $true
+                                action = "approved"
+                                process_id = $window.Current.ProcessId
+                                window_handle = $window.Current.NativeWindowHandle
+                            }
+                            exit 0
                         }
-                        exit 0
                     }
                 }
             }
+        }
+        catch {
+            # The watcher lives much longer than any individual UIA element.
+            # Retry only known transient window/UIAutomation failures. The
+            # one-shot approval/startup path and every non-UIA failure remain
+            # terminating so a real bridge startup failure is never hidden.
+            if (
+                $Command -ne "watch" -or
+                -not (Test-TransientUiAutomationException -Exception $_.Exception)
+            ) {
+                throw
+            }
+            Start-Sleep -Milliseconds 400
+            continue
         }
         Start-Sleep -Milliseconds 200
     } while ([DateTime]::UtcNow -lt $deadline)

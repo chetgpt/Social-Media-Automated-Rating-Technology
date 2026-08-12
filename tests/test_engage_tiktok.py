@@ -1,6 +1,8 @@
 import asyncio
+import io
 import json
 import sqlite3
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -55,6 +57,20 @@ def read_jsonl(path):
         for line in path.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
+
+
+def test_console_json_result_is_lossless_on_legacy_windows_stdout(monkeypatch):
+    raw = io.BytesIO()
+    console = io.TextIOWrapper(raw, encoding="cp1252", errors="strict")
+    monkeypatch.setattr(sys, "stdout", console)
+
+    payload = {"caption": "AI builder 😂 — alat yang berguna"}
+    print(json.dumps(payload, ensure_ascii=True, indent=2))
+    console.flush()
+
+    encoded = raw.getvalue().decode("cp1252")
+    assert "\\ud83d\\ude02" in encoded
+    assert json.loads(encoded) == payload
 
 
 def evidence(post_id, *, ready=True):

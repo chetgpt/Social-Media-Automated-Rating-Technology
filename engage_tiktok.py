@@ -7551,7 +7551,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         else:
             result = run_status(conn, args.run_id)
         _register_master_run_state(conn, command_run_id)
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        # Windows PowerShell may attach a legacy cp1252 stdout even though
+        # TikTok evidence contains emoji or non-Latin text. ASCII escapes are
+        # lossless after JSON parsing and keep every CLI result printable.
+        print(json.dumps(result, ensure_ascii=True, indent=2))
         return 0
     except CollectionIncompleteError as exc:
         with contextlib.suppress(Exception):

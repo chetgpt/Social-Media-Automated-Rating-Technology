@@ -698,6 +698,35 @@ def test_report_command_reads_stdin_and_emits_only_the_report(monkeypatch, capsy
     assert output["signals"]["quick_overall_signal"]["formatted"] == "8.2/10"
 
 
+def test_report_command_emits_console_safe_lossless_unicode_json(
+    monkeypatch,
+    capsys,
+):
+    snapshot = _snapshot(
+        _candidate("1", caption="Emoji 😂 and Indonesian: bagus"),
+        requested=1,
+    )
+    payload = {
+        "snapshot": snapshot,
+        "analyses": [
+            {
+                **_analysis("1", 80, 90),
+                "summary": "Berguna 😂",
+            }
+        ],
+    }
+    monkeypatch.setattr(
+        quick_audit_tiktok.sys,
+        "stdin",
+        io.StringIO(json.dumps(payload, ensure_ascii=False)),
+    )
+
+    assert quick_audit_tiktok.main(["report", "--actor", "codex"]) == 0
+    raw = capsys.readouterr().out
+    assert "\\ud83d\\ude02" in raw.casefold()
+    assert json.loads(raw)["posts"][0]["summary"] == "Berguna 😂"
+
+
 def test_safe_error_message_redacts_credentials_queries_and_local_endpoints():
     unsafe = (
         "Authorization: Bearer authorization-secret\n"
