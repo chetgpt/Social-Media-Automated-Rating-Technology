@@ -5,7 +5,7 @@ import datetime
 
 def create_folder_structure():
     """Creates the folder structure for saving comments and logs.
-    
+
     Returns:
         dict: Dictionary containing paths to the created folders
     """
@@ -14,19 +14,19 @@ def create_folder_structure():
     if not os.path.exists(main_folder):
         os.makedirs(main_folder)
         print(f"Created main folder: {main_folder}")
-    
+
     # Create subfolders for comments and logs
     comments_folder = os.path.join(main_folder, "comments")
     logs_folder = os.path.join(main_folder, "logs")
-    
+
     if not os.path.exists(comments_folder):
         os.makedirs(comments_folder)
         print(f"Created comments folder: {comments_folder}")
-    
+
     if not os.path.exists(logs_folder):
         os.makedirs(logs_folder)
         print(f"Created logs folder: {logs_folder}")
-    
+
     # Return folder paths for later use
     return {
         "main": main_folder,
@@ -34,28 +34,60 @@ def create_folder_structure():
         "logs": logs_folder
     }
 
-def create_session_folders():
-    """Creates timestamp-based session folders.
-    
+import urllib.parse
+import re
+
+def create_session_folders(target_url=None, session_name=None):
+    """Creates timestamp-based session folders with a descriptive name.
+
+    Args:
+        target_url: URL being scraped, to extract a descriptive prefix
+        session_name: Explicit name to use for the session folder
+
     Returns:
         dict: Dictionary containing paths to the session folders
     """
     # Create base folder structure first
     folders = create_folder_structure()
-    
+
+    # Extract descriptive prefix from URL
+    prefix = "session"
+    if target_url:
+        if "search/video?q=" in target_url:
+            query = urllib.parse.unquote(target_url.split("q=")[-1].split("&")[0])
+            clean = re.sub(r'[^a-zA-Z0-9]', '_', query).strip('_')
+            prefix = clean if clean else "search"
+        else:
+            match = re.search(r'/@([^/?]+)', target_url)
+            if match:
+                prefix = match.group(1)
+            elif "explore" in target_url:
+                prefix = "explore"
+
     # Add timestamp to create a unique session folder
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    session_folder = os.path.join(folders["main"], f"session_{timestamp}")
-    os.makedirs(session_folder)
-    
+    if session_name:
+        folder_name = session_name
+    else:
+        # Create descriptive folder name
+        # Extract meaningful name from target URL if possible
+        folder_name = f"{prefix}_{timestamp}"
+
+    session_folder = os.path.join(folders["main"], folder_name)
+    os.makedirs(session_folder, exist_ok=True)
+
     # Create session-specific subfolders
     comments_folder = os.path.join(session_folder, "comments")
     logs_folder = os.path.join(session_folder, "logs")
-    os.makedirs(comments_folder)
-    os.makedirs(logs_folder)
-    
+    os.makedirs(comments_folder, exist_ok=True)
+    os.makedirs(logs_folder, exist_ok=True)
+
+    # Create screenshots subfolder in logs
+    screenshots_folder = os.path.join(logs_folder, "screenshots")
+    os.makedirs(screenshots_folder, exist_ok=True)
+
     print(f"[INFO] Created session folder: {session_folder}")
-    
+
     return {
         "session": session_folder,
         "comments": comments_folder,
@@ -64,7 +96,7 @@ def create_session_folders():
 
 def store_comments_to_json(comments, filename="scraped_comments.json", total_comment_count=0, folder_path=None, video_metadata=None):
     """Saves the scraped comments to a JSON file.
-    
+
     Args:
         comments: List of comment dictionaries to save
         filename: Name of the output JSON file
@@ -75,7 +107,7 @@ def store_comments_to_json(comments, filename="scraped_comments.json", total_com
     # Use provided folder path or current directory
     if folder_path:
         filename = os.path.join(folder_path, filename)
-        
+
     try:
         # Check if comments is a valid list
         if not isinstance(comments, list):
@@ -84,7 +116,7 @@ def store_comments_to_json(comments, filename="scraped_comments.json", total_com
                 comments = [comments]  # Convert single comment dict to list
             else:
                 comments = []  # Empty list as fallback
-        
+
         # Check if we have any comments to save
         if not comments:
             print(f"Warning: No comments found to save to {filename}")
@@ -93,35 +125,35 @@ def store_comments_to_json(comments, filename="scraped_comments.json", total_com
                 "warning": "No comments were found",
                 "comments": []
             }
-            
+
             # Add metadata if available
             if video_metadata:
                 output_data["creator_name"] = video_metadata.get("creator_name")
                 output_data["creator_id"] = video_metadata.get("creator_id")
                 output_data["content_id"] = video_metadata.get("content_id")
-            
+
             with open(filename, "w", encoding="utf-8") as f:
                 json.dump(output_data, f, ensure_ascii=False, indent=2)
             print(f"Created empty comments file {filename} with warning.")
             return
-        
+
         # Print some sample comments for debugging
         print(f"Preparing to save {len(comments)} comments. Sample:")
         for i, comment in enumerate(comments[:3]):  # Show up to 3 sample comments
             print(f"  Comment {i+1}: {comment.get('username', 'No username')} - {comment.get('commentText', 'No text')[:50]}...")
-        
+
         # Make sure total_comment_count is valid and at least as large as our actual comment count
         if total_comment_count < len(comments):
             print(f"Warning: Reported total comment count ({total_comment_count}) is less than the number of comments scraped ({len(comments)})")
             print(f"Adjusting total_comment_count to match the number of scraped comments")
             total_comment_count = len(comments)
-        
+
         # Calculate percentage if total count is provided
         percentage = 0
         if total_comment_count > 0:
             percentage = round((len(comments) / total_comment_count) * 100, 2)
             print(f"Scraped {percentage}% of total comments ({len(comments)} of {total_comment_count})")
-        
+
         # Actually save the comments
         output_data = {
             "count": len(comments),
@@ -129,13 +161,13 @@ def store_comments_to_json(comments, filename="scraped_comments.json", total_com
             "percentage_scraped": percentage if total_comment_count > 0 else "unknown",
             "comments": comments
         }
-        
+
         # Add metadata if available
         if video_metadata:
             output_data["creator_name"] = video_metadata.get("creator_name")
             output_data["creator_id"] = video_metadata.get("creator_id")
             output_data["content_id"] = video_metadata.get("content_id")
-        
+
         with open(filename, "w", encoding="utf-8") as f:
             json.dump(output_data, f, ensure_ascii=False, indent=2)
         print(f"Successfully saved {len(comments)} comments to {filename}.")
@@ -155,12 +187,12 @@ def store_comments_to_json(comments, filename="scraped_comments.json", total_com
 
 def save_element_info(element_info, filename="recorded_element.json", folder_path=None):
     """Saves the captured element information to a JSON file.
-    
+
     Args:
         element_info: Dictionary containing element information
         filename: Name of the output JSON file
         folder_path: Path to save the file (optional)
-        
+
     Returns:
         bool: True if successful, False otherwise
     """
@@ -168,7 +200,7 @@ def save_element_info(element_info, filename="recorded_element.json", folder_pat
         # Use provided folder path if available
         if folder_path:
             filename = os.path.join(folder_path, filename)
-            
+
         with open(filename, "w", encoding="utf-8") as f:
             json.dump(element_info, f, ensure_ascii=False, indent=2)
         print(f"Element information saved to {filename}.")
@@ -179,11 +211,11 @@ def save_element_info(element_info, filename="recorded_element.json", folder_pat
 
 def load_element_info(filename="recorded_element.json", folder_path=None):
     """Loads previously captured element information from a JSON file.
-    
+
     Args:
         filename: Name of the JSON file to load
         folder_path: Path to look for the file (optional)
-        
+
     Returns:
         dict: Loaded element information, or None if loading failed
     """
@@ -191,7 +223,7 @@ def load_element_info(filename="recorded_element.json", folder_path=None):
         # Check in provided folder path first
         if folder_path and os.path.exists(os.path.join(folder_path, filename)):
             filename = os.path.join(folder_path, filename)
-        
+
         with open(filename, "r", encoding="utf-8") as f:
             element_info = json.load(f)
         print(f"Element information loaded from {filename}.")
@@ -205,13 +237,13 @@ def load_element_info(filename="recorded_element.json", folder_path=None):
 
 def load_recorded_elements(folder_path=None):
     """Loads the recorded elements from a JSON file, specifically for comment count extraction.
-    
+
     This function looks for files containing recorded comment button and count elements.
     It tries multiple possible filenames and formats.
-    
+
     Args:
         folder_path: Path to look for the file (optional)
-        
+
     Returns:
         dict: Dictionary containing recorded elements information, or None if loading failed
     """
@@ -222,24 +254,24 @@ def load_recorded_elements(folder_path=None):
             "recorded_element.json",   # Legacy format with single element
             "comment_elements.json"    # Alternative name
         ]
-        
+
         loaded_file = None
-        
+
         # Try each filename in the provided folder or current directory
         for filename in filenames:
             path = os.path.join(folder_path, filename) if folder_path else filename
             if os.path.exists(path):
                 loaded_file = path
                 break
-                
+
         if not loaded_file:
             print(f"[INFO] No recorded elements file found for comment counting")
             return None
-            
+
         # Load the file we found
         with open(loaded_file, "r", encoding="utf-8") as f:
             elements = json.load(f)
-        
+
         # Check if we have a single element format (legacy) or multiple elements
         if "tag_name" in elements and "css_selector" in elements:
             # Single element format - convert to multi-element format
@@ -250,7 +282,7 @@ def load_recorded_elements(folder_path=None):
             # Already in multi-element format
             print(f"[INFO] Loaded recorded elements from {loaded_file}")
             return elements
-            
+
     except Exception as e:
         print(f"[WARN] Failed to load recorded elements: {e}")
-        return None 
+        return None

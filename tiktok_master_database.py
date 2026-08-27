@@ -36,8 +36,23 @@ DEFAULT_MASTER_DATABASE = (
     / "state"
     / "tiktok_master.sqlite"
 )
-MASTER_SCHEMA_VERSION = "4"
+MASTER_SCHEMA_VERSION = "7"
 MASTER_SCHEMA_NAMES = frozenset({"main", "master"})
+MUSIC_BACKFILL_RUN_STATUSES = frozenset(
+    {"planned", "running", "backfill_complete", "backfill_incomplete", "failed"}
+)
+MUSIC_BACKFILL_OBSERVATION_STATUSES = frozenset(
+    {"completed", "unavailable", "failed"}
+)
+DEFAULT_MUSIC_BACKFILL_RETRYABLE_STATUSES = (
+    "unavailable",
+    "rate_limited",
+    "provider_error",
+)
+MUSIC_BACKFILL_SUPPORTED_CATALOGS = frozenset({"musicbrainz"})
+MUSIC_BACKFILL_OBSERVATION_SCHEMA_VERSION = (
+    "tiktok-music-backfill-observation-v1"
+)
 BLOCKING_COMMENT_STATES = frozenset(
     {"reserved", "submit_intent", "uncertain", "confirmed"}
 )
@@ -400,6 +415,7 @@ def ensure_master_schema(
             topic TEXT NOT NULL DEFAULT '',
             topic_key TEXT NOT NULL DEFAULT '',
             source_mode TEXT NOT NULL DEFAULT 'topic',
+            direct_post_url TEXT NOT NULL DEFAULT '',
             creator_handle TEXT NOT NULL DEFAULT '',
             cardinality_mode TEXT NOT NULL DEFAULT 'exact_count',
             profile_inventory_count INTEGER NOT NULL DEFAULT 0,
@@ -551,6 +567,58 @@ def ensure_master_schema(
         )
         """,
         f"""
+        CREATE TABLE IF NOT EXISTS {q("tiktok_master_provider_rate_limits")} (
+            provider TEXT PRIMARY KEY,
+            next_allowed_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """,
+        f"""
+        CREATE TABLE IF NOT EXISTS {q("tiktok_master_music_backfill_runs")} (
+            run_id TEXT PRIMARY KEY,
+            project TEXT NOT NULL DEFAULT '',
+            master_database_path TEXT NOT NULL DEFAULT '',
+            scope_mode TEXT NOT NULL,
+            scope_value TEXT NOT NULL DEFAULT '',
+            target_schema_version TEXT NOT NULL,
+            configured_catalogs_json TEXT NOT NULL,
+            retryable_statuses_json TEXT NOT NULL,
+            force INTEGER NOT NULL DEFAULT 0,
+            expected_account TEXT NOT NULL DEFAULT '',
+            observed_account TEXT NOT NULL DEFAULT '',
+            candidate_set_json TEXT NOT NULL,
+            candidate_set_hash TEXT NOT NULL,
+            run_hash TEXT NOT NULL,
+            selected_count INTEGER NOT NULL,
+            completed_count INTEGER NOT NULL DEFAULT 0,
+            unavailable_count INTEGER NOT NULL DEFAULT 0,
+            failed_count INTEGER NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'planned',
+            error TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            completed_at TEXT NOT NULL DEFAULT ''
+        )
+        """,
+        f"""
+        CREATE TABLE IF NOT EXISTS {q("tiktok_master_music_backfill_observations")} (
+            observation_id TEXT PRIMARY KEY,
+            run_id TEXT NOT NULL,
+            post_id TEXT NOT NULL,
+            base_snapshot_id TEXT NOT NULL,
+            base_evidence_hash TEXT NOT NULL,
+            base_observed_at TEXT NOT NULL,
+            music_observed_at TEXT NOT NULL,
+            music_evidence_json TEXT NOT NULL,
+            music_evidence_hash TEXT NOT NULL,
+            status TEXT NOT NULL,
+            error TEXT NOT NULL DEFAULT '',
+            observation_hash TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            UNIQUE (run_id, post_id)
+        )
+        """,
+        f"""
         CREATE TABLE IF NOT EXISTS {q("tiktok_master_comment_targets")} (
             account_key TEXT NOT NULL,
             post_id TEXT NOT NULL,
@@ -659,6 +727,7 @@ def ensure_master_schema(
     run_columns = _columns(conn, schema, "tiktok_master_runs")
     run_additions = {
         "source_mode": "TEXT NOT NULL DEFAULT 'topic'",
+        "direct_post_url": "TEXT NOT NULL DEFAULT ''",
         "creator_handle": "TEXT NOT NULL DEFAULT ''",
         "cardinality_mode": "TEXT NOT NULL DEFAULT 'exact_count'",
         "profile_inventory_count": "INTEGER NOT NULL DEFAULT 0",
@@ -915,6 +984,16 @@ def ensure_master_schema(
             "tiktok_master_collection_leases",
             "expires_at, post_id",
         ),
+        (
+            "idx_tiktok_master_music_backfill_runs_status",
+            "tiktok_master_music_backfill_runs",
+            "status, created_at, run_id",
+        ),
+        (
+            "idx_tiktok_master_music_backfill_observations_post",
+            "tiktok_master_music_backfill_observations",
+            "post_id, music_observed_at, observation_id",
+        ),
     ]
     for name, table_name, columns in indexes:
         conn.execute(
@@ -1107,6 +1186,7 @@ def register_run_from_local(
         "topic": topic,
         "topic_key": normalize_topic(topic),
         "source_mode": str(run.get("source_mode") or "topic"),
+        "direct_post_url": str(run.get("direct_post_url") or ""),
         "creator_handle": str(run.get("creator_handle") or "")
         .strip()
         .lstrip("@"),
@@ -1823,6 +1903,12 @@ def evidence_content_state(evidence: dict[str, Any]) -> dict[str, Any]:
         "metric_availability": (
             evidence.get("metric_availability")
             if isinstance(evidence.get("metric_availability"), dict)
+            else {}
+        ),
+        "post_duration_ms": evidence.get("post_duration_ms"),
+        "music_evidence": (
+            evidence.get("music_evidence")
+            if isinstance(evidence.get("music_evidence"), dict)
             else {}
         ),
         "transcript": str(evidence.get("transcript") or ""),
@@ -2875,6 +2961,1170 @@ def select_refresh_candidates(
     return list(by_id.values())
 
 
+def _music_backfill_schema_version(value: Any) -> str:
+    normalized = str(value or "").strip().casefold()
+    if re.fullmatch(r"tiktok-music-evidence-v[1-9][0-9]*", normalized) is None:
+        raise ValueError(
+            "target_schema_version must be a TikTok music evidence schema"
+        )
+    return normalized
+
+
+def _music_backfill_retryable_statuses(
+    values: Iterable[Any],
+) -> tuple[str, ...]:
+    normalized = sorted(
+        {
+            str(value or "").strip().casefold()
+            for value in values
+            if str(value or "").strip()
+        }
+    )
+    if any(
+        re.fullmatch(r"[a-z][a-z0-9_]*", value) is None
+        for value in normalized
+    ):
+        raise ValueError("retryable music statuses must be normalized identifiers")
+    return tuple(normalized)
+
+
+def _music_backfill_catalogs(values: Iterable[Any]) -> tuple[str, ...]:
+    normalized = tuple(
+        dict.fromkeys(
+            str(value or "").strip().casefold()
+            for value in values
+            if str(value or "").strip()
+        )
+    )
+    if not normalized:
+        raise ValueError("at least one music backfill catalog is required")
+    unsupported = sorted(set(normalized) - MUSIC_BACKFILL_SUPPORTED_CATALOGS)
+    if unsupported:
+        raise ValueError(
+            "unsupported music backfill catalog: " + ", ".join(unsupported)
+        )
+    return normalized
+
+
+def _schema_database_path(conn: sqlite3.Connection, schema: str) -> str:
+    normalized_schema = _schema(schema)
+    for row in conn.execute("PRAGMA database_list").fetchall():
+        if str(row[1]) == normalized_schema:
+            raw_path = str(row[2] or "").strip()
+            return _normalize_path(raw_path) if raw_path else ""
+    raise RuntimeError("master database schema is not attached")
+
+
+def _music_status_values(value: Any) -> set[str]:
+    statuses: set[str] = set()
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            if str(key).casefold() == "status":
+                status = str(nested or "").strip().casefold()
+                if status:
+                    statuses.add(status)
+            else:
+                statuses.update(_music_status_values(nested))
+    elif isinstance(value, list):
+        for nested in value:
+            statuses.update(_music_status_values(nested))
+    return statuses
+
+
+def _music_evidence_state(
+    value: Any,
+    *,
+    target_schema_version: str,
+    retryable_statuses: Sequence[str],
+    observation_status: str = "",
+) -> dict[str, Any]:
+    document = value if isinstance(value, dict) else {}
+    schema_version = str(document.get("schema_version") or "").strip().casefold()
+    stored_hash = str(document.get("music_evidence_hash") or "").strip().casefold()
+    unhashed = dict(document)
+    unhashed.pop("music_evidence_hash", None)
+    hash_valid = bool(document) and (
+        re.fullmatch(r"[0-9a-f]{64}", stored_hash) is not None
+        and json_hash(unhashed) == stored_hash
+    )
+    retryable = sorted(
+        _music_status_values(document).intersection(retryable_statuses)
+    )
+    normalized_observation_status = str(observation_status or "").casefold()
+    if (
+        normalized_observation_status in retryable_statuses
+        and normalized_observation_status not in retryable
+    ):
+        retryable.append(normalized_observation_status)
+        retryable.sort()
+    if normalized_observation_status == "failed":
+        base_status = "failed"
+    elif not document:
+        base_status = "missing"
+    elif not hash_valid:
+        base_status = "invalid_hash"
+    elif retryable:
+        base_status = "retryable:" + ",".join(retryable)
+    elif schema_version != target_schema_version:
+        base_status = "schema_upgrade_required"
+    else:
+        base_status = "terminal"
+    return {
+        "document": document,
+        "schema_version": schema_version,
+        "hash_valid": hash_valid,
+        "stored_hash": stored_hash,
+        "retryable_statuses": retryable,
+        "base_status": base_status,
+        "terminal_current": bool(
+            schema_version == target_schema_version
+            and hash_valid
+            and not retryable
+            and normalized_observation_status != "failed"
+        ),
+    }
+
+
+def _direct_tiktok_post_id(value: Any) -> str:
+    url = str(value or "").strip()
+    match = re.fullmatch(
+        r"https://(?:www\.|m\.)?tiktok\.com/@[^/?#\s]+/"
+        r"(?:video|photo)/(\d+)(?:[/?#].*)?",
+        url,
+        flags=re.IGNORECASE,
+    )
+    if match is None:
+        raise ValueError("direct_url must be a canonical TikTok video or photo URL")
+    return match.group(1)
+
+
+def _validated_base_snapshot(
+    conn: sqlite3.Connection,
+    schema: str,
+    *,
+    post_id: str,
+    snapshot_id: str,
+    evidence_hash: str,
+    observed_at: str,
+    require_latest: bool,
+) -> dict[str, Any]:
+    required_hash = _required_sha256(evidence_hash, field="base_evidence_hash")
+    row = conn.execute(
+        f"""
+        SELECT s.post_id, s.observed_at, s.evidence_hash, s.evidence_json,
+               p.latest_snapshot_id, p.latest_evidence_hash,
+               p.canonical_url, p.creator_handle, p.creator_key
+        FROM {_table(schema, "tiktok_master_snapshots")} s
+        JOIN {_table(schema, "tiktok_master_posts")} p
+          ON p.post_id=s.post_id
+        WHERE s.snapshot_id=? AND s.post_id=?
+        """,
+        (str(snapshot_id), str(post_id)),
+    ).fetchone()
+    if row is None:
+        raise RuntimeError("music backfill base snapshot does not exist")
+    stored_observed_at = canonical_timestamp(row[1])
+    if stored_observed_at != canonical_timestamp(observed_at):
+        raise RuntimeError("music backfill base observation timestamp mismatch")
+    stored_hash = _required_sha256(row[2], field="stored base evidence_hash")
+    if stored_hash != required_hash:
+        raise RuntimeError("music backfill base evidence hash mismatch")
+    evidence = _parse_json_object(row[3])
+    if not evidence or json_hash(evidence) != stored_hash:
+        raise RuntimeError("music backfill base evidence JSON/hash mismatch")
+    if str(evidence.get("post_id") or "") != str(post_id):
+        raise RuntimeError("music backfill base evidence post binding mismatch")
+    if require_latest:
+        if str(row[4] or "") != str(snapshot_id):
+            raise RuntimeError("music backfill candidate is no longer the latest snapshot")
+        if _required_sha256(row[5], field="latest_evidence_hash") != stored_hash:
+            raise RuntimeError("latest master post evidence binding mismatch")
+    return {
+        "post_id": str(row[0]),
+        "base_snapshot_id": str(snapshot_id),
+        "base_evidence_hash": stored_hash,
+        "base_observed_at": stored_observed_at,
+        "evidence": evidence,
+        "canonical_url": str(evidence.get("url") or row[6] or ""),
+        "creator_handle": str(evidence.get("creator") or row[7] or ""),
+        "creator_key": str(row[8] or ""),
+    }
+
+
+def select_music_backfill_candidates(
+    conn: sqlite3.Connection,
+    schema: str = "main",
+    *,
+    creator_handle: str = "",
+    topic: str = "",
+    post_ids: Sequence[str] = (),
+    direct_url: str = "",
+    target_schema_version: str = "tiktok-music-evidence-v3",
+    retryable_statuses: Sequence[str] = DEFAULT_MUSIC_BACKFILL_RETRYABLE_STATUSES,
+    force: bool = False,
+) -> list[dict[str, Any]]:
+    """Select old/retryable music records without changing master evidence.
+
+    Exactly one optional scope may be supplied; no scope means every known
+    post.  Every result is bound to the evidence JSON in the row referenced by
+    ``tiktok_master_posts.latest_snapshot_id``.  The denormalized
+    ``latest_evidence_json`` column is intentionally never used here.
+    """
+
+    schema = _schema(schema)
+    target_schema = _music_backfill_schema_version(target_schema_version)
+    retryable = _music_backfill_retryable_statuses(retryable_statuses)
+    normalized_ids = list(
+        dict.fromkeys(str(value or "").strip() for value in post_ids)
+    )
+    normalized_ids = [value for value in normalized_ids if value]
+    if any(re.fullmatch(r"\d+", value) is None for value in normalized_ids):
+        raise ValueError("music backfill post IDs must be numeric TikTok IDs")
+    creator_key = normalize_creator_handle(creator_handle)
+    if str(creator_handle or "").strip() and not creator_key:
+        raise ValueError("a valid TikTok creator handle is required")
+    topic_key = normalize_topic(topic)
+    direct_post_id = _direct_tiktok_post_id(direct_url) if direct_url else ""
+    scope_count = sum(
+        bool(value)
+        for value in (creator_key, topic_key, normalized_ids, direct_post_id)
+    )
+    if scope_count > 1:
+        raise ValueError("music backfill accepts exactly one selection scope")
+
+    query = f"""
+        SELECT p.post_id, p.canonical_url, p.creator_handle, p.creator_key,
+               p.latest_snapshot_id, p.latest_evidence_hash,
+               s.observed_at AS base_observed_at,
+               s.evidence_hash AS snapshot_evidence_hash, s.evidence_json,
+               o.observation_id,
+               o.music_observed_at AS prior_music_observed_at,
+               o.music_evidence_json AS prior_music_evidence_json,
+               o.music_evidence_hash AS prior_music_evidence_hash,
+               o.status AS prior_observation_status,
+               o.error AS prior_observation_error,
+               o.observation_hash AS prior_observation_hash
+        FROM {_table(schema, "tiktok_master_posts")} p
+        JOIN {_table(schema, "tiktok_master_snapshots")} s
+          ON s.snapshot_id=p.latest_snapshot_id AND s.post_id=p.post_id
+        LEFT JOIN {_table(schema, "tiktok_master_music_backfill_observations")} o
+          ON o.observation_id=(
+              SELECT o2.observation_id
+              FROM {_table(schema, "tiktok_master_music_backfill_observations")} o2
+              WHERE o2.post_id=p.post_id
+              ORDER BY julianday(o2.music_observed_at) DESC,
+                       o2.music_observed_at DESC, o2.observation_id DESC
+              LIMIT 1
+          )
+    """
+    parameters: list[Any] = []
+    conditions: list[str] = []
+    if normalized_ids:
+        placeholders = ", ".join("?" for _ in normalized_ids)
+        conditions.append(f"p.post_id IN ({placeholders})")
+        parameters.extend(normalized_ids)
+    elif direct_post_id:
+        conditions.append("p.post_id=?")
+        parameters.append(direct_post_id)
+    elif creator_key:
+        conditions.append("p.creator_key=?")
+        parameters.append(creator_key)
+    elif topic_key:
+        query += (
+            f" JOIN {_table(schema, 'tiktok_master_post_topics')} t"
+            " ON t.post_id=p.post_id"
+        )
+        conditions.append("t.topic_key=?")
+        parameters.append(topic_key)
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
+    query += " ORDER BY julianday(s.observed_at), s.observed_at, p.post_id"
+    rows = conn.execute(query, tuple(parameters)).fetchall()
+    columns = (
+        "post_id", "canonical_url", "creator_handle", "creator_key",
+        "latest_snapshot_id", "latest_evidence_hash", "base_observed_at",
+        "snapshot_evidence_hash", "evidence_json", "observation_id",
+        "prior_music_observed_at", "prior_music_evidence_json",
+        "prior_music_evidence_hash", "prior_observation_status",
+        "prior_observation_error", "prior_observation_hash",
+    )
+    candidates: list[dict[str, Any]] = []
+    by_id: dict[str, dict[str, Any]] = {}
+    for raw_row in rows:
+        row = _row_dict(raw_row, columns)
+        post_id = str(row["post_id"])
+        latest_hash = _required_sha256(
+            row["latest_evidence_hash"], field="latest_evidence_hash"
+        )
+        snapshot_hash = _required_sha256(
+            row["snapshot_evidence_hash"], field="snapshot evidence_hash"
+        )
+        if latest_hash != snapshot_hash:
+            raise RuntimeError("latest master post evidence binding mismatch")
+        evidence = _parse_json_object(row["evidence_json"])
+        if not evidence or json_hash(evidence) != snapshot_hash:
+            raise RuntimeError("latest master snapshot evidence JSON/hash mismatch")
+        if str(evidence.get("post_id") or "") != post_id:
+            raise RuntimeError("latest master snapshot post binding mismatch")
+
+        prior_observation_status = str(row["prior_observation_status"] or "")
+        if row["observation_id"]:
+            if prior_observation_status not in MUSIC_BACKFILL_OBSERVATION_STATUSES:
+                raise RuntimeError("stored music backfill observation status is invalid")
+            prior_music = _parse_json_object(row["prior_music_evidence_json"])
+            prior_hash = _required_sha256(
+                row["prior_music_evidence_hash"],
+                field="prior music_evidence_hash",
+            )
+            if prior_observation_status == "failed":
+                if prior_music or prior_hash != json_hash({}):
+                    raise RuntimeError("stored failed music observation is invalid")
+            else:
+                if not prior_music:
+                    raise RuntimeError("stored music observation JSON is missing")
+                internal_hash = _required_sha256(
+                    prior_music.get("music_evidence_hash"),
+                    field="stored music_evidence music_evidence_hash",
+                )
+                unhashed = dict(prior_music)
+                unhashed.pop("music_evidence_hash", None)
+                if internal_hash != prior_hash or json_hash(unhashed) != prior_hash:
+                    raise RuntimeError("stored music observation JSON/hash mismatch")
+            prior_binding = {
+                "run_id": "",
+                "post_id": post_id,
+                "base_snapshot_id": "",
+                "base_evidence_hash": "",
+                "base_observed_at": "",
+                "music_observed_at": canonical_timestamp(
+                    row["prior_music_observed_at"]
+                ),
+                "music_evidence_hash": prior_hash,
+                "status": prior_observation_status,
+                "error": str(row["prior_observation_error"] or ""),
+            }
+            prior_full = conn.execute(
+                f"""
+                SELECT run_id, base_snapshot_id, base_evidence_hash,
+                       base_observed_at
+                FROM {_table(schema, "tiktok_master_music_backfill_observations")}
+                WHERE observation_id=?
+                """,
+                (str(row["observation_id"]),),
+            ).fetchone()
+            prior_binding.update(
+                {
+                    "run_id": str(prior_full[0]),
+                    "base_snapshot_id": str(prior_full[1]),
+                    "base_evidence_hash": str(prior_full[2]),
+                    "base_observed_at": canonical_timestamp(prior_full[3]),
+                }
+            )
+            if _required_sha256(
+                row["prior_observation_hash"],
+                field="prior music observation_hash",
+            ) != json_hash(_music_backfill_observation_hash_document(prior_binding)):
+                raise RuntimeError("stored music observation hash mismatch")
+            effective_music = prior_music
+        else:
+            effective_music = (
+                evidence.get("music_evidence")
+                if isinstance(evidence.get("music_evidence"), dict)
+                else {}
+            )
+        state = _music_evidence_state(
+            effective_music,
+            target_schema_version=target_schema,
+            retryable_statuses=retryable,
+            observation_status=prior_observation_status,
+        )
+        if force:
+            eligibility_reason = "forced"
+        elif state["terminal_current"]:
+            continue
+        elif prior_observation_status == "failed":
+            eligibility_reason = "prior_backfill_failed"
+        elif not state["document"]:
+            eligibility_reason = "music_evidence_missing"
+        elif not state["hash_valid"]:
+            eligibility_reason = "music_evidence_hash_invalid"
+        elif state["retryable_statuses"]:
+            eligibility_reason = "retryable_status:" + ",".join(
+                state["retryable_statuses"]
+            )
+        else:
+            eligibility_reason = "music_schema_upgrade_required"
+        candidate = {
+            "post_id": post_id,
+            "canonical_url": str(row["canonical_url"] or evidence.get("url") or ""),
+            "creator_handle": str(
+                row["creator_handle"] or evidence.get("creator") or ""
+            ),
+            "creator_key": str(row["creator_key"] or ""),
+            "base_snapshot_id": str(row["latest_snapshot_id"]),
+            "base_evidence_hash": snapshot_hash,
+            "base_observed_at": canonical_timestamp(row["base_observed_at"]),
+            "base_music_schema": str(state["schema_version"]),
+            "base_music_status": str(state["base_status"]),
+            "eligibility_reason": eligibility_reason,
+        }
+        by_id[post_id] = candidate
+        candidates.append(candidate)
+    if normalized_ids:
+        return [by_id[post_id] for post_id in normalized_ids if post_id in by_id]
+    return candidates
+
+
+def _music_backfill_candidate_projection(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError("music backfill candidate must be an object")
+    post_id = str(value.get("post_id") or "").strip()
+    snapshot_id = str(value.get("base_snapshot_id") or "").strip()
+    if re.fullmatch(r"\d+", post_id) is None or not snapshot_id:
+        raise ValueError("music backfill candidate binding is incomplete")
+    return {
+        "post_id": post_id,
+        "canonical_url": str(value.get("canonical_url") or "").strip(),
+        "creator_handle": str(value.get("creator_handle") or "").strip(),
+        "creator_key": str(value.get("creator_key") or "").strip().casefold(),
+        "base_snapshot_id": snapshot_id,
+        "base_evidence_hash": _required_sha256(
+            value.get("base_evidence_hash"), field="base_evidence_hash"
+        ),
+        "base_observed_at": canonical_timestamp(value.get("base_observed_at")),
+        "base_music_schema": str(value.get("base_music_schema") or "")
+        .strip()
+        .casefold(),
+        "base_music_status": str(value.get("base_music_status") or "")
+        .strip()
+        .casefold(),
+        "eligibility_reason": str(value.get("eligibility_reason") or "").strip(),
+    }
+
+
+def _music_backfill_run_hash_document(values: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "run_id": values["run_id"],
+        "project": values["project"],
+        "master_database_path": values["master_database_path"],
+        "scope_mode": values["scope_mode"],
+        "scope_value": values["scope_value"],
+        "target_schema_version": values["target_schema_version"],
+        "configured_catalogs": values["configured_catalogs"],
+        "retryable_statuses": values["retryable_statuses"],
+        "force": bool(values["force"]),
+        "candidate_set_hash": values["candidate_set_hash"],
+        "selected_count": int(values["selected_count"]),
+        "created_at": values["created_at"],
+    }
+
+
+def _music_backfill_account(value: Any) -> str:
+    return str(value or "").strip().lstrip("@").casefold()
+
+
+def register_music_backfill_run(
+    conn: sqlite3.Connection,
+    schema: str = "main",
+    *,
+    run_id: str,
+    project: str,
+    scope_mode: str,
+    scope_value: str,
+    target_schema_version: str,
+    retryable_statuses: Sequence[str],
+    candidates: Sequence[dict[str, Any]],
+    configured_catalogs: Sequence[str] = ("musicbrainz",),
+    force: bool = False,
+    expected_account: str = "",
+    observed_account: str = "",
+    created_at: str = "",
+    master_database_path: str | Path | None = None,
+) -> dict[str, Any]:
+    """Freeze one immutable backfill candidate set; repeated calls are exact."""
+
+    schema = _schema(schema)
+    normalized_run_id = str(run_id or "").strip()
+    if not normalized_run_id or len(normalized_run_id) > 200:
+        raise ValueError("music backfill run_id is required")
+    existing = get_music_backfill_run(
+        conn, schema, run_id=normalized_run_id
+    )
+    normalized_scope = str(scope_mode or "").strip().casefold()
+    if normalized_scope not in {"creator", "topic", "post_ids", "url", "workspace"}:
+        raise ValueError("music backfill scope_mode is invalid")
+    target_schema = _music_backfill_schema_version(target_schema_version)
+    catalogs = _music_backfill_catalogs(configured_catalogs)
+    retryable = _music_backfill_retryable_statuses(retryable_statuses)
+    frozen_candidates = [
+        _music_backfill_candidate_projection(value) for value in candidates
+    ]
+    post_ids = [value["post_id"] for value in frozen_candidates]
+    if len(post_ids) != len(set(post_ids)):
+        raise ValueError("music backfill candidates contain duplicate post IDs")
+    for candidate in frozen_candidates:
+        base = _validated_base_snapshot(
+            conn,
+            schema,
+            post_id=candidate["post_id"],
+            snapshot_id=candidate["base_snapshot_id"],
+            evidence_hash=candidate["base_evidence_hash"],
+            observed_at=candidate["base_observed_at"],
+            require_latest=existing is None,
+        )
+        if candidate["canonical_url"] != base["canonical_url"]:
+            raise RuntimeError("music backfill candidate URL binding mismatch")
+        if candidate["creator_key"] != base["creator_key"]:
+            raise RuntimeError("music backfill candidate creator binding mismatch")
+    timestamp = (
+        canonical_timestamp(created_at)
+        if str(created_at or "").strip()
+        else (
+            existing["created_at"]
+            if existing is not None
+            else canonical_timestamp(now_iso())
+        )
+    )
+    attached_database_path = _schema_database_path(conn, schema)
+    supplied_database_path = (
+        _normalize_path(master_database_path)
+        if master_database_path is not None
+        and str(master_database_path).strip()
+        else ""
+    )
+    if (
+        supplied_database_path
+        and attached_database_path
+        and supplied_database_path != attached_database_path
+    ):
+        raise ValueError("master_database_path does not match attached registry")
+    frozen_database_path = supplied_database_path or attached_database_path
+    candidate_hash = json_hash(frozen_candidates)
+    values = {
+        "run_id": normalized_run_id,
+        "project": str(project or "").strip(),
+        "master_database_path": frozen_database_path,
+        "scope_mode": normalized_scope,
+        "scope_value": str(scope_value or "").strip(),
+        "target_schema_version": target_schema,
+        "configured_catalogs": list(catalogs),
+        "retryable_statuses": list(retryable),
+        "force": bool(force),
+        "candidate_set_hash": candidate_hash,
+        "selected_count": len(frozen_candidates),
+        "created_at": timestamp,
+    }
+    run_hash = json_hash(_music_backfill_run_hash_document(values))
+    expected_key = _music_backfill_account(expected_account)
+    observed_key = _music_backfill_account(observed_account)
+    if expected_key and observed_key and expected_key != observed_key:
+        raise ValueError("observed TikTok account does not match expected account")
+    if existing is not None:
+        expected = {
+            **values,
+            "candidates": frozen_candidates,
+            "run_hash": run_hash,
+        }
+        for field in (
+            "project", "master_database_path", "scope_mode", "scope_value",
+            "target_schema_version", "configured_catalogs",
+            "retryable_statuses", "force", "candidate_set_hash",
+            "selected_count", "created_at", "candidates", "run_hash",
+        ):
+            if existing[field] != expected[field]:
+                raise RuntimeError("music backfill run immutable binding mismatch")
+        if expected_key and existing["expected_account"] != expected_key:
+            raise RuntimeError("music backfill expected account binding mismatch")
+        if observed_key and existing["observed_account"] != observed_key:
+            raise RuntimeError("music backfill observed account binding mismatch")
+        result = dict(existing)
+        result["created"] = False
+        return result
+    conn.execute(
+        f"""
+        INSERT INTO {_table(schema, "tiktok_master_music_backfill_runs")} (
+            run_id, project, master_database_path, scope_mode, scope_value,
+            target_schema_version, configured_catalogs_json,
+            retryable_statuses_json, force, expected_account,
+            observed_account, candidate_set_json, candidate_set_hash,
+            run_hash, selected_count, status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'planned', ?, ?)
+        """,
+        (
+            normalized_run_id,
+            values["project"],
+            frozen_database_path,
+            normalized_scope,
+            values["scope_value"],
+            target_schema,
+            canonical_json(list(catalogs)),
+            canonical_json(list(retryable)),
+            int(bool(force)),
+            expected_key,
+            observed_key,
+            canonical_json(frozen_candidates),
+            candidate_hash,
+            run_hash,
+            len(frozen_candidates),
+            timestamp,
+            timestamp,
+        ),
+    )
+    result = get_music_backfill_run(conn, schema, run_id=normalized_run_id)
+    assert result is not None
+    result["created"] = True
+    return result
+
+
+def _music_backfill_run_row(
+    conn: sqlite3.Connection,
+    schema: str,
+    run_id: str,
+) -> dict[str, Any] | None:
+    columns = [
+        str(row[1])
+        for row in conn.execute(
+            f'PRAGMA "{_schema(schema)}".table_info('
+            '"tiktok_master_music_backfill_runs")'
+        ).fetchall()
+    ]
+    row = conn.execute(
+        f"""
+        SELECT * FROM {_table(schema, "tiktok_master_music_backfill_runs")}
+        WHERE run_id=?
+        """,
+        (str(run_id),),
+    ).fetchone()
+    return _row_dict(row, columns) if row is not None else None
+
+
+def get_music_backfill_run(
+    conn: sqlite3.Connection,
+    schema: str = "main",
+    *,
+    run_id: str,
+    validate_base_snapshots: bool = True,
+) -> dict[str, Any] | None:
+    """Read and verify an immutable backfill run and its derived counters.
+
+    ``validate_base_snapshots=False`` is reserved for bounded internal
+    mutations that separately validate the one base snapshot they touch.  It
+    still verifies the frozen candidate-set hash, run hash, identities, and
+    counters.  Public reads keep the full snapshot validation by default.
+    """
+
+    schema = _schema(schema)
+    row = _music_backfill_run_row(conn, schema, str(run_id))
+    if row is None:
+        return None
+    status = str(row["status"] or "").casefold()
+    if status not in MUSIC_BACKFILL_RUN_STATUSES:
+        raise RuntimeError("stored music backfill run status is invalid")
+    candidates_raw = _parse_json_list(row["candidate_set_json"])
+    candidates = [
+        _music_backfill_candidate_projection(value) for value in candidates_raw
+    ]
+    candidate_hash = _required_sha256(
+        row["candidate_set_hash"], field="candidate_set_hash"
+    )
+    if json_hash(candidates) != candidate_hash:
+        raise RuntimeError("stored music backfill candidate set hash mismatch")
+    if int(row["selected_count"]) != len(candidates):
+        raise RuntimeError("stored music backfill selected count mismatch")
+    if len({value["post_id"] for value in candidates}) != len(candidates):
+        raise RuntimeError("stored music backfill candidate set has duplicates")
+    if validate_base_snapshots:
+        for candidate in candidates:
+            _validated_base_snapshot(
+                conn,
+                schema,
+                post_id=candidate["post_id"],
+                snapshot_id=candidate["base_snapshot_id"],
+                evidence_hash=candidate["base_evidence_hash"],
+                observed_at=candidate["base_observed_at"],
+                require_latest=False,
+            )
+    retryable = _music_backfill_retryable_statuses(
+        _parse_json_list(row["retryable_statuses_json"])
+    )
+    catalogs = _music_backfill_catalogs(
+        _parse_json_list(row["configured_catalogs_json"])
+    )
+    values = {
+        "run_id": str(row["run_id"]),
+        "project": str(row["project"]),
+        "master_database_path": str(row["master_database_path"] or ""),
+        "scope_mode": str(row["scope_mode"]),
+        "scope_value": str(row["scope_value"]),
+        "target_schema_version": _music_backfill_schema_version(
+            row["target_schema_version"]
+        ),
+        "configured_catalogs": list(catalogs),
+        "retryable_statuses": list(retryable),
+        "force": bool(row["force"]),
+        "candidate_set_hash": candidate_hash,
+        "selected_count": len(candidates),
+        "created_at": canonical_timestamp(row["created_at"]),
+    }
+    run_hash = _required_sha256(row["run_hash"], field="music backfill run_hash")
+    if json_hash(_music_backfill_run_hash_document(values)) != run_hash:
+        raise RuntimeError("stored music backfill run hash mismatch")
+    counts = {
+        str(item[0]): int(item[1])
+        for item in conn.execute(
+            f"""
+            SELECT status, COUNT(*)
+            FROM {_table(schema, "tiktok_master_music_backfill_observations")}
+            WHERE run_id=? GROUP BY status
+            """,
+            (str(run_id),),
+        ).fetchall()
+    }
+    for observation_status in MUSIC_BACKFILL_OBSERVATION_STATUSES:
+        stored = int(row[f"{observation_status}_count"])
+        if stored != counts.get(observation_status, 0):
+            raise RuntimeError("stored music backfill counters are inconsistent")
+    return {
+        **values,
+        "expected_account": str(row["expected_account"] or ""),
+        "observed_account": str(row["observed_account"] or ""),
+        "candidates": candidates,
+        "run_hash": run_hash,
+        "completed_count": counts.get("completed", 0),
+        "unavailable_count": counts.get("unavailable", 0),
+        "failed_count": counts.get("failed", 0),
+        "observed_count": sum(counts.values()),
+        "status": status,
+        "error": str(row["error"] or ""),
+        "updated_at": canonical_timestamp(row["updated_at"]),
+        "completed_at": (
+            canonical_timestamp(row["completed_at"])
+            if str(row["completed_at"] or "")
+            else ""
+        ),
+    }
+
+
+def _refresh_music_backfill_counters(
+    conn: sqlite3.Connection,
+    schema: str,
+    run_id: str,
+) -> dict[str, int]:
+    counts = {
+        str(row[0]): int(row[1])
+        for row in conn.execute(
+            f"""
+            SELECT status, COUNT(*)
+            FROM {_table(schema, "tiktok_master_music_backfill_observations")}
+            WHERE run_id=? GROUP BY status
+            """,
+            (str(run_id),),
+        ).fetchall()
+    }
+    result = {
+        "completed": counts.get("completed", 0),
+        "unavailable": counts.get("unavailable", 0),
+        "failed": counts.get("failed", 0),
+    }
+    conn.execute(
+        f"""
+        UPDATE {_table(schema, "tiktok_master_music_backfill_runs")}
+        SET completed_count=?, unavailable_count=?, failed_count=?
+        WHERE run_id=?
+        """,
+        (
+            result["completed"], result["unavailable"], result["failed"],
+            str(run_id),
+        ),
+    )
+    return result
+
+
+def update_music_backfill_run(
+    conn: sqlite3.Connection,
+    schema: str = "main",
+    *,
+    run_id: str,
+    status: str = "",
+    error: str | None = None,
+    expected_account: str | None = None,
+    observed_account: str | None = None,
+) -> dict[str, Any]:
+    """Update only operational state; immutable selection fields never move."""
+
+    schema = _schema(schema)
+    current = get_music_backfill_run(
+        conn,
+        schema,
+        run_id=run_id,
+        validate_base_snapshots=False,
+    )
+    if current is None:
+        raise RuntimeError("music backfill run not found")
+    next_status = str(status or current["status"]).strip().casefold()
+    if next_status not in MUSIC_BACKFILL_RUN_STATUSES:
+        raise ValueError("music backfill run status is invalid")
+    if current["status"] in {
+        "backfill_complete", "failed"
+    } and next_status != current["status"]:
+        raise RuntimeError("terminal music backfill status is immutable")
+    expected = current["expected_account"]
+    observed = current["observed_account"]
+    if expected_account is not None:
+        new_expected = _music_backfill_account(expected_account)
+        if expected and new_expected != expected:
+            raise RuntimeError("music backfill expected account is immutable once bound")
+        expected = new_expected
+    if observed_account is not None:
+        new_observed = _music_backfill_account(observed_account)
+        if observed and new_observed != observed:
+            raise RuntimeError("music backfill observed account is immutable once bound")
+        observed = new_observed
+    if expected and observed and expected != observed:
+        raise ValueError("observed TikTok account does not match expected account")
+    counts = _refresh_music_backfill_counters(conn, schema, run_id)
+    observed_count = sum(counts.values())
+    if next_status == "backfill_complete" and (
+        observed_count != current["selected_count"] or counts["failed"]
+    ):
+        raise RuntimeError("music backfill cannot complete with missing/failed rows")
+    timestamp = canonical_timestamp(now_iso())
+    completed_at = (
+        timestamp
+        if next_status in {"backfill_complete", "failed"}
+        else ""
+    )
+    conn.execute(
+        f"""
+        UPDATE {_table(schema, "tiktok_master_music_backfill_runs")}
+        SET expected_account=?, observed_account=?, status=?, error=?,
+            updated_at=?, completed_at=?
+        WHERE run_id=?
+        """,
+        (
+            expected,
+            observed,
+            next_status,
+            current["error"] if error is None else str(error or ""),
+            timestamp,
+            completed_at,
+            str(run_id),
+        ),
+    )
+    result = get_music_backfill_run(
+        conn,
+        schema,
+        run_id=run_id,
+        validate_base_snapshots=False,
+    )
+    assert result is not None
+    return result
+
+
+def finalize_music_backfill_run(
+    conn: sqlite3.Connection,
+    schema: str = "main",
+    *,
+    run_id: str,
+    error: str = "",
+) -> dict[str, Any]:
+    current = get_music_backfill_run(conn, schema, run_id=run_id)
+    if current is None:
+        raise RuntimeError("music backfill run not found")
+    terminal_count = current["observed_count"]
+    complete = (
+        terminal_count == current["selected_count"]
+        and current["failed_count"] == 0
+    )
+    return update_music_backfill_run(
+        conn,
+        schema,
+        run_id=run_id,
+        status="backfill_complete" if complete else "backfill_incomplete",
+        error=error,
+    )
+
+
+def _validated_music_observation_document(
+    music_evidence: Any,
+    music_evidence_hash: Any,
+    *,
+    target_schema_version: str,
+    status: str,
+    error: str,
+) -> tuple[dict[str, Any], str]:
+    document = music_evidence if isinstance(music_evidence, dict) else {}
+    required_hash = _required_sha256(
+        music_evidence_hash, field="music_evidence_hash"
+    )
+    if status == "failed":
+        if document or required_hash != json_hash({}) or not str(error or "").strip():
+            raise ValueError(
+                "failed music observation requires empty hash-bound evidence and error"
+            )
+        return {}, required_hash
+    if not document:
+        raise ValueError("terminal music observation requires music evidence")
+    if str(document.get("schema_version") or "").casefold() != target_schema_version:
+        raise ValueError("music observation schema does not match backfill target")
+    embedded_hash = _required_sha256(
+        document.get("music_evidence_hash"),
+        field="embedded music_evidence_hash",
+    )
+    unhashed = dict(document)
+    unhashed.pop("music_evidence_hash", None)
+    if embedded_hash != required_hash or json_hash(unhashed) != required_hash:
+        raise ValueError("music observation evidence hash mismatch")
+    return document, required_hash
+
+
+def _music_backfill_observation_hash_document(
+    values: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "schema_version": MUSIC_BACKFILL_OBSERVATION_SCHEMA_VERSION,
+        "run_id": values["run_id"],
+        "post_id": values["post_id"],
+        "base_snapshot_id": values["base_snapshot_id"],
+        "base_evidence_hash": values["base_evidence_hash"],
+        "base_observed_at": values["base_observed_at"],
+        "music_observed_at": values["music_observed_at"],
+        "music_evidence_hash": values["music_evidence_hash"],
+        "status": values["status"],
+        "error": values["error"],
+    }
+
+
+def record_music_backfill_observation(
+    conn: sqlite3.Connection,
+    schema: str = "main",
+    *,
+    run_id: str,
+    post_id: str,
+    base_snapshot_id: str,
+    base_evidence_hash: str,
+    base_observed_at: str,
+    music_observed_at: str,
+    music_evidence: dict[str, Any],
+    music_evidence_hash: str,
+    status: str = "completed",
+    error: str = "",
+) -> dict[str, Any]:
+    """Append one hash-bound result; conflicting retries can never overwrite."""
+
+    schema = _schema(schema)
+    run = get_music_backfill_run(
+        conn,
+        schema,
+        run_id=run_id,
+        validate_base_snapshots=False,
+    )
+    if run is None:
+        raise RuntimeError("music backfill run not found")
+    normalized_status = str(status or "").strip().casefold()
+    if normalized_status not in MUSIC_BACKFILL_OBSERVATION_STATUSES:
+        raise ValueError("music backfill observation status is invalid")
+    candidate = next(
+        (value for value in run["candidates"] if value["post_id"] == str(post_id)),
+        None,
+    )
+    if candidate is None:
+        raise RuntimeError("post is not in the immutable backfill candidate set")
+    supplied_binding = {
+        "base_snapshot_id": str(base_snapshot_id),
+        "base_evidence_hash": _required_sha256(
+            base_evidence_hash, field="base_evidence_hash"
+        ),
+        "base_observed_at": canonical_timestamp(base_observed_at),
+    }
+    for field, supplied in supplied_binding.items():
+        if supplied != candidate[field]:
+            raise RuntimeError(f"music backfill {field} binding mismatch")
+    _validated_base_snapshot(
+        conn,
+        schema,
+        post_id=str(post_id),
+        snapshot_id=supplied_binding["base_snapshot_id"],
+        evidence_hash=supplied_binding["base_evidence_hash"],
+        observed_at=supplied_binding["base_observed_at"],
+        require_latest=False,
+    )
+    observed_at = canonical_timestamp(music_observed_at)
+    if _parse_iso(observed_at) < _parse_iso(supplied_binding["base_observed_at"]):
+        raise ValueError("music observation cannot precede its base evidence")
+    document, evidence_hash = _validated_music_observation_document(
+        music_evidence,
+        music_evidence_hash,
+        target_schema_version=run["target_schema_version"],
+        status=normalized_status,
+        error=error,
+    )
+    observation_id = stable_id(
+        "tiktok-music-backfill-observation", run_id, post_id, length=40
+    )
+    stored_values = {
+        "observation_id": observation_id,
+        "run_id": str(run_id),
+        "post_id": str(post_id),
+        **supplied_binding,
+        "music_observed_at": observed_at,
+        "music_evidence": document,
+        "music_evidence_hash": evidence_hash,
+        "status": normalized_status,
+        "error": str(error or ""),
+    }
+    stored_values["observation_hash"] = json_hash(
+        _music_backfill_observation_hash_document(stored_values)
+    )
+    existing = conn.execute(
+        f"""
+        SELECT observation_id, base_snapshot_id, base_evidence_hash,
+               base_observed_at, music_observed_at, music_evidence_json,
+               music_evidence_hash, status, error, observation_hash
+        FROM {_table(schema, "tiktok_master_music_backfill_observations")}
+        WHERE run_id=? AND post_id=?
+        """,
+        (str(run_id), str(post_id)),
+    ).fetchone()
+    if existing is not None:
+        existing_values = {
+            "observation_id": str(existing[0]),
+            "run_id": str(run_id),
+            "post_id": str(post_id),
+            "base_snapshot_id": str(existing[1]),
+            "base_evidence_hash": str(existing[2]),
+            "base_observed_at": canonical_timestamp(existing[3]),
+            "music_observed_at": canonical_timestamp(existing[4]),
+            "music_evidence": _parse_json_object(existing[5]),
+            "music_evidence_hash": str(existing[6]),
+            "status": str(existing[7]),
+            "error": str(existing[8] or ""),
+            "observation_hash": str(existing[9] or ""),
+        }
+        if existing_values != stored_values:
+            raise RuntimeError("music backfill observation is append-only")
+        return {**existing_values, "created": False}
+    if run["status"] in {"backfill_complete", "failed"}:
+        raise RuntimeError("cannot append to a terminal music backfill run")
+    timestamp = canonical_timestamp(now_iso())
+    conn.execute(
+        f"""
+        INSERT INTO {_table(schema, "tiktok_master_music_backfill_observations")} (
+            observation_id, run_id, post_id, base_snapshot_id,
+            base_evidence_hash, base_observed_at, music_observed_at,
+            music_evidence_json, music_evidence_hash, status, error,
+            created_at, observation_hash
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            observation_id, str(run_id), str(post_id),
+            supplied_binding["base_snapshot_id"],
+            supplied_binding["base_evidence_hash"],
+            supplied_binding["base_observed_at"], observed_at,
+            canonical_json(document), evidence_hash, normalized_status,
+            str(error or ""), timestamp, stored_values["observation_hash"],
+        ),
+    )
+    _refresh_music_backfill_counters(conn, schema, str(run_id))
+    conn.execute(
+        f"""
+        UPDATE {_table(schema, "tiktok_master_music_backfill_runs")}
+        SET status=CASE WHEN status='planned' THEN 'running' ELSE status END,
+            updated_at=?
+        WHERE run_id=?
+        """,
+        (timestamp, str(run_id)),
+    )
+    return {**stored_values, "created": True}
+
+
+def music_backfill_observations(
+    conn: sqlite3.Connection,
+    schema: str = "main",
+    *,
+    run_id: str,
+    validate_base_snapshots: bool = True,
+) -> list[dict[str, Any]]:
+    run = get_music_backfill_run(
+        conn,
+        schema,
+        run_id=run_id,
+        validate_base_snapshots=validate_base_snapshots,
+    )
+    if run is None:
+        raise RuntimeError("music backfill run not found")
+    rows = conn.execute(
+        f"""
+        SELECT observation_id, run_id, post_id, base_snapshot_id,
+               base_evidence_hash, base_observed_at, music_observed_at,
+               music_evidence_json, music_evidence_hash, status, error,
+               observation_hash, created_at
+        FROM {_table(schema, "tiktok_master_music_backfill_observations")}
+        WHERE run_id=?
+        ORDER BY julianday(music_observed_at), music_observed_at, post_id
+        """,
+        (str(run_id),),
+    ).fetchall()
+    candidates = {value["post_id"]: value for value in run["candidates"]}
+    results: list[dict[str, Any]] = []
+    for row in rows:
+        status = str(row[9] or "").casefold()
+        if status not in MUSIC_BACKFILL_OBSERVATION_STATUSES:
+            raise RuntimeError("stored music backfill observation status is invalid")
+        post_id = str(row[2])
+        candidate = candidates.get(post_id)
+        if candidate is None:
+            raise RuntimeError("stored music observation is outside frozen candidates")
+        document, evidence_hash = _validated_music_observation_document(
+            _parse_json_object(row[7]),
+            row[8],
+            target_schema_version=run["target_schema_version"],
+            status=status,
+            error=str(row[10] or ""),
+        )
+        result = {
+            "observation_id": str(row[0]),
+            "run_id": str(row[1]),
+            "post_id": post_id,
+            "base_snapshot_id": str(row[3]),
+            "base_evidence_hash": _required_sha256(
+                row[4], field="stored observation base_evidence_hash"
+            ),
+            "base_observed_at": canonical_timestamp(row[5]),
+            "music_observed_at": canonical_timestamp(row[6]),
+            "music_evidence": document,
+            "music_evidence_hash": evidence_hash,
+            "status": status,
+            "error": str(row[10] or ""),
+            "observation_hash": _required_sha256(
+                row[11], field="stored music observation_hash"
+            ),
+            "created_at": canonical_timestamp(row[12]),
+        }
+        if result["run_id"] != str(run_id) or result["observation_id"] != stable_id(
+            "tiktok-music-backfill-observation", run_id, post_id, length=40
+        ):
+            raise RuntimeError("stored music observation identity binding mismatch")
+        for field in ("base_snapshot_id", "base_evidence_hash", "base_observed_at"):
+            if result[field] != candidate[field]:
+                raise RuntimeError("stored music observation base binding mismatch")
+        if result["observation_hash"] != json_hash(
+            _music_backfill_observation_hash_document(result)
+        ):
+            raise RuntimeError("stored music observation hash mismatch")
+        _validated_base_snapshot(
+            conn,
+            schema,
+            post_id=post_id,
+            snapshot_id=result["base_snapshot_id"],
+            evidence_hash=result["base_evidence_hash"],
+            observed_at=result["base_observed_at"],
+            require_latest=False,
+        )
+        results.append(result)
+    return results
+
+
 def _parse_iso(value: Any) -> dt.datetime | None:
     raw = str(value or "").strip()
     if not raw:
@@ -2886,6 +4136,111 @@ def _parse_iso(value: Any) -> dt.datetime | None:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=dt.timezone.utc)
     return parsed.astimezone(dt.timezone.utc)
+
+
+def reserve_provider_request_slot(
+    conn: sqlite3.Connection,
+    schema: str,
+    *,
+    provider: str,
+    minimum_interval_seconds: float,
+) -> float:
+    """Atomically reserve a workspace-wide provider request start time."""
+
+    provider = str(provider or "").strip().casefold()
+    interval = float(minimum_interval_seconds)
+    if not re.fullmatch(r"[a-z0-9._-]+", provider):
+        raise ValueError("provider must be a normalized identifier")
+    if not 0 < interval <= 300:
+        raise ValueError("minimum provider interval must be in (0, 300]")
+    if conn.in_transaction:
+        raise RuntimeError("provider request slot requires no active transaction")
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        now = dt.datetime.now(dt.timezone.utc)
+        row = conn.execute(
+            f"""
+            SELECT next_allowed_at
+            FROM {_table(schema, "tiktok_master_provider_rate_limits")}
+            WHERE provider=?
+            """,
+            (provider,),
+        ).fetchone()
+        saved = _parse_iso(row[0]) if row else None
+        reserved = max(now, saved) if saved is not None else now
+        next_allowed = reserved + dt.timedelta(seconds=interval)
+        conn.execute(
+            f"""
+            INSERT INTO {_table(schema, "tiktok_master_provider_rate_limits")} (
+                provider, next_allowed_at, updated_at
+            ) VALUES (?, ?, ?)
+            ON CONFLICT(provider) DO UPDATE SET
+                next_allowed_at=excluded.next_allowed_at,
+                updated_at=excluded.updated_at
+            """,
+            (
+                provider,
+                next_allowed.isoformat(timespec="microseconds"),
+                now.isoformat(timespec="microseconds"),
+            ),
+        )
+        conn.commit()
+        return max(0.0, (reserved - now).total_seconds())
+    except Exception:
+        conn.rollback()
+        raise
+
+
+def defer_provider_requests(
+    conn: sqlite3.Connection,
+    schema: str,
+    *,
+    provider: str,
+    delay_seconds: float,
+) -> None:
+    """Extend a provider's workspace-global cooldown after rate refusal."""
+
+    provider = str(provider or "").strip().casefold()
+    delay = float(delay_seconds)
+    if not re.fullmatch(r"[a-z0-9._-]+", provider):
+        raise ValueError("provider must be a normalized identifier")
+    if not 0 < delay <= 86_400:
+        raise ValueError("provider cooldown must be in (0, 86400]")
+    if conn.in_transaction:
+        raise RuntimeError("provider cooldown requires no active transaction")
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        now = dt.datetime.now(dt.timezone.utc)
+        requested = now + dt.timedelta(seconds=delay)
+        row = conn.execute(
+            f"""
+            SELECT next_allowed_at
+            FROM {_table(schema, "tiktok_master_provider_rate_limits")}
+            WHERE provider=?
+            """,
+            (provider,),
+        ).fetchone()
+        saved = _parse_iso(row[0]) if row else None
+        next_allowed = max(requested, saved) if saved is not None else requested
+        conn.execute(
+            f"""
+            INSERT INTO {_table(schema, "tiktok_master_provider_rate_limits")} (
+                provider, next_allowed_at, updated_at
+            ) VALUES (?, ?, ?)
+            ON CONFLICT(provider) DO UPDATE SET
+                next_allowed_at=excluded.next_allowed_at,
+                updated_at=excluded.updated_at
+            """,
+            (
+                provider,
+                next_allowed.isoformat(timespec="microseconds"),
+                now.isoformat(timespec="microseconds"),
+            ),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
 
 
 def reserve_collection_candidate(
@@ -4663,6 +6018,10 @@ def master_summary(
             str(row[0]): int(row[1]) for row in workflow_rows
         },
         "audit_reports": count("tiktok_master_audit_reports"),
+        "music_backfill_runs": count("tiktok_master_music_backfill_runs"),
+        "music_backfill_observations": count(
+            "tiktok_master_music_backfill_observations"
+        ),
         "unique_posts": count("tiktok_master_posts"),
         "snapshots": count("tiktok_master_snapshots"),
         "known_comments": count("tiktok_master_comments"),

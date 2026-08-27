@@ -1,7 +1,24 @@
-# TikTok PULSE, LISTEN, AUDIT, and ENGAGE
+# TikTok PULSE, MUSIC AUDIT, SONIC AUDIT, AUDIT, and ENGAGE
 
 This workspace has three canonical durable TikTok-only workflow modes plus one
-quick-look mode. `LISTEN` collects and stores exact evidence. `AUDIT` collects,
+quick-look mode. `MUSIC AUDIT` is the official user-facing name for the
+music-enriched LISTEN profile: it collects and stores exact evidence plus
+terminal TikTok music-declaration and configured-catalog outcomes, while the
+persisted workflow value remains `listen`.
+`MUSIC AUDIT BACKFILL` applies the current music-evidence schema to eligible
+known posts by appending music-only observations; it does not recollect their
+metrics, transcripts, or comments.
+`SONIC AUDIT` is a separate permission-gated research workflow for comparing
+the audible signal of a frozen set of already-known creator posts. It uses
+transient media only inside its isolated runner, deletes that media after local
+feature extraction, and does not change MUSIC AUDIT's metadata-only boundary.
+Its `plan-corpus` command is an offline, query-only planning utility and does
+not authorize or execute an audio run. Only `run-plan-batch` may bridge one
+validated batch into a separately authorized SONIC run.
+The Mirelo Audio-to-MIDI extension is a reserved design and is not implemented
+in this release. Mirelo-enabled CLI requests fail closed before run creation;
+the local SONIC workflow remains the only executable acoustic path.
+`AUDIT` collects,
 analyzes, scores, and stores a provisional portfolio report without creating
 replies. `ENGAGE` continues from evidence and analysis through drafting and
 independent review, and permits guarded publication only after
@@ -10,10 +27,38 @@ presentation-bound explicit user authorization for every exact response.
 that favors speed and never creates a response or publication path.
 
 Older multiplatform LISTEN/reporting code is retained in
-`LEGACY_LISTEN.md`, but it is not an active LISTEN, AUDIT, or ENGAGE execution
+`docs/legacy/LEGACY_LISTEN.md`, but it is not an active LISTEN, AUDIT, or ENGAGE execution
 path.
 
-See `SOURCE_SCOPE.md` for the source-backup boundary, including which files
+The cross-platform MUSIC AUDIT foundation in
+`tiktok_scraper/social_music_contract.py`,
+`tiktok_scraper/social_music_state.py`, and `social_music_audit.py` can safely
+normalize, checkpoint, status, and export already collected Instagram,
+Facebook, X, and YouTube metadata. It is collection-only and records unsupported
+music/transcript/subtitle surfaces explicitly. It does not download media,
+enable a live platform adapter, or add cross-platform analysis, engagement, or
+publication. See `docs/contracts/CROSS_PLATFORM_MUSIC_AUDIT.md` for the current capability and
+authorization matrix. In this offline substrate, `supported` and `unsupported`
+describe accepted importer projections, not verified official-API availability or
+authorization.
+
+An independent official-API LinkedIn Page collector lives in
+`linkedin_workflow.py`. It can durably collect authorized organization posts
+under isolated `listen` or `engage` state, but both LinkedIn values are
+collection-only. It neither changes the TikTok shortcuts in this README nor
+joins the cross-platform social-music importer. See `docs/contracts/LINKEDIN_WORKFLOW.md`.
+
+`tiktok_one_top_content.py` is a separate read-only discovery bridge for the
+TikTok One **Discover top content** page. It stores only canonical TikTok video
+links and bounded rank/filter provenance, supports exact 20, 50, 100, or larger
+requests by traversing and deduplicating the page's three observed Top 100
+rankings, and never retains captions, comments, media, raw page data, or
+credentials. A completed link set can be passed sequentially to the existing
+one-URL MUSIC AUDIT/LISTEN collector. This does not add a canonical source mode,
+AI stage, publication path, or chat shortcut. See
+`docs/contracts/TIKTOK_ONE_TOP_CONTENT.md`.
+
+See `docs/contracts/SOURCE_SCOPE.md` for the source-backup boundary, including which files
 are active, legacy reference material, or intentionally kept out of Git.
 
 Chat shortcuts:
@@ -23,8 +68,21 @@ PULSE: 3D printing, 5 posts
 QUICK AUDIT: 3D printing, 5 posts
 PULSE CREATOR: @maker, 5 posts
 PULSE URL: https://www.tiktok.com/@maker/video/1234567890
+MUSIC AUDIT: 3D printing, 50 posts
+MUSIC AUDIT CREATOR: @maker, ALL
+MUSIC AUDIT URL: https://www.tiktok.com/@maker/video/1234567890
+MUSIC AUDIT REFRESH: 3D printing, 20 posts
+MUSIC AUDIT CREATOR REFRESH: @maker, 20 posts
+MUSIC AUDIT URL REFRESH: https://www.tiktok.com/@maker/video/1234567890
+MUSIC AUDIT BACKFILL: 3D printing, ALL
+MUSIC AUDIT CREATOR BACKFILL: @maker, ALL
+MUSIC AUDIT URL BACKFILL: https://www.tiktok.com/@maker/video/1234567890
+SONIC AUDIT CREATOR: @maker, 60 posts
 LISTEN: 3D printing, 50 posts
 LISTEN CREATOR: @maker, ALL
+LISTEN URL: https://www.tiktok.com/@maker/video/1234567890
+LISTEN CREATOR REFRESH: @maker, 20 posts
+LISTEN URL REFRESH: https://www.tiktok.com/@maker/video/1234567890
 AUDIT: 3D printing, 50 posts
 AUDIT CREATOR: @maker, ALL
 AUDIT REFRESH: 3D printing, 50 posts
@@ -42,6 +100,49 @@ $EngagePython = "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe"
 Use `& $EngagePython` in place of `py -3` in the examples below. Bare
 `python` is intentionally not used because workspace path resolution can
 shadow it, and this machine's `py -3` launcher is not registered.
+
+SONIC AUDIT additionally requires the NumPy and SciPy packages declared in
+`requirements.txt`, plus `ffmpeg` and `ffprobe` on `PATH`. `fpcalc` is optional;
+when it is unavailable, the checked-in deterministic spectral-landmark
+fallback is used and recorded in the feature evidence.
+Optional Mirelo execution reads its API key only from the process environment
+variable `MIRELO_API_KEY`; do not put this secret in a command, repository
+file, plan, manifest, log, database, or export.
+
+## Separate LinkedIn Page collection
+
+LinkedIn collection uses `LINKEDIN_ACCESS_TOKEN` and LinkedIn's official API;
+it never starts Profile 7 or another browser. Sources are limited to one
+administered organization Page or one exact authorized organization post URN.
+There is no topic/member discovery, `ALL`, browser scraping, export, AI,
+drafting, approval, or publication path. In particular, LinkedIn
+`--workflow engage` still stops after evidence storage.
+
+Use the same required interpreter and place the OAuth token only in the process
+environment. For example:
+
+```powershell
+$env:LINKEDIN_ACCESS_TOKEN = "<runtime OAuth access token>"
+$LinkedInDb = "comments_data\linkedin\linkedin_collection.sqlite3"
+
+& $EngagePython .\linkedin_workflow.py --database $LinkedInDb collect `
+  --workflow listen `
+  --source organization `
+  --organization-urn "urn:li:organization:123456" `
+  --posts 25 `
+  --run-id "linkedin-listen-page-001"
+```
+
+The collector excludes already-known Page posts, freezes the ordered eligible
+URN inventory and hash, and completes only with exactly the requested number of
+evidence-ready records. An underfilled run is `collection_incomplete: X/N`;
+`resume` reuses only that frozen scope and never discovers substitutes. Comment
+and reply payloads expire after 48 hours, organization-post payloads after 180
+days, and only URN tombstones survive purging. Runtime state stays in the
+isolated default database
+`comments_data/linkedin/linkedin_collection.sqlite3`. See
+`docs/contracts/LINKEDIN_WORKFLOW.md` for exact-post, resume, status, purge, and capability
+commands.
 
 ## Workflow boundaries
 
@@ -66,9 +167,37 @@ LISTEN has one terminal sequence:
 ```text
 authenticated social-browser/account preflight
 -> collect or refresh TikTok evidence
+-> extract terminal platform-declared music metadata
+-> perform deterministic configured-catalog enrichment
 -> verify exactly N unique evidence-ready posts
--> store and synchronize evidence
+-> store hash-bound evidence and synchronize the master registry
 -> stop
+```
+
+MUSIC AUDIT BACKFILL has a separate durable maintenance sequence:
+
+```text
+select and freeze eligible known posts plus their base evidence hashes
+-> fetch only current TikTok music metadata when needed
+-> resolve eligible Apple tt2dsp IDs and MusicBrainz catalog support
+-> append separate hash-bound music observations
+-> stop without AI or publication
+```
+
+SONIC AUDIT has a separate permission-gated research sequence:
+
+```text
+explicit per-run transient-audio authorization
+-> freeze an ad hoc exact-creator set, or revalidate and freeze one exact plan batch
+-> authenticated Profile 7/account preflight
+-> bounded transient media/audio acquisition and decode
+-> local deterministic fingerprints/features and comparison
+-> optional separately authorized, preflighted, credit-capped Mirelo symbolic
+   diagnostic for the same frozen audio
+-> guaranteed raw-media cleanup
+-> persist only hashes, features, evaluation, and timings in an isolated run
+-> optionally validate the completed immutable run offline
+-> stop without master mutation, AI-per-post work, or publication
 ```
 
 AUDIT has one terminal sequence:
@@ -118,11 +247,14 @@ default: if all requested posts produce reviewed responses and the named human
 explicitly authorizes every exact text, all of them can be processed
 sequentially with their individual guards and receipts.
 
-Collection can use either a topic or one exact creator profile. A creator
-target is not the logged-in collection or commenting account: AUDIT or ENGAGE
-can inspect `@maker` while Profile 7 is authenticated as
-`@community_account`. The latter remains the account bound to the run and to
-any later ENGAGE authorization and publication checks.
+Canonical LISTEN can use a topic, one exact creator profile, or one exact
+TikTok video/photo URL. Direct URL is a durable one-post LISTEN source and must
+not be confused with ephemeral PULSE URL. Initial canonical `--url` support is
+LISTEN-only, requires `--posts 1`, and never searches for or substitutes
+another post. A creator target is not the logged-in collection or commenting
+account: AUDIT or ENGAGE can inspect `@maker` while Profile 7 is authenticated
+as `@community_account`. The latter remains the account bound to the run and
+to any later ENGAGE authorization and publication checks.
 
 Collection also maintains one workspace-global TikTok post registry. The
 default production policy is `new_only`: IDs already known anywhere in the
@@ -141,6 +273,11 @@ session, and active TikTok handle before discovery. Profile 7 may be visibly
 labelled `Profile 1` in Edge; the profile directory is the canonical identity.
 It is expected to contain logged-in sessions for multiple social networks. The
 launcher retries one transient startup failure inside the same preflight.
+`sonic_audit_tiktok.py run`, `run-plan-batch`, and `resume` own the same
+preflight before any transient media access. Its `validate`, `validate-suite`,
+`status`, and `export` commands remain local-only; validation writes only its
+declared artifact.
+`plan-corpus` is also local-only and never starts or attaches to Profile 7.
 
 These low-level commands are available for diagnosis:
 
@@ -210,6 +347,577 @@ cannot accept `ALL`, refresh, resume, database, draft, review, authorization,
 handoff, or publication arguments. Use a fresh canonical AUDIT when durable,
 deep, reproducible scoring is required.
 
+## MUSIC AUDIT sources and music enrichment (`workflow=listen`)
+
+LISTEN accepts exactly one canonical source: a topic, an exact creator, or one
+exact TikTok video/photo URL. It collects caption, metrics,
+transcript/subtitles, comments/replies, and platform-declared music metadata,
+then performs deterministic configured-catalog enrichment before committing
+the evidence hash. Music enrichment is collection, not built-in-AI analysis;
+LISTEN still stops after evidence storage and master-registry synchronization.
+
+```powershell
+# Topic
+& $EngagePython .\engage_tiktok.py `
+  --database comments_data\project_music_topic\state\engage_state.sqlite `
+  collect `
+  --project music_topic `
+  --topic "3D printing" `
+  --posts 20 `
+  --max-comments 100 `
+  --workflow listen `
+  --collection-policy new_only `
+  --mode shadow
+
+# Creator
+& $EngagePython .\engage_tiktok.py `
+  --database comments_data\project_music_creator\state\engage_state.sqlite `
+  collect `
+  --project music_creator `
+  --creator "@maker" `
+  --posts 20 `
+  --max-comments 100 `
+  --workflow listen `
+  --collection-policy new_only `
+  --mode shadow
+
+# One globally-new exact URL
+& $EngagePython .\engage_tiktok.py `
+  --database comments_data\project_music_url\state\engage_state.sqlite `
+  collect `
+  --project music_url `
+  --url "https://www.tiktok.com/@maker/video/1234567890" `
+  --posts 1 `
+  --max-comments 100 `
+  --workflow listen `
+  --collection-policy new_only `
+  --mode shadow
+
+# Refresh that exact known URL
+& $EngagePython .\engage_tiktok.py `
+  --database comments_data\project_music_url\state\engage_state.sqlite `
+  collect `
+  --project music_url `
+  --url "https://www.tiktok.com/@maker/video/1234567890" `
+  --posts 1 `
+  --max-comments 100 `
+  --workflow listen `
+  --collection-policy refresh_known `
+  --mode shadow
+```
+
+For topic `new_only`, known IDs are replaced through continued discovery. For
+creator `new_only`, fixed `N` or `ALL` is derived from the verified terminal
+profile inventory. For URL `new_only`, the fixed target is the only candidate:
+if it is globally known, the run reports `collection_incomplete: 0/1` and does
+not substitute another post. URL `refresh_known` refreshes that exact known ID,
+bypasses the automatic 24-hour cutoff unless an explicit cutoff is supplied,
+and rejects a target missing from the master registry. `ALL` is valid only for
+creator `new_only`.
+
+The initial required catalog provider is MusicBrainz. Every post stores a
+terminal TikTok declaration status and a terminal MusicBrainz outcome:
+`matched`, `ambiguous`, `not_found`, `unsupported`, `unavailable`,
+`rate_limited`, or `provider_error`. `matched` maps to
+`identity_status=catalog_correlated`; it is metadata support, not acoustic
+verification. `not_found` means a successful query returned no usable
+candidates, while the three provider-failure statuses remain distinct.
+Post duration and declared music duration remain separate. Generic
+`original sound` metadata produces `unsupported` and stays unresolved rather
+than being presented as proof that the uploader created the audible recording.
+If TikTok's structured API response also supplies `matched_song` (or its
+`matched_pgc_sound` fallback), MUSIC AUDIT stores that separately as
+`platform_contained_recording`. A complete title+artist declaration becomes
+the MusicBrainz query input and is labeled API-derived—not acoustically
+verified. Safe DSP linkage IDs produce a `partial` contained-track status when
+title/artist are absent; raw DSP tokens, play URLs, and artwork URLs are never
+retained.
+
+When `tt2dsp` includes a validated platform `1` Apple song ID, MUSIC AUDIT
+resolves that exact ID through Apple's public lookup in the Indonesian
+storefront. It stores only title, artist, album, duration, release date, genre,
+explicitness, provider ID, provenance, terminal status, and result hash in a
+separate `tt2dsp_resolution`. The original TikTok contained declaration remains
+`partial`; a successful resolver result is catalog correlation, not acoustic
+recognition. A retained platform `3` Spotify ID is provenance only until an
+authorized full-metadata adapter is configured.
+Native-language variants of “original sound” are handled primarily through
+TikTok's structured `music.original`/`isOriginal` flag, not a translation list.
+The displayed-title matcher is only a fallback when that flag is missing.
+Omitting `--music-catalog` selects the current default `musicbrainz`; supplying
+`--music-catalog musicbrainz` makes the same frozen run setting explicit.
+
+The evidence retains up to five structured MusicBrainz candidates, their
+recording/artist identifiers, ISRCs, durations, releases, provider scores,
+deterministic match reasons, cache-hit/circuit provenance, and result hashes.
+It does not retain signed audio/artwork URLs, download audio, run acoustic
+recognition, scrape lyrics, or make music-fit, lyrical, sentiment, or causal
+claims. TikTok declaration statuses are `available`, `partial`,
+`not_provided`, and `unavailable`. Explicit unavailable and provider-failure
+outcomes are terminal, so "complete pull" means every required attempt finished
+with a recorded outcome, not that every field or identity was available.
+Actual MusicBrainz request starts are serialized across concurrent workspace
+projects through the master registry with a 1.05-second minimum interval;
+content-addressed in-memory cache hits consume no request slot. A rate refusal
+extends the shared cooldown from `Retry-After`, or a conservative fallback.
+Apple tt2dsp lookups are likewise serialized workspace-wide at a 3.05-second
+minimum interval and never retain preview, artwork, or audio URLs.
+
+No separate AI or queue-enrichment script runs after LISTEN. In particular,
+do not run `legacy/one_off_state_mutators/enrich_music_data.py` against an exported canonical queue; canonical
+music enrichment belongs before evidence hashing and checkpoint storage.
+
+### Backfill music evidence on older known posts
+
+Use `music_backfill_tiktok.py` to upgrade music evidence already stored in the
+workspace-global master registry. Backfill is reusable across older projects;
+it is not tied to one creator such as BankBCA. It selects records whose latest
+music evidence is missing, older than the target schema, or in a frozen
+retryable terminal state. Current terminal records are skipped unless
+`--force` is explicitly requested.
+
+This differs from the two collection policies:
+
+- `new_only` discovers and stores globally new full post evidence.
+- `refresh_known` appends a full current snapshot, including metrics,
+  transcript/subtitles, comments/replies, and music.
+- backfill operates only on known rows and appends music observations without
+  updating the base snapshot, master `last_seen`, or global-new status.
+
+Backfill all eligible known posts for a creator:
+
+```powershell
+& $EngagePython .\music_backfill_tiktok.py `
+  --master-database comments_data\tiktok_master\state\tiktok_master.sqlite `
+  run `
+  --project bankbca_music_backfill `
+  --creator "@bankbca" `
+  --all-eligible `
+  --target-schema tiktok-music-evidence-v3
+```
+
+Use `--limit N` instead of `--all-eligible` for a bounded topic or creator
+selection. The other exact known-post scopes are `--topic`, `--url`, and one or
+more repeatable `--post-id` values:
+
+```powershell
+& $EngagePython .\music_backfill_tiktok.py `
+  --master-database $MasterDatabase `
+  run --project topic_music_backfill `
+  --topic "banking" --limit 100
+
+& $EngagePython .\music_backfill_tiktok.py `
+  --master-database $MasterDatabase `
+  run --project url_music_backfill `
+  --url "https://www.tiktok.com/@maker/video/1234567890" --all-eligible
+
+& $EngagePython .\music_backfill_tiktok.py `
+  --master-database $MasterDatabase `
+  run --project selected_music_backfill `
+  --post-id 1234567890 --post-id 1234567891 --all-eligible
+```
+
+Exactly one scope and exactly one of `--all-eligible` or `--limit N` are
+required. URL and post IDs must already exist in the master registry; backfill
+never turns an unknown target into new collection. Optional run controls are
+repeatable `--retry-status`, `--force`, `--expected-account`, and
+`--max-pages`. `--target-schema tiktok-music-evidence-v3` is the current
+explicit schema setting.
+
+For topic, URL, and explicit post-ID work items, direct HTML remains the primary
+music-metadata transport. The narrow fallback applies only to frozen exact URL
+or post-ID targets whose direct HTML attempt failed. It inventories each
+affected exact owner once, accepts only the row matching the frozen post ID,
+owner, and video/photo type, and ignores all unrelated profile rows. Topic
+scope cannot use the fallback. A missing target in a verified terminal profile
+inventory becomes explicitly `unavailable`; a nonterminal frontier cannot
+prove absence, so a still-missing target leaves the run incomplete and
+resumable. No new flag is needed, and no fallback may collect metrics,
+comments, transcripts/subtitles, audio, or AI analysis.
+
+Resume, inspect, or export the immutable run:
+
+```powershell
+& $EngagePython .\music_backfill_tiktok.py `
+  --master-database $MasterDatabase `
+  resume --run-id $RunId
+
+& $EngagePython .\music_backfill_tiktok.py `
+  --master-database $MasterDatabase `
+  status --run-id $RunId
+
+& $EngagePython .\music_backfill_tiktok.py `
+  --master-database $MasterDatabase `
+  export --run-id $RunId --file $MusicBackfillJsonl
+```
+
+The run freezes each post ID, canonical URL, base snapshot identity/hash,
+target schema, provider set, retry rules, and selection order. It revisits only
+the TikTok metadata needed for the music declaration, contained recording, and
+safe `tt2dsp` linkage; eligible Apple IDs are resolved before MusicBrainz is
+queried. Each terminal result has a separate music-observation timestamp and
+hash. Removed, private, inaccessible, or metadata-missing posts may complete as
+explicitly `unavailable` without blocking the batch.
+
+No command refreshes metrics, transcripts, subtitles, comments, replies, or
+visual evidence, overwrites an old snapshot, changes `last_seen`, or creates AI
+analysis, scores, drafts, approvals, publication rows, or receipts. `status`
+and `export` are read-only and do not attach to Profile 7 or call providers.
+
+### Plan a positive-pair SONIC corpus offline
+
+`plan-corpus` evaluates current registry evidence and writes a deterministic
+no-clobber plan without creating a SONIC run. Global `--master-database` and
+`--output-root` options precede the subcommand. Choose exactly one repeatable
+scope, `--creator` or exact `--post-id`; `--exclude-run-id` is repeatable only
+with creator scope. The four planning limits and `--file` are required:
+
+```powershell
+& $EngagePython .\sonic_audit_tiktok.py `
+  --master-database $MasterDatabase `
+  --output-root $SonicRoot `
+  plan-corpus `
+  --creator $Creator `
+  --exclude-run-id $PriorCompleteRun `
+  --min-repeated-groups $MinRepeatedGroups `
+  --min-positive-pairs $MinPositivePairs `
+  --max-posts $MaxPosts `
+  --max-posts-per-reference $MaxPostsPerReference `
+  --file $CorpusPlan
+```
+
+Repeat `--creator` for a multi-creator plan, or instead repeat `--post-id` for
+an exact all-or-nothing feasibility scope. The latter rejects exclusions and
+fails if any requested post is missing or ineligible. Eligibility is limited
+to hash-verified public videos with exact Apple `apple_itunes_lookup` `tt2dsp`
+resolution from completed, current v3 music-backfill evidence. No generic
+original-sound label, unresolved match, older schema, incomplete run, or
+unverified binding is promoted into ground truth.
+
+The `tiktok-sonic-audit-corpus-plan-v1` artifact binds its exact scope and
+targets, candidate/evidence hashes, excluded run IDs/hashes and post IDs,
+repeated Apple reference groups, and deterministic single-creator batches of
+at most 60 posts. The target file must not already exist and cannot overlap the
+master or SONIC run-state paths. Planning performs no browser/TikTok or catalog
+request, media/audio access, AI analysis, master mutation, or run creation. It
+does not grant transient-audio permission.
+
+### Run one exact planned corpus batch
+
+Each batch is a separate SONIC run and requires fresh, explicit non-AI human
+permission for that exact plan/batch selection:
+
+```powershell
+& $EngagePython .\sonic_audit_tiktok.py `
+  --master-database $MasterDatabase `
+  --output-root $SonicRoot `
+  run-plan-batch `
+  --project $Project `
+  --plan-file $CorpusPlan `
+  --batch-id $BatchId `
+  --authorize-transient-audio `
+  --expected-account $ExpectedAccount
+```
+
+`--authorize-transient-audio` records permission already granted for this new
+batch run; the plan itself, a prior run, or permission for another batch is not
+authorization. Omit optional `--expected-account` only if no exact active
+Profile 7 account was requested. When supplied, it is normalized, frozen in the
+run manifest, and must be honored on resume.
+
+Before any browser access or run creation, the runner verifies the plan schema
+and hash; source-scope and set hashes; every candidate, group, and batch hash
+and relationship; the requested batch ID; its master-database binding; and the
+current master snapshot, base evidence, v3 music observation, exact Apple
+resolution, and latest-observation binding for every candidate. Changed,
+missing, stale, mismatched, or tampered evidence fails closed.
+
+Execution freezes the selected batch's exact order: one creator, 1-60 unique
+public videos, with no discovery, addition, dropping, or substitution. It
+preserves the typed Apple track/provider/storefront/ID/label/title/artist and
+`tt2dsp` basis, together with plan/batch/group/candidate hashes and positions,
+through the manifest and feature records. Acoustic similarity cannot upgrade
+that external label.
+
+Only one run may exist for a plan hash plus batch ID. A repeated
+`run-plan-batch` invocation is rejected with the existing run ID; use ordinary
+`resume --run-id`, then `status`, completed-run `validate`, `validate-suite`, or
+`export` as appropriate without restating the plan. Media/audio stays bounded
+and transient with finally-path cleanup, the master registry remains read-only,
+and no built-in semantic AI runs. Plan-bound evaluation remains
+`exploratory_only`.
+
+### Optional Mirelo Audio-to-MIDI diagnostic
+
+> **Implementation status:** reserved and disabled. This release has no Mirelo
+> transport adapter, performs no Mirelo upload, and rejects Mirelo-enabled run
+> creation. The contract below is retained as design documentation only; do not
+> pass these flags or configure an API key for the current release.
+
+Mirelo is optional and disabled by default. To add its symbolic transcription
+to either a new ad hoc `run` or a new exact `run-plan-batch`, append all three
+Mirelo flags to the already-required local audio authorization:
+
+```powershell
+--authorize-transient-audio `
+--mirelo-audio-to-midi `
+--authorize-mirelo-upload `
+--mirelo-max-credits $MireloMaxCredits
+```
+
+The same flag set is valid on both creation commands. It is invalid on
+`plan-corpus`, `resume`, `status`, `validate`, `validate-suite`, and `export`.
+The user must separately authorize third-party upload for that exact frozen
+run and confirm they have the rights needed to submit its audio under the
+current [Mirelo Terms](https://mirelo.ai/terms). Local transient-audio
+permission, a previous run/batch, a plan, or an available API key does not
+grant upload permission. The upload decision, provider/model configuration,
+and positive `--mirelo-max-credits` run ceiling are hash-bound in the manifest;
+resume can only continue those frozen values and candidates.
+
+Before each upload, the adapter uses Mirelo's preflight credit/ETA estimate and
+checks the estimate plus committed credits against the frozen run ceiling. It
+does not upload when preflight fails or the ceiling would be exceeded. It may
+submit only the bounded decoded audio for the exact frozen post currently
+being processed—never discovered or replacement content. A provider failure
+is an explicit symbolic outcome and does not invalidate or relax the primary
+local SONIC feature result.
+
+Tell the authorizing user that Mirelo may retain provider-side input/output
+assets for up to 24 hours; deleting the local temporary files does not prove
+immediate remote deletion. Locally, the uploaded audio and returned MIDI,
+MusicXML, raw/structured notes, instrument tracks, provider payloads, and
+job/result/download URLs are transient and are never stored. The run may keep
+only a bounded sanitized hash-bound summary containing provider/model/config
+provenance, the input-audio hash binding, terminal status, preflight/credit
+scalars, non-reconstructable aggregate symbolic diagnostics, timings, and
+result hashes.
+
+This summary is supporting evidence only. It cannot change the primary
+`recording_score`, similarity threshold, catalog identity, or cluster ground
+truth, and cannot justify identity, genre, mood, lyrics, ownership, creator-
+quality, or engagement-causality claims. Offline `status` and `export` read the
+stored sanitized summary without calling Mirelo, using the key, resolving URLs,
+or spending credits. Provider tests are mocked only and use synthetic fixtures;
+they never upload live audio or consume credits. See Mirelo's current
+[Audio-to-MIDI API documentation](https://mirelo.ai/api-docs#audio-to-midi)
+and [model documentation](https://mirelo.ai/models/audio-to-midi).
+
+### Run a SONIC AUDIT creator pilot
+
+SONIC AUDIT is for local acoustic comparison, not song-name discovery.
+Ad hoc v1 `run` takes only an exact creator and 1-60 public video posts
+already present in the workspace-global master registry. It does not accept
+topic, URL, explicit ID, `ALL`, or photo/carousel rows; search the live profile;
+or replace a frozen post. `run-plan-batch` above is the only separate exact
+plan-bound execution shape. An ad hoc run reads the master registry without
+modifying it and creates a separate run under
+`comments_data/sonic_audit_runs/<run-id>/`.
+
+Transient media/audio acquisition requires explicit human permission for each
+new run. After receiving that permission, execute the 60-post BankBCA pilot as:
+
+```powershell
+& $EngagePython .\sonic_audit_tiktok.py `
+  --master-database comments_data\tiktok_master\state\tiktok_master.sqlite `
+  run `
+  --project bankbca_sonic_pilot `
+  --creator "@bankbca" `
+  --posts 60 `
+  --authorize-transient-audio
+```
+
+`--authorize-transient-audio` attests to permission already granted by a non-AI
+user. The model must never add it merely because audio would improve an audit,
+and permission from another MUSIC/SONIC AUDIT does not carry forward.
+`run`, `run-plan-batch`, and `resume` optionally accept `--expected-account` to
+require an exact active Profile 7 account; that account is independent of
+`--creator`. Keep the default output root for production runs.
+
+Run creation freezes all 60 ordered post IDs, canonical URLs, creators, base
+evidence snapshot IDs/hashes, selection method, master path, and authorization.
+If 60 valid known exact-owner rows are unavailable,
+the runner fails instead of silently reducing the pilot or discovering
+replacements.
+
+Each completed feature record separately stores and hash-binds its effective
+feature schema, algorithm, and configuration. Transport receipts bind fixed v1
+conversion provenance and timing. Resume only under the unchanged deployed
+code, dependencies, and configuration; never mix a changed implementation into
+an existing run.
+
+For a separate nonoverlapping labelled-first extension, add repeatable
+`--exclude-run-id $PriorCompleteRun` to a new `run`. Each prior run must be
+complete and bind the same creator/master database. The runner freezes its
+exclusion hashes, keeps the 60-post maximum, and requires new transient-audio
+authorization.
+
+The deterministic 60-post selector targets 21 usages from repeated exact Apple
+references, 30 distinct singleton Apple references, and 9 unresolved/original
+posts. A short bucket is filled from remaining eligible exact-owner pools
+without duplicates, and the realized mix is reported. No live post is added as
+a replacement. This is a stratified validation sample, not a random sample or
+representative audit of the creator's full portfolio. Its findings must be
+reported against the realized pilot composition and labelled support.
+
+Resume, inspect, and export that immutable run with:
+
+```powershell
+& $EngagePython .\sonic_audit_tiktok.py `
+  --master-database $MasterDatabase `
+  resume --run-id $RunId
+
+& $EngagePython .\sonic_audit_tiktok.py `
+  --master-database $MasterDatabase `
+  status --run-id $RunId
+
+& $EngagePython .\sonic_audit_tiktok.py `
+  --master-database $MasterDatabase `
+  validate --run-id $RunId
+
+& $EngagePython .\sonic_audit_tiktok.py `
+  --output-root $SonicRoot `
+  validate-suite --run-id $RunA --run-id $RunB --file $SuiteJson
+
+& $EngagePython .\sonic_audit_tiktok.py `
+  --master-database $MasterDatabase `
+  export --run-id $RunId --file $SonicAuditJson
+```
+
+The optional `validate` stage accepts only a completed immutable run and needs
+no new transient-audio authorization. It performs no browser, TikTok,
+media/audio, AI, provider, or master-database access. It leaves `report.json`
+and `state.json` unchanged and writes only the run-local
+`statistical_validation.json`. That file uses wrapper schema
+`tiktok-sonic-audit-statistical-validation-v1` with a nested
+`sonic-statistical-validation-v1` evaluation and binds the manifest, source
+report, and ordered feature-record set hashes.
+
+Validation uses reference-label-disjoint out-of-fold calibration, retains full
+descriptive positive/negative score distributions and a complete threshold
+sweep, and reports reference-grouped bootstrap intervals plus finite-support
+Wilson diagnostics. The current BankBCA pilot has eight repeated reference IDs
+and ten positive pairs, so the recommendation is `exploratory_only`, not a
+production-ready operating threshold. `status` and `export` remain read-only;
+export includes the statistical-validation artifact when present.
+
+`validate-suite` requires at least two ordered unique complete, nonoverlapping
+runs with the same creator, master binding, and feature contract. It binds all
+source hashes and the combined feature set, then writes the no-clobber
+`tiktok-sonic-audit-statistical-validation-suite-v1` file requested by
+`--file`. It performs no browser, media/audio, master, or AI access. Combined
+results remain `exploratory_only`.
+
+Each frozen URL is opened only after Profile 7 preflight and its returned post
+ID/owner must match. Download and decode are bounded by time, bytes, duration,
+media type, and format. Raw video, extracted audio, PCM, stems, and temporary
+spectrograms are deleted in a `finally` path on success, error, cancellation,
+and resume repair. Completion requires a zero-persistent-raw-media check.
+Signed URLs, cookies, headers, authorization data, and raw payloads are neither
+logged nor stored.
+
+V1 is sequential. Defaults are 64 MiB source media, 8 MiB decoded WAV, and 180
+seconds of audio per post, plus a 3,600-second run budget. Hard caps are 128 MiB
+source, 16 MiB WAV, and 300 seconds per post. HTML is capped at 8 MiB, a request
+at 30 seconds, transcode at 90 seconds, and redirects at three. Limit failures
+remain terminal outcomes and trigger the same cleanup.
+
+A safe per-item transport failure is stored as `unavailable` after cleanup and
+the run continues without replacement. A preflight/account, programming, or
+run-wide budget failure leaves pending items and `sonic_incomplete` for resume.
+All 60 immutable `completed`/`unavailable` records produce `sonic_complete`.
+
+Durable artifacts contain only the immutable manifest/bindings, per-post
+terminal checkpoints, audio/content hashes, safe duration/quality scalars,
+local fingerprints, numeric feature vectors or embeddings, similarity and
+cluster results, thresholds, timings, software/model provenance, evaluation,
+and result hashes. SONIC AUDIT never updates the master database, `last_seen`,
+canonical evidence/music records, global-new state, analysis queues, approval,
+or publication history.
+The verified export envelope uses `tiktok-sonic-audit-export-v1`; it packages
+the hash-bound manifest, state, terminal feature records, report, and optional
+statistical-validation artifact without adding media.
+Feature records wrap `sonic-feature-v1`; evaluation uses
+`sonic-similarity-report-v1` and `sonic-cluster-stability-v1` inside the
+hash-bound `tiktok-sonic-audit-report-v1` report.
+
+Similarity results are internal evidence about this frozen corpus. They cannot
+identify a catalog recording, artist, release, or ISRC on their own. A name may
+be shown only when the frozen base evidence independently contains a hash-bound
+TikTok/Apple/MusicBrainz identity, with provenance and uncertainty retained.
+Unresolved is valid; a generic original-sound label is not proof of ownership or
+identity.
+The v1 baseline uses deterministic local DSP fingerprints and numeric feature
+vectors. It does not download or run Essentia, CLAP, Shazam, or an AcoustID
+catalog lookup, so no external model/API identity is implied.
+
+The pilot measures coverage, outcome counts, cleanup, feature/schema hashes,
+total and per-stage/per-post runtime, similarity/cluster coverage, abstention,
+and cluster stability. With enough independent same-recording labels,
+post-disjoint evaluation reports labelled/distinct/repeated reference support,
+evaluable/resolved/unresolved query counts, abstention rate, Recall@1,
+Recall@5, pair TP/FP/TN/FN, precision, true-positive rate, and false-match rate
+at the selected threshold. Otherwise identity accuracy is `not_evaluable`.
+Cluster stability uses mean/minimum/maximum adjusted Rand index plus its
+resampling basis; it must never be presented as identity accuracy, and
+within-post windows are not independent test examples. This processing is local
+deterministic computation, not 60 AI calls, lyrical/semantic analysis, creator
+scoring, or proof that audio caused engagement. Accuracy and timing are measured run outputs, not estimates;
+they remain unavailable until the pilot reaches terminal records and builds its
+report.
+Recorded monotonic timing fields are `html_fetch_ms`, `media_download_ms`,
+`inspect_transcode_ms`, `processor_ms`, and `total_item_ms` per post, plus
+`preflight_ms`, `attach_ms`, `transport_ms`, and `total_run_ms` for the run.
+
+### Export a completed MUSIC AUDIT evidence packet
+
+A completed LISTEN run can export one safe semantic JSONL row per collected
+post:
+
+```powershell
+& $EngagePython .\engage_tiktok.py `
+  --database comments_data\project_music_topic\state\engage_state.sqlite `
+  export-evidence `
+  --run-id <run-id> `
+  --file comments_data\project_music_topic\music_audit_evidence.jsonl
+```
+
+The global `--database` option must precede `export-evidence`. The command
+requires `workflow=listen`, status `collection_complete`, no active collection
+attempt, and an exact requested/evidence-ready count. It verifies every raw
+evidence JSON/hash, post-ID binding and ready flag, plus creator inventory state
+when applicable, before atomically writing the file.
+
+Each `tiktok-listen-evidence-export-v1` row includes run/project/source/policy
+identity, post ID, canonical evidence hash, compact projection hash, and a safe
+semantic `evidence_packet`. The packet retains captions, metrics,
+transcript/subtitle results and segments, compact comments/replies,
+availability/provenance, and sanitized TikTok music plus MusicBrainz
+outcomes/candidates, identity status, catalog result hash, and music evidence
+hash. Signed media/share/audio/artwork URLs, avatars, and other transport-only
+payloads are omitted.
+
+Export reads stored local evidence and writes only the named artifact. It never
+starts or revalidates Profile 7, invokes AI, changes workflow counters/status,
+or mutates project/master state. The exported JSONL is not an analysis queue,
+AUDIT promotion, authorization, or publication eligibility.
+
+For Gemini/Antigravity and other guarded MUSIC AUDIT execution, use the
+operator skill rather than composing the raw command. It creates one dedicated
+semantic folder per run, named from the optional explicit run label, actual
+policy/source/target/cardinality, timestamp, and microseconds. For example, an
+explicit test uses
+`project_music_audit_test_new_topic_music_1p_<timestamp>_<microseconds>`;
+ordinary topic, creator, and URL runs omit the label and derive their identity
+from the real scope. Each new folder contains
+`state/<artifact-stem>_state.sqlite`, `<artifact-stem>_handoff.json`,
+`<artifact-stem>_ledger.jsonl`, complete-only `<artifact-stem>_evidence.jsonl`,
+`<artifact-stem>_review.json`, and `<artifact-stem>_review.md`. The stem is
+compact, semantic, unique to the run, and recorded in the handoff. Existing
+layout-v1 runs retain their original fixed names and must not be renamed.
+Names such as `results.json`, `audit_results.json`, and project-level CSV
+exports remain noncanonical.
+
 ## 2. Collect exactly the requested number
 
 Choose and retain one database path for the entire run:
@@ -230,9 +938,11 @@ Choose and retain one database path for the entire run:
 
 Each counted record contains a canonical ID/URL, creator, analyzable post text,
 metrics, terminal transcript/subtitle result, terminal comments result,
-availability metadata, provenance, observation time, and evidence hash.
-Explicit unavailable and zero-result outcomes are preserved rather than
-reported as successful content collection.
+terminal platform-music declaration, terminal configured-catalog enrichment,
+availability metadata, provenance, observation time, provider/result hashes,
+and the canonical evidence hash. Explicit unavailable, zero-result,
+insufficient-metadata, ambiguity, and provider-failure outcomes are preserved
+rather than fabricated as successful identification.
 
 To collect one creator's complete new public inventory, replace `--topic` and
 `--posts` with `--creator` and `--all-posts`:
@@ -286,11 +996,25 @@ durable checkpoints:
 ```
 
 Ready records cannot be overwritten, partial checkpoints do not unlock AI
-stages, and resume can never exceed the original requested `N`.
+stages, and resume can never exceed the original requested `N` or change the
+frozen source target, collection policy, catalog-provider set, or refresh
+selection.
 
-`LISTEN` uses the same collector with `--workflow listen`. It synchronizes the
-verified evidence to the master registry and then stops; `export-analysis` is
-refused for a LISTEN run.
+`LISTEN` uses the same collector with `--workflow listen`. It completes
+deterministic music enrichment before the evidence checkpoint, synchronizes the
+verified hash-bound snapshot to the master registry, and then stops.
+`export-analysis` and every later AI/response/publication stage are refused for
+a LISTEN run. The read-only `export-evidence` exception only serializes the
+already stored safe semantic evidence packet and does not advance workflow
+state.
+
+A LISTEN run cannot be promoted or analyzed in place. A later AUDIT must create
+its own canonical AUDIT or AUDIT REFRESH run. When that run collects or
+refreshes the same post, its evidence and compact AI projection retain the
+stored music declaration, catalog candidates, terminal outcomes, and hashes.
+AUDIT must preserve identity uncertainty, make no acoustic or lyrical claim
+without corresponding authorized evidence, and must not infer that music
+caused engagement.
 
 `AUDIT` uses `--workflow audit --mode shadow`. It shares the exact-count and
 master-registry collection contract, permits the existing analysis
@@ -388,10 +1112,13 @@ grounded policy fields, and evidence references. Import those results:
 
 For large runs, the exported AI packet is a compact semantic projection: it
 keeps captions, metrics, transcripts/subtitles, all collected comment and reply
-text, thread signals, availability, provenance, and timestamps while dropping
-avatars, signed media/share URLs, and other transport-only fields. The raw
-packet stays unchanged in SQLite. Each projection embeds the canonical raw
-evidence hash and has its own projection hash.
+text, thread signals, sanitized platform music declarations, catalog candidates
+and terminal outcomes, provider/result hashes, availability, provenance, and
+timestamps while dropping avatars, signed media/share/audio/artwork URLs, and
+other transport-only fields. The raw packet stays unchanged in SQLite. Each
+projection embeds the canonical raw evidence hash and has its own projection
+hash. Catalog correlation is not acoustic verification, and absent authorized
+lyrics evidence cannot support a lyrical-fit claim.
 Large queues may be partitioned by complete post record across available AI
 workers, and all results return through the canonical hash-validating importer.
 If an ENGAGE run later continues to reply work, independent reviewers must not
@@ -759,9 +1486,15 @@ batch stops at the first failed or uncertain result by default.
 
 ```powershell
 & $EngagePython quick_audit_tiktok.py --help
+& $EngagePython sonic_audit_tiktok.py --help
 & $EngagePython engage_tiktok.py --help
 & $EngagePython engage_tiktok.py --database <database> status --run-id <run-id>
 & $EngagePython engage_tiktok.py --database <database> audit-report --run-id <run-id>
+& $EngagePython -m pytest -q `
+  tests/sonic/test_sonic_contracts.py tests/sonic/test_sonic_features.py `
+  tests/sonic/test_sonic_audio_transport.py tests/sonic/test_sonic_audit_cli.py `
+  tests/sonic/test_sonic_evaluation.py tests/sonic/test_sonic_suite_validation.py `
+  tests/sonic/test_sonic_corpus_planning.py
 & $EngagePython -m pytest -q
 ```
 

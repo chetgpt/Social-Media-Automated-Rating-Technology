@@ -635,6 +635,16 @@ class TikTokAPIIntegration:
             author_stats = {}
         music = item.get("music") if isinstance(item.get("music"), dict) else {}
         video = item.get("video") if isinstance(item.get("video"), dict) else {}
+        music_id = music.get("id") or music.get("mid") or ""
+        music_title = music.get("title") or music.get("musicName") or ""
+        music_author = (
+            music.get("authorName") or music.get("author_name") or ""
+        )
+        contained = self._extract_contained_recording(music)
+        music_present_count = sum(
+            value not in (None, "")
+            for value in (music_id, music_title, music_author)
+        )
         subtitle_manifest = extract_tiktok_subtitle_manifest(item)
         visual_evidence = self._tiktok_item_visual_evidence(item)
 
@@ -706,14 +716,189 @@ class TikTokAPIIntegration:
                 "saves": "available" if saves_present else "missing_from_public_response",
                 "followers": "available" if followers_present else "missing_from_public_response",
             },
-            "music_id": music.get("id") or music.get("mid") or "",
-            "music_title": music.get("title") or music.get("musicName") or "",
-            "music_author": music.get("authorName") or music.get("author_name") or "",
+            "music_id": music_id,
+            "music_title": music_title,
+            "music_author": music_author,
+            "music_album": music.get("album") or "",
+            "music_is_original": (
+                music.get("original")
+                if isinstance(music.get("original"), bool)
+                else music.get("isOriginal")
+                if isinstance(music.get("isOriginal"), bool)
+                else None
+            ),
+            "music_duration_seconds": (
+                music.get("duration")
+                or music.get("durationSeconds")
+                or music.get("duration_seconds")
+                or 0
+            ),
+            "music_metadata_status": (
+                "available"
+                if music_present_count == 3
+                else "partial"
+                if music_present_count
+                else "not_provided"
+            ),
+            "music_metadata_source": "tiktok_item_music",
+            **contained,
+            # Preserve the historical field for callers that display post
+            # length, but name it explicitly as well.  This value comes from
+            # item.video and must never be used as a recording duration.
+            "post_duration_seconds": video.get("duration") or 0,
             "duration_seconds": video.get("duration") or 0,
             "thumbnail_url": video.get("cover") or video.get("originCover") or video.get("dynamicCover") or "",
             **visual_evidence,
             "subtitle_track_count": len(subtitle_manifest.get("tracks") or []),
             "_tiktok_subtitle_manifest": subtitle_manifest,
+        }
+
+    @staticmethod
+    def _extract_contained_recording(music: Dict[str, Any]) -> Dict[str, Any]:
+        """Project TikTok's declared contained-track object into safe scalars.
+
+        Consumer TikTok responses may put the UI's ``Contains music from``
+        declaration in ``matched_song`` (or ``matchedSong``), with
+        ``matched_pgc_sound`` as a fallback.  This is platform metadata, not
+        acoustic recognition.  Transport URLs, DSP tokens, and raw nested
+        objects are deliberately discarded.
+        """
+
+        selected: Dict[str, Any] = {}
+        source = ""
+        for aliases, canonical_source in (
+            (("matched_song", "matchedSong"), "tiktok_item_music.matched_song"),
+            (
+                ("matched_pgc_sound", "matchedPgcSound"),
+                "tiktok_item_music.matched_pgc_sound",
+            ),
+        ):
+            candidate = next(
+                (
+                    music.get(key)
+                    for key in aliases
+                    if isinstance(music.get(key), dict) and music.get(key)
+                ),
+                None,
+            )
+            if isinstance(candidate, dict):
+                selected = candidate
+                source = canonical_source
+                break
+
+        def scalar(*keys: str) -> str:
+            for key in keys:
+                value = selected.get(key)
+                if isinstance(value, (str, int)) and not isinstance(value, bool):
+                    normalized = str(value).strip()
+                    if normalized:
+                        return normalized[:500]
+            return ""
+
+        def positive_ms() -> int | None:
+            for key in (
+                "duration_ms",
+                "durationMs",
+                "full_song_duration_ms",
+                "fullSongDurationMs",
+            ):
+                value = selected.get(key)
+                if value is None or isinstance(value, bool):
+                    continue
+                try:
+                    number = float(value)
+                except (TypeError, ValueError):
+                    continue
+                if number > 0:
+                    return int(round(number))
+            for key in ("duration", "duration_seconds", "durationSeconds"):
+                value = selected.get(key)
+                if value is None or isinstance(value, bool):
+                    continue
+                try:
+                    number = float(value)
+                except (TypeError, ValueError):
+                    continue
+                if number > 0:
+                    return int(round(number * 1000))
+            return None
+
+        tt2dsp = music.get("tt2dsp")
+        tt2dsp = tt2dsp if isinstance(tt2dsp, dict) else {}
+        raw_links = (
+            tt2dsp.get("tt_to_dsp_song_infos")
+            or tt2dsp.get("ttToDspSongInfos")
+            or music.get("tt_to_dsp_song_infos")
+            or music.get("ttToDspSongInfos")
+            or []
+        )
+        dsp_links: List[Dict[str, Any]] = []
+        if isinstance(raw_links, list):
+            for raw_link in raw_links[:10]:
+                if not isinstance(raw_link, dict):
+                    continue
+                safe_link: Dict[str, Any] = {}
+                for output_key, aliases in (
+                    ("meta_song_id", ("meta_song_id", "metaSongId")),
+                    ("song_id", ("song_id", "songId")),
+                    ("platform", ("platform",)),
+                    ("button_type", ("button_type", "buttonType")),
+                ):
+                    value = next(
+                        (
+                            raw_link.get(key)
+                            for key in aliases
+                            if isinstance(raw_link.get(key), (str, int))
+                            and not isinstance(raw_link.get(key), bool)
+                            and str(raw_link.get(key)).strip()
+                        ),
+                        None,
+                    )
+                    if value is not None:
+                        safe_link[output_key] = str(value).strip()[:200]
+                if safe_link and safe_link not in dsp_links:
+                    dsp_links.append(safe_link)
+
+        recording_id = scalar("id", "id_str", "idStr", "mid", "music_id", "musicId")
+        title = scalar("title", "musicName")
+        artist = scalar("author", "artist", "authorName", "author_name")
+        album = scalar("album")
+        isrc = scalar("isrc")
+        duration_ms = positive_ms()
+        present = any(
+            (recording_id, title, artist, album, isrc, duration_ms, dsp_links)
+        )
+        status = (
+            "available"
+            if title and artist
+            else "partial"
+            if present
+            else "not_provided"
+        )
+        if not source and dsp_links:
+            source = "tiktok_item_music.tt2dsp.tt_to_dsp_song_infos"
+        reason = (
+            ""
+            if status == "available"
+            else "contained_recording_linkage_returned_without_identity"
+            if dsp_links and not (title and artist)
+            else "contained_recording_identity_incomplete"
+            if status == "partial"
+            else "contained_recording_not_returned"
+        )
+        return {
+            "music_contained_recording_status": status,
+            "music_contained_recording_source": source,
+            "music_contained_recording_relationship": "tiktok_declared_contains",
+            "music_contained_recording_identification_basis": "tiktok_declared_metadata",
+            "music_contained_recording_id": recording_id,
+            "music_contained_recording_title": title,
+            "music_contained_recording_artist": artist,
+            "music_contained_recording_album": album,
+            "music_contained_recording_isrc": isrc,
+            "music_contained_recording_duration_ms": duration_ms,
+            "music_contained_recording_dsp_links": dsp_links,
+            "music_contained_recording_reason": reason,
         }
 
     @staticmethod
@@ -1426,7 +1611,7 @@ class TikTokAPIIntegration:
                 if max_pages and len(valid_pages) >= max_pages:
                     stop_reason = "page_cap_reached"
                     break
-                if stall_rounds >= 4:
+                if stall_rounds >= 60:
                     stop_reason = "pagination_stalled"
                     break
 
@@ -1438,7 +1623,7 @@ class TikTokAPIIntegration:
                 except Exception:
                     pass
                 try:
-                    await asyncio.wait_for(post_event.wait(), timeout=2.5)
+                    await asyncio.wait_for(post_event.wait(), timeout=10.0)
                 except asyncio.TimeoutError:
                     pass
                 if len(post_pages) == before:
@@ -1933,6 +2118,28 @@ class TikTokAPIIntegration:
                 "collect_count",
                 "follower_count",
                 "metric_availability",
+                "music_id",
+                "music_title",
+                "music_author",
+                "music_album",
+                "music_is_original",
+                "music_duration_seconds",
+                "music_metadata_status",
+                "music_metadata_source",
+                "music_contained_recording_status",
+                "music_contained_recording_source",
+                "music_contained_recording_relationship",
+                "music_contained_recording_identification_basis",
+                "music_contained_recording_id",
+                "music_contained_recording_title",
+                "music_contained_recording_artist",
+                "music_contained_recording_album",
+                "music_contained_recording_isrc",
+                "music_contained_recording_duration_ms",
+                "music_contained_recording_dsp_links",
+                "music_contained_recording_reason",
+                "post_duration_seconds",
+                "duration_seconds",
                 "_tiktok_subtitle_manifest",
                 "subtitle_track_count",
             ):

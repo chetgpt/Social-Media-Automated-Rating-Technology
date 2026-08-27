@@ -116,7 +116,7 @@ class InstagramScraper(BaseScraper):
 
         cdp_url = self._cdp_url()
         if cdp_url:
-            self.logger.info(f"Connecting to existing Instagram browser over CDP: {cdp_url}")
+            self.logger.info("Connecting to existing Instagram browser over CDP")
             browser = await playwright.chromium.connect_over_cdp(cdp_url)
             self._external_context = True
             self._cdp_browser = browser
@@ -182,6 +182,24 @@ class InstagramScraper(BaseScraper):
             }
         except Exception:
             return None
+
+    def _is_comments_api_response(self, response) -> bool:
+        try:
+            response_url = str(response.url or "")
+            if "/api/v1/media/" in response_url and "/comments/" in response_url:
+                return True
+            if not any(marker in response_url for marker in ("/graphql/query", "/api/graphql")):
+                return False
+            template = self._graphql_template_from_request(response.request)
+            if not template:
+                return False
+            form = template.get("form") or {}
+            return bool(
+                form.get("fb_api_req_friendly_name") == "PolarisPostCommentsPaginationQuery"
+                or str(form.get("doc_id") or "") == self.COMMENTS_DOC_ID
+            )
+        except Exception:
+            return False
 
     async def _ensure_instagram_origin(self, page: Page) -> None:
         try:
@@ -728,6 +746,29 @@ class InstagramScraper(BaseScraper):
             "saves": "available" if save_count is not None else "not_publicly_exposed",
             "followers": "available" if follower_count is not None else "missing_from_public_response",
         }
+        music_id = music_asset.get("audio_id") or original_sound.get("audio_asset_id") or ""
+        music_title = music_asset.get("title") or original_sound.get("original_audio_title") or ""
+        music_author = music_asset.get("display_artist") or ig_artist.get("full_name") or ""
+        music_album = music_asset.get("album_name") or music_asset.get("album") or ""
+        music_audio_type = item.get("media_audio_type") or clips.get("audio_type") or ""
+        music_identity_complete = all((music_id, music_title, music_author))
+        music_values_present = any(
+            (music_id, music_title, music_author, music_album, music_audio_type)
+        )
+        music_metadata_status = (
+            "available"
+            if music_identity_complete
+            else "partial"
+            if music_values_present
+            else "not_provided"
+        )
+        music_duration_ms = direct_value(
+            music_asset,
+            "duration_in_ms",
+            "audio_duration_in_ms",
+        )
+        if music_duration_ms is None:
+            music_duration_ms = direct_value(original_sound, "duration_in_ms")
         return {
             "published_at": item.get("taken_at") or item.get("taken_at_timestamp") or item.get("created_at") or "",
             "content_type": content_type,
@@ -769,9 +810,18 @@ class InstagramScraper(BaseScraper):
             },
             "follower_count": follower_count,
             "metric_availability": metric_availability,
-            "music_id": music_asset.get("audio_id") or original_sound.get("audio_asset_id") or "",
-            "music_title": music_asset.get("title") or original_sound.get("original_audio_title") or "",
-            "music_author": music_asset.get("display_artist") or ig_artist.get("full_name") or "",
+            "music_id": music_id,
+            "music_title": music_title,
+            "music_author": music_author,
+            "music_album": music_album,
+            "music_audio_type": music_audio_type,
+            "music_is_original": True if original_sound and not music_asset else False if music_asset else None,
+            "music_duration_ms": music_duration_ms,
+            "music_metadata_attempted": True,
+            "music_metadata_status": music_metadata_status,
+            "music_metadata_source": "instagram_authenticated_web_metadata",
+            "music_metadata_authority": "experimental_authenticated_web",
+            "music_metadata_access_scope": "authenticated_web_api_not_official_graph_api",
             "duration_seconds": item.get("video_duration") or (original_sound.get("duration_in_ms", 0) / 1000 if original_sound.get("duration_in_ms") else 0),
             "thumbnail_url": thumbnail_url,
             "content_location_id": location.get("id") or location.get("pk") or "",
@@ -891,11 +941,13 @@ class InstagramScraper(BaseScraper):
         author = owner.get("username") or owner.get("full_name") or node.get("username") or ""
         author_id = owner.get("id") or owner.get("pk") or node.get("user_id") or ""
 
-        # Caption objects can look comment-ish but usually do not carry a comment id.
-        if not raw_id and not author:
+        # Captions, menu strings, ads, and profile objects can also contain text
+        # and an id. API comments must have both a provider id and attribution;
+        # fail closed instead of synthesizing an id for an arbitrary JSON node.
+        if not raw_id or not (author or author_id):
             return None
 
-        comment_id = str(raw_id) if raw_id else self._stable_comment_id(text.strip(), str(author), video_id)
+        comment_id = str(raw_id)
         likes = self._like_count_from_node(node)
 
         return {
@@ -940,9 +992,35 @@ class InstagramScraper(BaseScraper):
         video_id: str,
         comments: Dict[str, Dict[str, Any]],
         is_reply: bool = False,
+        _comment_context: bool = False,
     ) -> None:
         if isinstance(payload, dict):
-            comment = self._comment_from_node(payload, video_id, is_reply=is_reply)
+            typename = str(payload.get("__typename") or "").casefold()
+            explicit_comment_markers = (
+                "comment_like_count",
+                "child_comment_count",
+                "num_tail_child_comments",
+                "edge_liked_by",
+                "edge_threaded_comments",
+                "has_liked_comment",
+                "viewer_has_liked",
+                "is_ranked_comment",
+                "parent_comment_id",
+                "parent_comment",
+            )
+            looks_like_comment = bool(
+                "comment" in typename
+                or any(key in payload for key in explicit_comment_markers)
+                or any(
+                    key in payload
+                    for key in ("preview_child_comments", "child_comments", "replies")
+                )
+            )
+            comment = (
+                self._comment_from_node(payload, video_id, is_reply=is_reply)
+                if _comment_context or is_reply or looks_like_comment
+                else None
+            )
             if comment:
                 existing = comments.get(comment["comment_id"])
                 if existing and existing.get("is_reply"):
@@ -961,14 +1039,70 @@ class InstagramScraper(BaseScraper):
                         self._collect_comments_from_json(reply_node, video_id, comments, is_reply=True)
                 elif isinstance(container, list):
                     for reply_node in container:
-                        self._collect_comments_from_json(reply_node, video_id, comments, is_reply=True)
+                        self._collect_comments_from_json(
+                            reply_node,
+                            video_id,
+                            comments,
+                            is_reply=True,
+                            _comment_context=True,
+                        )
 
-            for value in payload.values():
-                self._collect_comments_from_json(value, video_id, comments, is_reply=is_reply)
+            # Once a comment node is accepted, traverse only its explicit reply
+            # containers. Recursing into owner/profile fields can otherwise turn
+            # arbitrary text-bearing user objects into synthetic comments.
+            if comment:
+                return
+
+            comment_containers = (
+                "comments",
+                "preview_comments",
+                "edge_media_to_parent_comment",
+                "edge_media_to_comment",
+                "edge_media_preview_comment",
+                "xdt_api__v1__media__media_id__comments__connection",
+            )
+            handled = set()
+            for key in comment_containers:
+                container = payload.get(key)
+                if container is None:
+                    continue
+                handled.add(key)
+                self._collect_comments_from_json(
+                    container,
+                    video_id,
+                    comments,
+                    is_reply=False,
+                    _comment_context=True,
+                )
+
+            handled.update(
+                key for key, container in zip(
+                    ("edge_threaded_comments", "preview_child_comments", "child_comments", "replies"),
+                    reply_containers,
+                )
+                if container is not None
+            )
+
+            for key, value in payload.items():
+                if key in handled:
+                    continue
+                self._collect_comments_from_json(
+                    value,
+                    video_id,
+                    comments,
+                    is_reply=is_reply,
+                    _comment_context=_comment_context,
+                )
 
         elif isinstance(payload, list):
             for value in payload:
-                self._collect_comments_from_json(value, video_id, comments, is_reply=is_reply)
+                self._collect_comments_from_json(
+                    value,
+                    video_id,
+                    comments,
+                    is_reply=is_reply,
+                    _comment_context=_comment_context,
+                )
 
     def _comments_page_info(self, payload: Any) -> Dict[str, Any]:
         if isinstance(payload, dict):
@@ -1470,8 +1604,7 @@ class InstagramScraper(BaseScraper):
         page = await context.new_page()
 
         async def capture_response(response):
-            response_url = response.url
-            if not any(marker in response_url for marker in ("/graphql/query", "/api/graphql", "/comments/")):
+            if not self._is_comments_api_response(response):
                 return
             try:
                 payload = await response.json()
