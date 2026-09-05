@@ -254,8 +254,15 @@ def test_live_path_quarantines_exact_id_before_reload_and_attaches_after_receipt
         "final_text_hash": hashlib.sha256(text.encode("utf-8")).hexdigest(),
         "public_rating": "",
     }
+    listeners = {}
+    request = SimpleNamespace(
+        method="POST", url="https://www.tiktok.com/api/comment/publish/"
+    )
 
     class _Control:
+        def __init__(self, *, submit=False):
+            self.submit = submit
+
         async def focus(self):
             pass
 
@@ -267,6 +274,8 @@ def test_live_path_quarantines_exact_id_before_reload_and_attaches_after_receipt
 
         async def click(self):
             events.append("submit")
+            if self.submit:
+                listeners["request"](request)
 
     class _ResponseContext:
         async def __aenter__(self):
@@ -278,7 +287,7 @@ def test_live_path_quarantines_exact_id_before_reload_and_attaches_after_receipt
         @property
         def value(self):
             async def _value():
-                return object()
+                return SimpleNamespace(request=request)
 
             return _value()
 
@@ -297,8 +306,12 @@ def test_live_path_quarantines_exact_id_before_reload_and_attaches_after_receipt
             self.url = target
             self.keyboard = _Keyboard()
 
-        def on(self, *_args):
-            pass
+        def on(self, event, callback):
+            listeners[event] = callback
+
+        def remove_listener(self, event, callback):
+            assert listeners[event] == callback
+            del listeners[event]
 
         async def goto(self, url, **_kwargs):
             self.url = url
@@ -314,24 +327,27 @@ def test_live_path_quarantines_exact_id_before_reload_and_attaches_after_receipt
 
     class _Recorder:
         def __init__(self):
-            self.records = [
-                {
-                    "capture_id": "capture-1",
-                    "request_url": "https://www.tiktok.com/api/comment/publish/",
-                    "response": {"comment": {"cid": "9988776655"}},
-                }
-            ]
+            self.records = []
 
         async def on_request(self, *_args):
             pass
 
         async def on_response(self, *_args):
-            pass
+            self.records = [
+                {
+                    "capture_id": "capture-1",
+                    "request_url": "https://www.tiktok.com/api/comment/publish/",
+                    "method": "POST",
+                    "request_body_template": {"aweme_id": post_id, "text": text},
+                    "response_status": 200,
+                    "response": {"comment": {"cid": "9988776655", "text": text}},
+                }
+            ]
 
         def flush_unanswered(self):
             pass
 
-    controls = [_Control(), _Control()]
+    controls = [_Control(), _Control(submit=True)]
 
     async def fake_first_visible(*_args, **_kwargs):
         return controls.pop(0), "selector"

@@ -1,11 +1,16 @@
 # Gemini 3.1 Pro TikTok Workflow Adapter
 
-**Adapter version:** 6.9.1
+**Adapter version:** 7.2.0
 
 **Applies to:** Gemini 3.1 Pro / Antigravity agentic execution in this workspace
 
 **Active workflows:** TikTok `PULSE`, `MUSIC AUDIT` (LISTEN-backed),
-`MUSIC AUDIT BACKFILL`, `SONIC AUDIT`, `AUDIT`, and `ENGAGE`
+`MUSIC AUDIT BACKFILL`, `AUDIO ARCHIVE`, `SONIC AUDIT`, `AUDIT`, and `ENGAGE`
+
+**Separate discovery mode:** `POSTS DISCOVERY` searches TikTok for any requested
+topic and enforces the user's publication-time window before posts count.
+It counts posts, not artists. Existing MUSIC DISCOVERY research runs remain
+available only for explicit legacy continuation.
 
 This document is a model-specific execution adapter. It is deliberately short
 and does not redefine the workspace workflow.
@@ -26,6 +31,39 @@ CLI help establishes syntax and implemented capability only. It does not grant
 permission to add an optional scope, count, page bound, recovery action, or
 workflow transition that the user and higher authorities did not request.
 
+For `POSTS DISCOVERY`, load `.agents/skills/posts-discovery/SKILL.md` and
+`docs/contracts/POSTS_DISCOVERY.md`. Resolve the requested topic, positive post
+count, and explicit publication-time window. Ask a concise clarification when
+count or window is missing; do not silently default to seven days or reuse an
+artist count. Start fresh search with `posts_discovery.py plan --topic <topic>
+--posts N --last-hours H`, or replace `--last-hours` with both timezone-aware
+`--since` and `--until`. Disclose the frozen UTC interval `[start, end)`.
+
+`collect --run-dir` delegates to one exact guarded MUSIC AUDIT topic child with
+immutable publication bounds. The child owns Profile 7 preflight and canonical
+metadata/exact-count/new-only gates. Unknown, invalid, older, or end-boundary/
+later publication timestamps cannot fill quota. Recency is checked before
+quota use, against hydrated evidence, and again in export validation. Newly
+seen or globally new does not mean recently published. Eligible observed search
+batches and output are newest-first, but are not a globally exhaustive latest
+TikTok feed or proof of a remote date-filter API.
+
+Preserve the child handoff and obey guarded poll/direct same-handoff resume
+rules; never substitute a new start or low-level browser recovery. Planning,
+status, report, and validation are offline. Coordinator saved status is not a
+current process-liveness check. Follow a preserved child's returned authorized
+guarded action, then reconcile completion from that same parent. Do not widen
+the original window or lower the count to conceal an incomplete run.
+
+Topic queries supply candidate relevance, not verified nationality, location,
+artist identity, or claim truth. Music/artist qualification, Spotify rules,
+listening, and public-web artist research are not POSTS DISCOVERY requirements;
+perform separate analysis only when requested. Existing MUSIC DISCOVERY
+directories and helpers remain unchanged for explicit legacy continuation;
+new old-name requests need the POSTS DISCOVERY topic/window/post-count scope.
+No audio archiving, outbound action, alternate browser, or fabricated collector
+is authorized by discovery.
+
 For every regular `MUSIC AUDIT` or `LISTEN` request, including `REFRESH` and
 browser troubleshooting, load
 `.agents/skills/google-3.1-music-audit-instructions/SKILL.md`. Subject to the
@@ -34,6 +72,20 @@ execution runbook. Load its Profile 7 recovery reference only after the
 canonical collector returns a browser blocker. Generic examples elsewhere in
 this adapter do not override the skill, and
 `docs/legacy/google 3.1 social browser instructions.md` is retired and non-authoritative.
+
+For a new single-topic MUSIC AUDIT, keep the normalized user-supplied topic as
+the sole TikTok search query. Count, candidate-reserve, page, and retry scaling
+may repeat or paginate only that query; never synthesize related terms or
+modifiers. If the user explicitly supplies multiple topics, resolve whether
+the number means TOTAL, EACH, or CUSTOM quotas and use
+`music_audit_topics.py`. Ask when that meaning is ambiguous instead of joining
+topics into a query or inventing an allocation. A saved legacy
+`related_variants_v1` run resumes unchanged only through its exact handoff.
+
+That MUSIC AUDIT skill is not the AUDIO ARCHIVE runner. A request to retain or
+download audio from evidence-ready rows in any compatible local project routes to
+`audio_archive_tiktok.py` and `docs/contracts/AUDIO_ARCHIVE.md`; it must not be
+implemented as a MUSIC AUDIT/LISTEN flag, resume, or operator modification.
 
 For `MUSIC AUDIT CREATOR: <target>, ALL`, invoke the guarded operator with the
 exhaustive scope `start --creator '<target>' --all-posts`. Do not add `--posts`,
@@ -84,7 +136,36 @@ already established by the current task.
 
 ## 3. New-project state contract
 
-This section applies to canonical LISTEN, AUDIT, and ENGAGE runs. PULSE is
+POSTS DISCOVERY owns a generated parent directory under
+`comments_data/posts_discovery_runs/`, with a named manifest, posts SQLite/JSONL,
+and review JSON/Markdown. Its canonical child separately owns the ordinary
+`project_music_audit_posts_discovery_*` directory and master lineage. Preserve
+the exact paths bound in the manifest, frozen topic/window/count, and child
+handoff. Parent report/validation reads child evidence query-only; it does not
+edit canonical evidence or master state.
+
+Report the exact parent/child identities, publication window, requested and
+accepted counts, dates, evidence paths, validation outcome, and shortfalls.
+Only exactly N unique date-eligible evidence-ready posts with validated export
+justify `collection_complete`; planning, an existing artifact, or an old
+collection's completion status do not prove this. List results newest first
+and distinguish observed search coverage from all-of-TikTok coverage.
+Existing `comments_data/music_discovery_runs/` artifacts remain at their old
+paths with their original research semantics; do not physically rename them or
+retrospectively claim their collection enforced a publication window.
+See the POSTS DISCOVERY contract for exact commands and status meanings.
+
+An explicit multi-topic MUSIC AUDIT owns a generated parent directory under
+`comments_data/music_audit_topic_runs/`. Its manifest freezes ordered topics,
+TOTAL/EACH/CUSTOM mode, positive fixed per-topic quotas, plan hash, and exact
+canonical child identities/paths. Each child retains its ordinary guarded
+MUSIC AUDIT project and master lineage. Parent status and validation are
+offline; live work is delegated sequentially to one exact-topic child. Preserve
+the exact current handoff on interruption and never reconstruct, replace,
+rebalance, or redistribute the plan. See
+`docs/contracts/MULTI_TOPIC_MUSIC_AUDIT.md`.
+
+The remaining guidance in this section applies to canonical LISTEN, AUDIT, and ENGAGE runs. PULSE is
 ephemeral: it creates no project slug, project/master database row, run ID, or
 resumable state. Never create or inspect a canonical run merely to execute a
 PULSE request.
@@ -94,6 +175,14 @@ state. Its runner reads the master registry only to freeze known-post bindings
 and writes its own versioned artifacts under
 `comments_data/sonic_audit_runs/<run-id>/`; it must never write the master
 database or create a canonical LISTEN/AUDIT/ENGAGE run.
+
+AUDIO ARCHIVE is also durable and isolated. It reads evidence-ready rows from
+any compatible current, incomplete, copied, moved, restored, or legacy project
+database query-only; it does not require master-snapshot lineage or the
+database's original path. It writes by default beneath
+`comments_data/audio_archive_runs/<semantic-run-id>/`. It never changes either
+source databases or creates a canonical workflow transition. Use
+`run_audio_archive_batch.py` for selected projects or all projects.
 
 A new project creates a new local workflow scope; it does **not** create a new
 browser identity. Derive a filesystem-safe project slug and use:
@@ -140,6 +229,9 @@ the same preflight before transient media access. Its offline
 `validate`/`validate-suite` stages
 and its read-only `status` and `export` commands must not attach to Profile 7.
 The offline `plan-corpus` utility also must not attach to Profile 7.
+For AUDIO ARCHIVE, `audio_archive_tiktok.py run` or `resume` owns Profile 7
+preflight before media access. Its `status` and `validate` commands and batch
+`--dry-run` are offline and must not attach to Edge or TikTok.
 
 For MUSIC AUDIT, invoke the skill's guarded operator as one managed foreground
 task and retain that exact task ID until terminal JSON. It emits a sanitized
@@ -255,8 +347,8 @@ low-level browser start/stop. A restart never permits a replacement run or an
 unbounded retry loop.
 
 Profile 7 is accessed only for collection/refresh, live music backfill work,
-authorized SONIC AUDIT media access, and immediately before an authorized
-outbound TikTok action. Backfill `status`
+authorized SONIC AUDIT media access, AUDIO ARCHIVE `run`/`resume`,
+and immediately before an authorized outbound TikTok action. Backfill `status`
 and `export` use stored state and must not attach to the browser. PULSE analysis uses the already emitted
 ephemeral packet; canonical analysis, AUDIT aggregation, drafting, review,
 storage, presentation, and authorization use local state. None of those AI or
@@ -267,13 +359,18 @@ local stages may start, attach to, or revalidate the browser.
 Parse the user's shortcut according to `AGENTS.md`. When ambiguous, choose
 `ENGAGE SHADOW` and perform no outbound action.
 
-Match `SONIC AUDIT CREATOR` before the shorter string `AUDIT`. Match
+Match `AUDIO ARCHIVE` and `SONIC AUDIT CREATOR` before the shorter string
+`AUDIT`. Match
 `MUSIC AUDIT BACKFILL` (including CREATOR and URL variants) before
 `MUSIC AUDIT REFRESH`, then match all MUSIC AUDIT forms before the shorter
 strings `AUDIT` or `QUICK AUDIT`. A regular MUSIC AUDIT creates the internal
 `workflow=listen` and stops at `collection_complete`. Backfill creates its own
 durable music-maintenance run. Neither creates AI scores or a
 `tiktok-audit-report-v1` report.
+
+Within MUSIC AUDIT, match `MUSIC AUDIT TOPICS TOTAL|EACH|CUSTOM|CONTINUE`
+before the single-topic form. These coordinator shortcuts are new collection
+only; do not infer a multi-topic REFRESH, BACKFILL, creator, or URL mode.
 
 ### PULSE / QUICK AUDIT
 
@@ -306,6 +403,17 @@ another post. MUSIC AUDIT cannot export or import AI
 analysis and cannot draft or publish. Its only export command is the read-only
 `export-evidence` handoff for a completed MUSIC AUDIT run; that command does not
 advance the workflow or invoke AI.
+
+New topic children freeze `topic_query_policy=exact`: same-query pagination and
+retries continue until the quota is met or a real exhaustion/refusal produces
+`collection_incomplete: X/N`. Never interpret a large `N` as permission to
+generate keyword combinations. For explicit multiple topics, TOTAL divides a
+positive total by floor/remainder in input order and rejects
+`N < topic_count`; EACH assigns positive `N` to every topic; CUSTOM requires a
+positive explicit quota per ordered topic. Children execute sequentially under
+global `new_only` deduplication, so the earliest child owns an overlapping post.
+Quotas are immutable and never borrowed. The coordinator adds no AI or outbound
+capability.
 
 MusicBrainz lookup is collector-owned deterministic evidence enrichment, not a
 Gemini/Antigravity semantic stage. Do not independently Google the song, invoke
@@ -356,6 +464,89 @@ Backfill remains collection-only maintenance. It cannot invoke Gemini for
 semantic analysis, score or rate content, infer acoustic or lyrical facts,
 draft/review responses, authorize, or publish. `status` and `export` are local
 read-only operations and must not touch Profile 7 or providers.
+
+### AUDIO ARCHIVE
+
+```text
+user requests AUDIO ARCHIVE for one, selected, or all projects
+-> query-only discovery of evidence-ready rows
+-> Profile 7/account preflight
+-> one acquisition per selected video
+-> local normalized M4A plus locally derived MP3
+-> independently hash and atomically checkpoint both, or keep neither
+-> delete source and temporary media -> isolated complete/incomplete state
+```
+
+Route a request to retain or download audio already represented in local
+project state to `audio_archive_tiktok.py`. Any compatible database containing
+`engage_tiktok_runs` and `engage_tiktok_posts` is accepted, including a copied,
+moved, restored, incomplete, or legacy project. Do not require a master
+database, terminal run status, original absolute path, rights basis, storage
+mode, TTL, named authorizer, or separate authorization statement. The user's
+request is sufficient. Rows must already be evidence-ready; the archive does
+not discover or refresh posts.
+
+The single-source creation shape is:
+
+```powershell
+$ArchiveRoot = 'comments_data\audio_archive_runs'
+
+& $EngagePython .\audio_archive_tiktok.py `
+  --output-root $ArchiveRoot `
+  run `
+  --source-database '<project SQLite path>' `
+  --source-run-id '<run ID>'
+```
+
+No scope option means all evidence-ready rows. For a subset, repeat
+`--post-id '<numeric ID>'`. `--all-evidence-ready` is optional. An invalid row
+is skipped and reported without blocking valid rows.
+
+For all projects, use this one command:
+
+```powershell
+& $EngagePython .\run_audio_archive_batch.py
+```
+
+To select any projects, repeat `--project <directory-name>`. To preview either
+plan offline, add `--dry-run`. A completed archive covers only its frozen rows;
+later evidence-ready rows are archived in bounded delta runs. The batch resumes
+only identity-matched unfinished archives, continues past failed sources, and
+writes its summary under `comments_data/audio_archive_runs/batches/`.
+
+One TikTok acquisition per item must produce both
+`audio/<ordinal>_<post-id>.m4a` using AAC-LC with a 192 kbit/s encoder target at 44.1 kHz and
+`audio/<ordinal>_<post-id>.mp3` using MP3 192 kbit/s at 44.1 kHz. MP3 is
+derived locally from the same acquisition path and never causes another
+TikTok fetch. Store separate sizes and SHA-256 hashes. Treat the formats as one
+logical pair: if either cannot be validated or promoted, neither counts.
+Handled failures roll back both names; same-run resume removes exact
+manifest-owned staging or half-pair residue left by a hard interruption before
+reacquisition. Delete source video, source/demuxed audio, PCM, partial encodes,
+and transcoder scratch after success and handled failure.
+
+Each archive directory owns a `run.lock` so two operations do not write the
+same archive concurrently. New-run planning and batch `--dry-run` are
+query-only.
+
+```powershell
+& $EngagePython .\audio_archive_tiktok.py `
+  --output-root $ArchiveRoot `
+  resume --run-id $ArchiveRunId --expected-account '<TikTok handle>'
+
+& $EngagePython .\audio_archive_tiktok.py `
+  --output-root $ArchiveRoot `
+  status --run-id $ArchiveRunId
+
+& $EngagePython .\audio_archive_tiktok.py `
+  --output-root $ArchiveRoot `
+  validate --run-id $ArchiveRunId
+```
+
+Only `run` and `resume` touch Profile 7. `status`, `validate`, and batch
+`--dry-run` are offline. AUDIO ARCHIVE does not run AI, fingerprinting,
+catalog/provider analysis, engagement, or publication and never writes a
+source database.
 
 ### SONIC AUDIT
 
@@ -563,6 +754,40 @@ Use `--workflow audit` for AUDIT. Creator collection uses `--creator` instead
 of `--topic`; creator `ALL` uses `--all-posts` instead of `--posts`. MUSIC
 AUDIT does not use this generic example; use the dedicated skill and canonical
 `music-audit` subcommand.
+
+### Explicit multi-topic MUSIC AUDIT
+
+Plan exactly one immutable quota shape:
+
+```powershell
+& $EngagePython .\music_audit_topics.py plan `
+  --count-mode total --posts 1000 `
+  --topic 'mr diy' --topic 'ace hardware'
+
+& $EngagePython .\music_audit_topics.py plan `
+  --count-mode each --posts 500 `
+  --topic 'mr diy' --topic 'ace hardware'
+
+& $EngagePython .\music_audit_topics.py plan `
+  --topic-quota 'mr diy=700' `
+  --topic-quota 'ace hardware=300'
+```
+
+Read the generated run directory from the command output. Do not guess or
+recreate it:
+
+```powershell
+& $EngagePython .\music_audit_topics.py collect --run-dir '<exact-run-directory>'
+& $EngagePython .\music_audit_topics.py continue --run-dir '<exact-run-directory>'
+& $EngagePython .\music_audit_topics.py status --run-dir '<exact-run-directory>'
+& $EngagePython .\music_audit_topics.py validate --run-dir '<exact-run-directory>'
+```
+
+`collect` delegates live access to one sequential exact-topic guarded child.
+`continue` follows only the current saved child handoff after explicit user
+direction; it never creates a replacement or changes a quota. `status` and
+`validate` are offline. Stop on an unfinished child and report its shortfall;
+do not start a later child, borrow quota, or lower the parent target.
 
 ### MUSIC AUDIT direct URL
 
@@ -1121,6 +1346,11 @@ Before declaring a task complete, verify:
   `music_backfill_tiktok.py`, froze known-post/base-hash bindings, appended
   music-only observations, and did not refresh full evidence, update
   `last_seen`, invoke AI, or create publication state;
+- AUDIO ARCHIVE, when requested, accepted any compatible project database or
+  selected/all-project batch, kept source state read-only, required no separate
+  authorization/rights/TTL ceremony, used one TikTok acquisition per item,
+  committed complete hash-verified M4A+MP3 pairs, deleted temporary/source
+  media, and kept planning/status/validation browser-free;
 - SONIC AUDIT, when requested, had explicit permission for that run, used only
   `sonic_audit_tiktok.py`, froze exactly the requested known exact-owner posts
   and base hashes, kept the master read-only, persisted only derived artifacts,

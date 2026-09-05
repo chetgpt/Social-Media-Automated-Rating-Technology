@@ -2363,7 +2363,7 @@ def test_production_collector_closes_only_temporary_page(tmp_path, monkeypatch):
             assert received_page is page
             assert topic == "coffee"
             assert max_offsets == 3
-            assert include_related_queries is True
+            assert include_related_queries is False
             assert target_count == 2
             return [{**evidence("123"), "caption": "Useful coffee post"}]
 
@@ -2429,6 +2429,7 @@ def run_fake_production_collector(
     integration_class,
     *,
     requested_count,
+    max_pages=3,
     collector_options=None,
 ):
     state_path = tmp_path / "state.json"
@@ -2544,7 +2545,7 @@ def run_fake_production_collector(
             topic="coffee",
             requested_count=requested_count,
             max_comments=10,
-            max_pages=3,
+            max_pages=max_pages,
             **dict(collector_options or {}),
         )
     )
@@ -2799,11 +2800,12 @@ def test_production_collector_stops_at_exact_requested_ready_count(
             target_count,
         ):
             assert target_count == 100
+            assert include_related_queries is False
             self.last_search_diagnostics = {
                 "candidate_target": target_count,
                 "candidate_count": 60,
-                "queries_attempted": 5,
-                "query_variants_planned": 20,
+                "queries_attempted": 1,
+                "query_variants_planned": 1,
                 "stop_reason": "query_frontier_exhausted",
             }
             return [
@@ -2890,11 +2892,12 @@ def test_production_collector_uses_replacements_until_exact_ready_count(
             target_count,
         ):
             assert target_count == 100
+            assert include_related_queries is False
             self.last_search_diagnostics = {
                 "candidate_target": target_count,
                 "candidate_count": 70,
-                "queries_attempted": 6,
-                "query_variants_planned": 20,
+                "queries_attempted": 1,
+                "query_variants_planned": 1,
                 "stop_reason": "query_frontier_exhausted",
             }
             return [
@@ -2980,6 +2983,7 @@ def test_new_only_reserves_lazily_and_replaces_a_rejected_lease(
             include_related_queries,
             target_count,
         ):
+            assert include_related_queries is False
             ids = ("1", "2", "3", "4", "5")
             self.last_search_diagnostics = {
                 "candidate_target": target_count,
@@ -3042,7 +3046,7 @@ def test_new_only_reserves_lazily_and_replaces_a_rejected_lease(
     assert collector.last_diagnostics["reservation_skipped"] == 1
 
 
-def test_new_only_skips_global_known_ids_and_expands_for_exact_replacements(
+def test_new_only_exact_query_pages_deeper_past_known_candidate_reserve(
     tmp_path,
     monkeypatch,
 ):
@@ -3067,13 +3071,16 @@ def test_new_only_skips_global_known_ids_and_expands_for_exact_replacements(
             include_related_queries,
             target_count,
         ):
+            assert include_related_queries is False
             self.discovery_targets.append(target_count)
             ids = (
-                ("1", "2")
+                ("1", "2", "5", "6")
                 if len(self.discovery_targets) == 1
                 else (
                     "1",
                     "2",
+                    "5",
+                    "6",
                     "3",
                     "4",
                 )
@@ -3081,9 +3088,13 @@ def test_new_only_skips_global_known_ids_and_expands_for_exact_replacements(
             self.last_search_diagnostics = {
                 "candidate_target": target_count,
                 "candidate_count": len(ids),
-                "queries_attempted": len(self.discovery_targets),
-                "query_variants_planned": target_count,
-                "stop_reason": "query_frontier_exhausted",
+                "queries_attempted": 1,
+                "query_variants_planned": 1,
+                "stop_reason": (
+                    "candidate_target_reached"
+                    if len(self.discovery_targets) == 1
+                    else "source_exhausted"
+                ),
             }
             return [
                 {
@@ -3123,7 +3134,7 @@ def test_new_only_skips_global_known_ids_and_expands_for_exact_replacements(
         requested_count=2,
         collector_options={
             "collection_policy": "new_only",
-            "global_known_post_ids": ("1", "2"),
+            "global_known_post_ids": ("1", "2", "5", "6"),
             "candidate_reserver": lambda post_id, candidate: True,
         },
     )
@@ -3131,8 +3142,74 @@ def test_new_only_skips_global_known_ids_and_expands_for_exact_replacements(
     assert [record["id"] for record in records] == ["3", "4"]
     assert FakeIntegration.instance.hydrated_ids == ["3", "4"]
     assert FakeIntegration.instance.discovery_targets == [4, 8]
+    assert collector.last_diagnostics["global_known_skipped"] == 4
+    assert collector.last_diagnostics["collection_stop_reason"] == (
+        "exact_count_reached"
+    )
+
+
+def test_new_only_exact_query_stops_at_verified_source_exhaustion(
+    tmp_path,
+    monkeypatch,
+):
+    class FakeIntegration:
+        instance = None
+
+        def __init__(self, *, enable_api, persist_session_secrets):
+            self.discovery_targets = []
+            self.last_search_diagnostics = {}
+            type(self).instance = self
+
+        async def initialize_api(self, page):
+            return True
+
+        async def discover_search_videos(
+            self,
+            page,
+            topic,
+            *,
+            max_offsets,
+            include_related_queries,
+            target_count,
+        ):
+            assert include_related_queries is False
+            self.discovery_targets.append(target_count)
+            self.last_search_diagnostics = {
+                "candidate_target": target_count,
+                "candidate_count": 2,
+                "queries_attempted": 1,
+                "query_variants_planned": 1,
+                "stop_reason": "source_exhausted",
+            }
+            return [
+                {**evidence(post_id), "caption": f"Coffee workflow {post_id}"}
+                for post_id in ("1", "2")
+            ]
+
+        async def hydrate_video_candidates(self, page, candidates):
+            raise AssertionError("known posts must not be hydrated")
+
+        async def get_comments_for_multiple_videos(self, page, candidates, **kwargs):
+            raise AssertionError("known posts must not request comments")
+
+    records, collector, _, _ = run_fake_production_collector(
+        tmp_path,
+        monkeypatch,
+        FakeIntegration,
+        requested_count=1,
+        collector_options={
+            "collection_policy": "new_only",
+            "global_known_post_ids": ("1", "2"),
+            "candidate_reserver": lambda post_id, candidate: True,
+        },
+    )
+
+    assert records == []
+    assert FakeIntegration.instance.discovery_targets == [2]
     assert collector.last_diagnostics["global_known_skipped"] == 2
-    assert collector.last_diagnostics["collection_stop_reason"] == "exact_count_reached"
+    assert collector.last_diagnostics["collection_stop_reason"] == (
+        "no_new_candidates"
+    )
 
 
 def test_refresh_known_uses_only_stored_targeted_candidates(

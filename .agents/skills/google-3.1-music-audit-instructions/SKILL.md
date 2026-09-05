@@ -5,8 +5,8 @@ description: >-
   engage_tiktok.py, including one-post smoke tests, exact topic, creator, or
   URL scopes, Edge Profile 7 verification, same-run resume, project-scoped
   evidence export, and completion checks. Use for MUSIC AUDIT or its legacy
-  LISTEN alias; not for PULSE, SONIC AUDIT, Instagram, AI analysis,
-  engagement, or publication.
+  LISTEN alias; not for PULSE, SONIC AUDIT, AUDIO ARCHIVE, Instagram, AI
+  analysis, engagement, or publication.
 ---
 
 # TikTok MUSIC AUDIT runner
@@ -40,6 +40,19 @@ closed as `RUNNING`.
 
 ## Preserve these invariants
 
+- Route a request to retain or download audio from evidence-ready rows in any
+  compatible current, incomplete, copied, moved, restored, or legacy project to
+  the separate `audio_archive_tiktok.py` workflow and its
+  `docs/contracts/AUDIO_ARCHIVE.md` contract. Do not add an audio flag to the
+  guarded MUSIC AUDIT operator or treat a retained-audio request as a LISTEN
+  resume. A direct AUDIO ARCHIVE request is sufficient: it may read
+  evidence-ready rows from any compatible current, incomplete, copied, moved,
+  restored, or legacy project database without a master-registry match or
+  extra authorization formula. Use `run_audio_archive_batch.py` for selected
+  or all projects. A completed archive covers only its frozen rows; batch
+  reruns archive newly eligible rows as bounded deltas and resume only
+  identity-matched unfinished archives. Each successful item stores one
+  checkpointed M4A+MP3 pair derived from one TikTok acquisition.
 - Run the canonical music-audit command. It stores workflow=listen and stops at
   evidence collection; do not start analysis, drafting, approval, or
   publication.
@@ -50,6 +63,29 @@ closed as `RUNNING`.
   topic-discovered post from a neutral topic such as music and report the
   creator TikTok returns. Describe it as topic-discovered, not statistically
   random. This procedure has no true random-account selector.
+- For a new topic source, use only the normalized topic supplied by the user as
+  the TikTok query. Paginate and retry that same query. The requested count,
+  candidate reserve, page budget, duplicates, or evidence failures never
+  authorize generated prefixes, suffixes, location/language terms, related
+  keywords, commercial-intent phrases, or another modifier. If the exact query
+  cannot produce the quota, preserve and report the honest
+  `collection_incomplete: X/N` result.
+- A saved legacy run with immutable
+  `topic_query_policy=related_variants_v1` is a compatibility exception only:
+  resume its exact existing handoff unchanged. Never opt a new run into that
+  policy or migrate a legacy run to `exact` during continuation.
+- When the user explicitly requests more than one topic, do not concatenate
+  them or send multiple sources to one guarded child. Resolve TOTAL, EACH, or
+  CUSTOM quota semantics and route the frozen sequential plan through
+  `music_audit_topics.py` as described below. If the count meaning is
+  ambiguous, ask rather than guessing.
+- Do not pass a TikTok `/music/<slug>-<numeric-id>` sound-detail link to
+  `--url`; direct URL means an exact video or photo post. The numeric sound ID
+  may be rendered as a derived, query-free locator in a completed review with
+  online verification `not_attempted`. Bare `/music/` identifies no exact
+  sound. `tiktok_music_page.py inspect-local` is an offline query-only lookup
+  over already-known master-registry posts, not a MUSIC AUDIT source or live
+  TikTok page resolver.
 - For creator `ALL`, the complete guarded argv shape is
   `start --creator '<target>' --all-posts`. Do not append `--posts`,
   `--max-pages`, or another finite discovery bound. `ALL` means an uncapped
@@ -91,6 +127,53 @@ closed as `RUNNING`.
   collector.
 - Never print or persist cookies, authorization headers, session tokens,
   signed media URLs, or the CDP WebSocket UUID.
+
+## Explicit multi-topic MUSIC AUDIT
+
+Use the coordinator only after the ordered topics and count semantics are
+explicit. Planning is offline and accepts exactly one of these shapes:
+
+~~~powershell
+& $AuditPython .\music_audit_topics.py plan `
+  --count-mode total --posts 1000 `
+  --topic 'mr diy' --topic 'ace hardware'
+
+& $AuditPython .\music_audit_topics.py plan `
+  --count-mode each --posts 500 `
+  --topic 'mr diy' --topic 'ace hardware'
+
+& $AuditPython .\music_audit_topics.py plan `
+  --topic-quota 'mr diy=700' `
+  --topic-quota 'ace hardware=300'
+~~~
+
+TOTAL assigns `floor(total/topic_count)` to every topic and gives the remainder
+to topics in input order; reject a total smaller than the number of topics.
+EACH assigns the same positive `--posts N` to every topic. CUSTOM requires a
+positive explicit quota for each ordered topic. Reject normalized duplicate
+topics. The resulting plan, order, quotas, hashes, and child bindings are
+immutable; TOTAL is a fixed allocation, not a fungible shared pool.
+
+Read the exact generated run directory from `plan`, normally beneath
+`comments_data/music_audit_topic_runs/`, then use only these commands:
+
+~~~powershell
+& $AuditPython .\music_audit_topics.py collect --run-dir '<exact-run-directory>'
+& $AuditPython .\music_audit_topics.py continue --run-dir '<exact-run-directory>'
+& $AuditPython .\music_audit_topics.py status --run-dir '<exact-run-directory>'
+& $AuditPython .\music_audit_topics.py validate --run-dir '<exact-run-directory>'
+~~~
+
+`collect` runs one exact-topic canonical guarded MUSIC AUDIT child at a time.
+Every child remains `workflow=listen`, `new_only`, full-evidence/music,
+Profile-7-gated, and stops without AI or outbound action. Because all children
+share the workspace master registry, an overlapping post belongs to the
+earliest topic that checkpoints it and later topics must find different IDs.
+Never borrow or redistribute a child shortfall. Stop on the first unfinished or
+blocked child. `continue` may follow only that exact child's guarded poll and
+same-handoff continuation; it must never start a replacement child. `status`
+and `validate` are offline. Parent completion requires every fixed child quota
+to validate. See `docs/contracts/MULTI_TOPIC_MUSIC_AUDIT.md`.
 
 ## Underlying CLI reference — not a Gemini execution path
 
@@ -149,7 +232,8 @@ Do not add `--json` or another flag absent from the current `music-audit --help`
 For another initial new_only scope, change only the source and cardinality
 arguments:
 
-- Topic: --topic '<topic>' --posts N.
+- Topic: --topic '<topic>' --posts N. A new run freezes
+  `topic_query_policy=exact` and paginates only that normalized query.
 - Creator: --creator '@handle-or-profile-url' --posts N, or
   --creator ... --all-posts only when the user explicitly requests ALL.
 - Direct URL: --url '<canonical-video-or-photo-url>' --posts 1.

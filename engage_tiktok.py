@@ -55,6 +55,12 @@ from tiktok_scraper.music_enrichment import (
     validate_enrichment_document,
     verify_canonical_hash as verify_music_enrichment_hash,
 )
+from tiktok_scraper.music_page_locator import build_tiktok_music_page_locator
+from tiktok_scraper.publication_window import (
+    normalize_publication_window,
+    publication_decision,
+    validate_publication_window,
+)
 from tiktok_scraper.tt2dsp_resolution import (
     APPLE_MIN_REQUEST_INTERVAL_SECONDS,
     PROVIDER as TT2DSP_PROVIDER,
@@ -128,6 +134,7 @@ AUDIT_RUBRIC_VERSIONS = {
 COLLECTION_POLICIES = frozenset({"new_only", "refresh_known"})
 SOURCE_MODES = frozenset({"topic", "creator", "url"})
 CARDINALITY_MODES = frozenset({"fixed", "all"})
+TOPIC_QUERY_POLICIES = frozenset({"exact", "related_variants_v1"})
 DEFAULT_MUSIC_CATALOGS = ("musicbrainz",)
 SUPPORTED_MUSIC_CATALOGS = frozenset(DEFAULT_MUSIC_CATALOGS)
 MUSICBRAINZ_MIN_REQUEST_INTERVAL_SECONDS = 1.05
@@ -221,9 +228,12 @@ class TikTokCollector(Protocol):
         refresh_candidates: Sequence[dict[str, Any]] = (),
         candidate_reserver: Callable[[str, dict[str, Any]], bool] | None = None,
         source_mode: str = "topic",
+        topic_query_policy: str = "exact",
         creator_handle: str = "",
         direct_post_url: str = "",
         music_catalogs: Sequence[str] = (),
+        publication_window: Mapping[str, Any] | None = None,
+        publication_exclusion_callback: Callable[[str, str, dict[str, Any]], None] | None = None,
         music_request_slot_reserver: Callable[[str, float], float] | None = None,
         music_provider_cooldown: Callable[[str, float], None] | None = None,
         creator_inventory: Sequence[dict[str, Any]] = (),
@@ -1926,6 +1936,7 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
             run_id TEXT PRIMARY KEY,
             project TEXT NOT NULL,
             topic TEXT NOT NULL,
+            topic_query_policy TEXT NOT NULL DEFAULT 'exact',
             requested_count INTEGER NOT NULL,
             max_comments INTEGER NOT NULL,
             max_pages INTEGER NOT NULL,
@@ -1937,6 +1948,7 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
             creator_profile_url TEXT NOT NULL DEFAULT '',
             direct_post_url TEXT NOT NULL DEFAULT '',
             music_catalogs_json TEXT NOT NULL DEFAULT '[]',
+            publication_window_json TEXT NOT NULL DEFAULT '{}',
             creator_identity_json TEXT NOT NULL DEFAULT '{}',
             cardinality_mode TEXT NOT NULL DEFAULT 'fixed',
             creator_inventory_json TEXT NOT NULL DEFAULT '[]',
@@ -2033,6 +2045,16 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
             created_at TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS engage_tiktok_publication_exclusions (
+            run_id TEXT NOT NULL,
+            post_id TEXT NOT NULL,
+            stage TEXT NOT NULL,
+            reason TEXT NOT NULL,
+            published_at TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL,
+            PRIMARY KEY (run_id, post_id, stage)
+        );
+
         CREATE TABLE IF NOT EXISTS engage_tiktok_browser_checks (
             check_id TEXT PRIMARY KEY,
             run_id TEXT NOT NULL,
@@ -2061,6 +2083,7 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
         row[1]
         for row in conn.execute("PRAGMA table_info(engage_tiktok_runs)").fetchall()
     }
+    topic_query_policy_migration = "topic_query_policy" not in run_columns
     for name, definition in {
         "expected_account": "TEXT NOT NULL DEFAULT ''",
         "observed_account": "TEXT NOT NULL DEFAULT ''",
@@ -2068,10 +2091,15 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
         "workflow": "TEXT NOT NULL DEFAULT 'engage'",
         "collection_policy": "TEXT NOT NULL DEFAULT 'new_only'",
         "source_mode": "TEXT NOT NULL DEFAULT 'topic'",
+        # Existing databases predate the immutable policy field and historically
+        # expanded topic queries. Preserve that behavior only for those rows;
+        # every newly created run writes ``exact`` explicitly.
+        "topic_query_policy": "TEXT NOT NULL DEFAULT 'related_variants_v1'",
         "creator_handle": "TEXT NOT NULL DEFAULT ''",
         "creator_profile_url": "TEXT NOT NULL DEFAULT ''",
         "direct_post_url": "TEXT NOT NULL DEFAULT ''",
         "music_catalogs_json": "TEXT NOT NULL DEFAULT '[]'",
+        "publication_window_json": "TEXT NOT NULL DEFAULT '{}'",
         "creator_identity_json": "TEXT NOT NULL DEFAULT '{}'",
         "cardinality_mode": "TEXT NOT NULL DEFAULT 'fixed'",
         "creator_inventory_json": "TEXT NOT NULL DEFAULT '[]'",
@@ -2089,6 +2117,20 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
             conn.execute(
                 f"ALTER TABLE engage_tiktok_runs ADD COLUMN {name} {definition}"
             )
+    if topic_query_policy_migration:
+        # Historical topic runs used generated related-query variants. Preserve
+        # that scope for their exact same-run continuation, while creator and
+        # direct-URL runs never had a topic-query policy to preserve.
+        conn.execute(
+            """
+            UPDATE engage_tiktok_runs
+            SET topic_query_policy = CASE
+                WHEN lower(trim(source_mode)) IN ('', 'topic')
+                    THEN 'related_variants_v1'
+                ELSE 'exact'
+            END
+            """
+        )
     post_columns = {
         row[1]
         for row in conn.execute("PRAGMA table_info(engage_tiktok_posts)").fetchall()
@@ -2322,6 +2364,7 @@ def create_run(
     *,
     project: str,
     topic: str,
+    topic_query_policy: str = "exact",
     requested_count: int,
     max_comments: int,
     max_pages: int,
@@ -2333,6 +2376,7 @@ def create_run(
     creator_profile_url: str = "",
     direct_post_url: str = "",
     music_catalogs: Sequence[str] = DEFAULT_MUSIC_CATALOGS,
+    publication_window: Mapping[str, Any] | None = None,
     collect_all: bool = False,
     refresh_post_ids: Sequence[str] = (),
     refresh_candidates: Sequence[dict[str, Any]] = (),
@@ -2344,6 +2388,13 @@ def create_run(
     source_mode = text(source_mode).casefold() or "topic"
     if source_mode not in SOURCE_MODES:
         raise ValueError("source_mode must be topic, creator, or url")
+    topic_query_policy = text(topic_query_policy).casefold() or "exact"
+    if topic_query_policy not in TOPIC_QUERY_POLICIES:
+        raise ValueError(
+            "topic_query_policy must be exact or related_variants_v1"
+        )
+    if source_mode != "topic" and topic_query_policy != "exact":
+        raise ValueError("related topic-query variants require a topic source")
     cardinality_mode = "all" if collect_all else "fixed"
     normalized_creator = ""
     normalized_profile_url = ""
@@ -2368,12 +2419,16 @@ def create_run(
         raise ValueError("source-specific targets must match their source_mode")
     if requested_count < 0 or (requested_count == 0 and cardinality_mode != "all"):
         raise ValueError("requested_count must be positive unless creator ALL is used")
-    if max_comments < 0 or max_pages < 0 or (max_pages == 0 and source_mode == "topic"):
+    workflow = text(workflow).casefold() or "engage"
+    if max_comments < 0 or max_pages < 0 or (
+        max_pages == 0
+        and source_mode == "topic"
+        and (workflow != "engage" or topic_query_policy != "exact")
+    ):
         raise ValueError("collection bounds are invalid")
     mode = text(mode).casefold() or "shadow"
     if mode not in {"shadow", "live"}:
         raise ValueError("mode must be shadow or live")
-    workflow = text(workflow).casefold() or "engage"
     if workflow not in WORKFLOW_TYPES:
         raise ValueError("workflow must be listen, audit, or engage")
     if source_mode == "url" and workflow != "listen":
@@ -2387,6 +2442,9 @@ def create_run(
         raise ValueError("collection_policy must be new_only or refresh_known")
     if cardinality_mode == "all" and collection_policy != "new_only":
         raise ValueError("creator ALL requires collection_policy=new_only")
+    frozen_window = validate_publication_window(publication_window)
+    if frozen_window and (source_mode != "topic" or workflow != "listen" or collection_policy != "new_only"):
+        raise ValueError("publication windows require topic new_only LISTEN collection")
     normalized_catalogs = tuple(
         dict.fromkeys(
             text(provider).casefold() for provider in music_catalogs if text(provider)
@@ -2426,14 +2484,14 @@ def create_run(
     conn.execute(
         """
         INSERT INTO engage_tiktok_runs (
-            run_id, project, topic, requested_count, max_comments, max_pages,
+            run_id, project, topic, topic_query_policy, requested_count, max_comments, max_pages,
             mode, workflow, collection_policy, source_mode, creator_handle,
             creator_profile_url, direct_post_url, music_catalogs_json,
             cardinality_mode, refresh_post_ids_json,
             refresh_candidates_json, refresh_stale_before, master_database,
-            expected_account, status, requested, created_at, updated_at
+            expected_account, publication_window_json, status, requested, created_at, updated_at
         ) VALUES (
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
             'awaiting_browser', ?, ?, ?
         )
         """,
@@ -2441,6 +2499,7 @@ def create_run(
             run_id,
             text(project),
             text(topic),
+            topic_query_policy,
             requested_count,
             max_comments,
             max_pages,
@@ -2458,6 +2517,7 @@ def create_run(
             stale_before,
             text(master_database),
             text(expected_account).lstrip("@").casefold(),
+            canonical_json(frozen_window),
             requested_count,
             timestamp,
             timestamp,
@@ -2474,10 +2534,12 @@ def create_run(
             "workflow": workflow,
             "collection_policy": collection_policy,
             "source_mode": source_mode,
+            "topic_query_policy": topic_query_policy,
             "creator_handle": normalized_creator,
             "creator_profile_url": normalized_profile_url,
             "direct_post_url": normalized_direct_url,
             "music_catalogs": list(normalized_catalogs),
+            **({"publication_window": frozen_window} if frozen_window else {}),
             "cardinality_mode": cardinality_mode,
             "refresh_post_ids": normalized_refresh_ids,
             "refresh_stale_before": stale_before,
@@ -2983,9 +3045,12 @@ class TikTokBrowserCollector:
         refresh_candidates: Sequence[dict[str, Any]] = (),
         candidate_reserver: Callable[[str, dict[str, Any]], bool] | None = None,
         source_mode: str = "topic",
+        topic_query_policy: str = "exact",
         creator_handle: str = "",
         direct_post_url: str = "",
         music_catalogs: Sequence[str] = DEFAULT_MUSIC_CATALOGS,
+        publication_window: Mapping[str, Any] | None = None,
+        publication_exclusion_callback: Callable[[str, str, dict[str, Any]], None] | None = None,
         music_request_slot_reserver: Callable[[str, float], float] | None = None,
         music_provider_cooldown: Callable[[str, float], None] | None = None,
         creator_inventory: Sequence[dict[str, Any]] = (),
@@ -3001,12 +3066,18 @@ class TikTokBrowserCollector:
             platform_authentication,
             verified_profile_context,
         )
-        from tiktok_scraper.api_integration import TikTokAPIIntegration
+        from tiktok_scraper.api_integration import (
+            TIKTOK_SEARCH_STALL_ROUNDS,
+            TikTokAPIIntegration,
+        )
         from tiktok_scraper.relevance import (
             build_auto_profile,
             score_candidate,
         )
 
+        frozen_window = validate_publication_window(publication_window)
+        if frozen_window and (source_mode != "topic" or collection_policy != "new_only"):
+            raise ValueError("publication windows require topic new_only collection")
         cdp_url = self._cdp_url()
         designation = load_engage_profile7_designation(
             Path(self.state_path).resolve().parent
@@ -3064,6 +3135,20 @@ class TikTokBrowserCollector:
                 normalized_source_mode = text(source_mode).casefold() or "topic"
                 if normalized_source_mode not in SOURCE_MODES:
                     raise ValueError("source_mode must be topic, creator, or url")
+                normalized_topic_query_policy = (
+                    text(topic_query_policy).casefold() or "exact"
+                )
+                if normalized_topic_query_policy not in TOPIC_QUERY_POLICIES:
+                    raise ValueError(
+                        "topic_query_policy must be exact or related_variants_v1"
+                    )
+                if (
+                    normalized_source_mode != "topic"
+                    and normalized_topic_query_policy != "exact"
+                ):
+                    raise ValueError(
+                        "related topic-query variants require a topic source"
+                    )
                 target_creator = ""
                 direct_target: dict[str, str] = {}
                 if normalized_source_mode == "creator":
@@ -3090,6 +3175,12 @@ class TikTokBrowserCollector:
                 seen_candidate_ids: set[str] = set(existing_ids)
                 global_known_skipped = 0
                 reservation_skipped = 0
+                publication_exclusions: dict[str, set[str]] = {}
+
+                def exclude_publication(post_id: str, stage: str, decision: dict[str, Any]) -> None:
+                    publication_exclusions.setdefault(decision["reason"], set()).add(post_id)
+                    if publication_exclusion_callback is not None:
+                        publication_exclusion_callback(post_id, stage, decision)
 
                 def total_evidence_ready() -> int:
                     return int(initial_evidence_ready_count) + len(evidence_ready_ids)
@@ -3109,6 +3200,11 @@ class TikTokBrowserCollector:
                     if not post_id or post_id in seen_candidate_ids:
                         return False
                     seen_candidate_ids.add(post_id)
+                    if frozen_window:
+                        decision = publication_decision(candidate, frozen_window)
+                        if not decision["eligible"]:
+                            exclude_publication(post_id, "discovery", decision)
+                            return False
                     if not known_refresh and post_id in globally_known_ids:
                         global_known_skipped += 1
                         return False
@@ -3134,6 +3230,16 @@ class TikTokBrowserCollector:
                     detail: dict[str, Any],
                 ) -> bool:
                     record = {**candidate, **detail}
+                    if frozen_window:
+                        decision = publication_decision(record, frozen_window)
+                        if not decision["eligible"]:
+                            exclude_publication(extract_post_id(record), "checkpoint", decision)
+                            if record_callback is not None:
+                                record_callback(record)
+                            return False
+                        # Canonicalize only after agreement of all actual supplied
+                        # timestamp fields; never fall back to observation time.
+                        record["published_at"] = decision["published_at"]
                     if normalized_source_mode == "topic":
                         relevance_input = dict(record)
                         relevance_input["text"] = text(record.get("transcript"))
@@ -3400,9 +3506,25 @@ class TikTokBrowserCollector:
                     requested_count * 2,
                 )
                 discovery_rounds: list[dict[str, Any]] = []
-                # The frontier grows with the saved collection budget rather
-                # than imposing a fixed candidate-count ceiling.
-                max_discovery_rounds = max(3, int(max_pages))
+                # New exact-topic ENGAGE runs use zero for no overall page
+                # ceiling. Each probe is still finite and keeps the transport's
+                # no-progress/refusal stops. Saved positive bounds retain their
+                # original behavior, including legacy and guarded LISTEN runs.
+                adaptive_topic_pagination = (
+                    normalized_source_mode == "topic"
+                    and normalized_topic_query_policy == "exact"
+                    and int(max_pages) == 0
+                )
+                max_discovery_rounds = (
+                    None if adaptive_topic_pagination else max(3, int(max_pages))
+                )
+                discovery_page_budget = (
+                    max(3, math.ceil(requested_count / 12) * 4)
+                    if adaptive_topic_pagination
+                    else int(max_pages)
+                )
+                source_frontier_ids: set[str] = set()
+                source_stall_rounds = 0
                 collection_stop_reason = "candidate_pool_exhausted"
                 checkpoint_exact_count_reached = False
 
@@ -3779,13 +3901,21 @@ class TikTokBrowserCollector:
                     }
                     return output
 
-                for discovery_round in range(1, max_discovery_rounds + 1):
+                discovery_round = 0
+                while (
+                    max_discovery_rounds is None
+                    or discovery_round < max_discovery_rounds
+                ):
+                    discovery_round += 1
                     try:
                         candidates = await integration.discover_search_videos(
                             page,
                             topic,
-                            max_offsets=max_pages,
-                            include_related_queries=True,
+                            max_offsets=discovery_page_budget,
+                            include_related_queries=(
+                                normalized_topic_query_policy
+                                == "related_variants_v1"
+                            ),
                             target_count=candidate_target,
                         )
                     except Exception as exc:
@@ -3840,6 +3970,58 @@ class TikTokBrowserCollector:
                     search_diagnostics = dict(
                         getattr(integration, "last_search_diagnostics", {})
                     )
+                    search_stop_reason = text(
+                        search_diagnostics.get("stop_reason")
+                    )
+                    can_deepen_query = (
+                        normalized_topic_query_policy == "related_variants_v1"
+                        or search_stop_reason == "candidate_target_reached"
+                        or (
+                            adaptive_topic_pagination
+                            and search_stop_reason == "page_cap_reached"
+                            and search_diagnostics.get("has_more") is True
+                        )
+                    )
+                    if adaptive_topic_pagination:
+                        observed_ids = {
+                            post_id
+                            for candidate in candidates
+                            if (post_id := extract_post_id(candidate))
+                        }
+                        new_source_ids = observed_ids - source_frontier_ids
+                        source_frontier_ids.update(observed_ids)
+                        source_stall_rounds = (
+                            0 if new_source_ids else source_stall_rounds + 1
+                        )
+                        if source_stall_rounds >= TIKTOK_SEARCH_STALL_ROUNDS:
+                            can_deepen_query = False
+                            search_stop_reason = "exact_query_frontier_stalled"
+                        if search_diagnostics.get("has_more") is False:
+                            can_deepen_query = False
+                    can_continue_discovery = can_deepen_query and (
+                        max_discovery_rounds is None
+                        or discovery_round < max_discovery_rounds
+                    )
+
+                    def deepen_same_query() -> None:
+                        nonlocal candidate_target, discovery_page_budget
+                        if not adaptive_topic_pagination:
+                            candidate_target += requested_count * 2
+                            return
+                        # Exceed the whole observed prefix, even when a single
+                        # page overfilled the prior reserve. Grow past known or
+                        # irrelevant IDs without changing the search query.
+                        candidate_target = max(
+                            candidate_target * 2,
+                            len(candidates) + requested_count * 2,
+                        )
+                        discovery_page_budget = max(
+                            discovery_page_budget * (
+                                2 if search_stop_reason == "page_cap_reached" else 1
+                            ),
+                            math.ceil(candidate_target / 12),
+                        )
+
                     new_candidates: list[dict[str, Any]] = []
                     for candidate in candidates:
                         if consider_candidate(
@@ -3848,9 +4030,19 @@ class TikTokBrowserCollector:
                         ):
                             new_candidates.append(candidate)
 
+                    if frozen_window:
+                        new_candidates.sort(
+                            key=lambda item: publication_decision(item, frozen_window)["published_at"],
+                            reverse=True,
+                        )
+
                     discovery_rounds.append(
                         {
                             "round": discovery_round,
+                            "page_budget": discovery_page_budget,
+                            "adaptive_pagination": adaptive_topic_pagination,
+                            "source_frontier_count": len(source_frontier_ids),
+                            "source_stall_rounds": source_stall_rounds,
                             "candidate_target": candidate_target,
                             "returned_candidates": len(candidates),
                             "new_candidates": len(new_candidates),
@@ -3874,13 +4066,30 @@ class TikTokBrowserCollector:
                         **search_diagnostics,
                         "candidate_count": (len(discovered_ids) - len(existing_ids)),
                         "discovery_rounds": discovery_rounds,
+                        **({"publication_window": frozen_window,
+                            "publication_window_exclusions": {reason: len(ids) for reason, ids in publication_exclusions.items()}}
+                           if frozen_window else {}),
                     }
 
                     if not new_candidates:
-                        collection_stop_reason = "no_new_candidates"
-                        if discovery_round < max_discovery_rounds:
-                            candidate_target += requested_count * 2
+                        if can_continue_discovery:
+                            # Keep the exact same query and request a deeper
+                            # page frontier when the prior call stopped only
+                            # because its candidate reserve was filled. This
+                            # is how globally known/reserved IDs are replaced
+                            # without inventing topic variants.
+                            deepen_same_query()
+                            collection_stop_reason = (
+                                "deeper_exact_query_pagination_required"
+                                if normalized_topic_query_policy == "exact"
+                                else "adaptive_related_query_discovery"
+                            )
                             continue
+                        collection_stop_reason = (
+                            search_stop_reason
+                            if adaptive_topic_pagination and search_stop_reason
+                            else "no_new_candidates"
+                        )
                         break
 
                     candidate_cursor = 0
@@ -3933,8 +4142,18 @@ class TikTokBrowserCollector:
                     ):
                         break
 
-                    candidate_target += requested_count * 2
-                    collection_stop_reason = "adaptive_discovery_exhausted"
+                    if can_continue_discovery:
+                        deepen_same_query()
+                        collection_stop_reason = (
+                            "deeper_exact_query_pagination_required"
+                            if normalized_topic_query_policy == "exact"
+                            else "adaptive_related_query_discovery"
+                        )
+                        continue
+                    collection_stop_reason = (
+                        search_stop_reason or "exact_query_frontier_exhausted"
+                    )
+                    break
 
                 self.last_diagnostics.setdefault(
                     "collection_stop_reason",
@@ -3952,6 +4171,9 @@ class TikTokBrowserCollector:
                         "global_known_skipped": global_known_skipped,
                         "reservation_skipped": reservation_skipped,
                         "discovery_rounds": discovery_rounds,
+                        **({"publication_window": frozen_window,
+                            "publication_window_exclusions": {reason: len(ids) for reason, ids in publication_exclusions.items()}}
+                           if frozen_window else {}),
                     }
                 )
                 return output
@@ -4349,6 +4571,88 @@ def _sync_master_collection_snapshot(
     )
 
 
+def _run_publication_window(conn: sqlite3.Connection, run: sqlite3.Row) -> dict[str, str]:
+    """Read and verify the immutable optional window, including legacy runs."""
+    try:
+        supplied = json.loads(text(run["publication_window_json"]) or "{}") if "publication_window_json" in run.keys() else {}
+        window = validate_publication_window(supplied)
+        if supplied != window:
+            raise ValueError("stored publication window is not canonical")
+        created = conn.execute(
+            "SELECT payload_json FROM engage_tiktok_events WHERE run_id=? AND stage='run' AND event='created' ORDER BY event_id LIMIT 1",
+            (run["run_id"],),
+        ).fetchone()
+        creation_payload = json.loads(created[0]) if created else {}
+        if not isinstance(creation_payload, dict):
+            raise ValueError("run creation receipt must be an object")
+        original = creation_payload.get("publication_window", {})
+        if original != window:
+            raise ValueError("publication window differs from immutable run creation")
+        if window and (
+            text(run["source_mode"]) != "topic"
+            or text(run["workflow"]) != "listen"
+            or text(run["collection_policy"]) != "new_only"
+        ):
+            raise ValueError("publication window is incompatible with run scope")
+        return window
+    except (TypeError, ValueError, KeyError) as exc:
+        raise StageGateError("Saved publication-window binding is invalid") from exc
+
+
+def _run_topic_query_policy(conn: sqlite3.Connection, run: sqlite3.Row) -> str:
+    """Verify the immutable topic-query policy, including legacy runs."""
+
+    try:
+        source_mode = text(run["source_mode"]).casefold() or "topic"
+        policy = text(run["topic_query_policy"]).casefold()
+        if policy not in TOPIC_QUERY_POLICIES:
+            raise ValueError("unknown topic-query policy")
+        if source_mode != "topic" and policy != "exact":
+            raise ValueError("non-topic source has a related-query policy")
+        created = conn.execute(
+            """
+            SELECT payload_json
+            FROM engage_tiktok_events
+            WHERE run_id=? AND stage='run' AND event='created'
+            ORDER BY event_id
+            LIMIT 1
+            """,
+            (run["run_id"],),
+        ).fetchone()
+        creation_payload = json.loads(created[0]) if created else {}
+        if not isinstance(creation_payload, dict):
+            raise ValueError("run creation receipt must be an object")
+        if "topic_query_policy" in creation_payload:
+            created_policy = text(
+                creation_payload["topic_query_policy"]
+            ).casefold()
+        else:
+            # Runs created before this binding historically expanded topic
+            # queries. Creator and URL sources never used that search path.
+            created_policy = (
+                "related_variants_v1" if source_mode == "topic" else "exact"
+            )
+        if created_policy != policy:
+            raise ValueError("topic-query policy differs from run creation")
+        return policy
+    except (TypeError, ValueError, KeyError, json.JSONDecodeError) as exc:
+        raise StageGateError("Saved topic-query policy binding is invalid") from exc
+
+
+def _record_publication_exclusion(
+    conn: sqlite3.Connection, *, run_id: str, post_id: str, stage: str,
+    decision: Mapping[str, Any], commit: bool = True,
+) -> None:
+    if decision.get("eligible") is True:
+        return
+    conn.execute(
+        "INSERT OR IGNORE INTO engage_tiktok_publication_exclusions (run_id,post_id,stage,reason,published_at,created_at) VALUES (?,?,?,?,?,?)",
+        (run_id, text(post_id), stage, text(decision.get("reason")), text(decision.get("published_at")), now_iso()),
+    )
+    if commit:
+        conn.commit()
+
+
 def _checkpoint_collection_record(
     conn: sqlite3.Connection,
     *,
@@ -4367,6 +4671,21 @@ def _checkpoint_collection_record(
     conn.execute("BEGIN IMMEDIATE")
     try:
         run = _assert_collection_attempt(conn, run_id, attempt_id)
+        window = _run_publication_window(conn, run)
+        if window:
+            decision = publication_decision(raw if isinstance(raw, dict) else {}, window)
+            if not decision["eligible"]:
+                _record_publication_exclusion(conn, run_id=run_id, post_id=post_id,
+                    stage="checkpoint", decision=decision, commit=False)
+                _event(conn, run_id, "collection", "publication_window_rejected",
+                    dict(decision), post_id=post_id)
+                _release_master_collection_lease(conn, run_id=run_id,
+                    attempt_id=attempt_id, post_id=post_id,
+                    outcome="publication_window_rejected")
+                conn.commit()
+                return False, False
+            packet["published_at"] = decision["published_at"]
+            packet["publication_window_validation"] = {**decision, "window": window}
         source_mode = text(run["source_mode"]).casefold()
         if source_mode == "creator" and packet:
             collection_policy = text(run["collection_policy"]).casefold() or "new_only"
@@ -5108,10 +5427,35 @@ async def collect_exact(
     resume: bool = False,
 ) -> dict[str, Any]:
     initial_run = _run_row(conn, run_id)
+    topic_query_policy = _run_topic_query_policy(conn, initial_run)
+    frozen_window = _run_publication_window(conn, initial_run)
     try:
         collector_parameters = inspect.signature(collector.collect).parameters
     except (TypeError, ValueError):
         collector_parameters = {}
+    if (
+        topic_query_policy == "related_variants_v1"
+        and "topic_query_policy" not in collector_parameters
+    ):
+        raise StageGateError(
+            "Legacy related-query continuation requires a query-policy-capable "
+            "collector"
+        )
+    if frozen_window:
+        required_window_parameters = {
+            "publication_window", "publication_exclusion_callback", "record_callback",
+            "existing_post_ids", "initial_evidence_ready_count", "candidate_reserver",
+        }
+        missing = sorted(required_window_parameters.difference(collector_parameters))
+        if missing:
+            raise StageGateError("Publication-window collection requires a recency-capable incremental collector; missing parameters: " + ", ".join(missing))
+        for saved in conn.execute("SELECT evidence_json FROM engage_tiktok_posts WHERE run_id=? AND evidence_ready=1", (run_id,)):
+            try:
+                valid = publication_decision(json.loads(saved[0]), frozen_window)["eligible"]
+            except (TypeError, ValueError):
+                valid = False
+            if not valid:
+                raise StageGateError("Saved evidence is outside the immutable publication window")
     if text(initial_run["source_mode"]).casefold() == "creator":
         required_creator_parameters = {
             "record_callback",
@@ -5344,7 +5688,12 @@ async def collect_exact(
         post_id: str,
         candidate: dict[str, Any],
     ) -> bool:
-        del candidate
+        if frozen_window:
+            decision = publication_decision(candidate, frozen_window)
+            if not decision["eligible"]:
+                _record_publication_exclusion(conn, run_id=run_id, post_id=post_id,
+                    stage="reservation", decision=decision)
+                return False
         if master_schema is None:
             return True
         conn.execute("BEGIN IMMEDIATE")
@@ -5431,6 +5780,11 @@ async def collect_exact(
             metadata=metadata,
         )
 
+    def checkpoint_publication_exclusion(post_id: str, stage: str, decision: dict[str, Any]) -> None:
+        _assert_collection_attempt(conn, run_id, attempt_id)
+        _record_publication_exclusion(conn, run_id=run_id, post_id=post_id,
+            stage=stage, decision=decision)
+
     collector_kwargs: dict[str, Any] = {
         "topic": run["topic"],
         "requested_count": run["requested_count"],
@@ -5469,9 +5823,12 @@ async def collect_exact(
         "refresh_candidates": stored_refresh_candidates,
         "candidate_reserver": reserve_candidate_for_attempt,
         "source_mode": text(run["source_mode"]).casefold() or "topic",
+        "topic_query_policy": topic_query_policy,
         "creator_handle": text(run["creator_handle"]),
         "direct_post_url": text(run["direct_post_url"]),
         "music_catalogs": stored_music_catalogs,
+        "publication_window": frozen_window,
+        "publication_exclusion_callback": checkpoint_publication_exclusion,
         "music_request_slot_reserver": reserve_music_request_slot,
         "music_provider_cooldown": defer_music_provider,
         "creator_inventory": stored_creator_inventory,
@@ -5722,6 +6079,8 @@ def export_listen_evidence(
 
     run = _run_row(conn, run_id)
     _require_workflow(run, {"listen"}, "evidence export")
+    _run_topic_query_policy(conn, run)
+    frozen_window = _run_publication_window(conn, run)
     _assert_safe_listen_export_path(conn, run, output)
     if text(run["status"]) != "collection_complete":
         raise StageGateError("LISTEN evidence export requires collection_complete")
@@ -5764,6 +6123,8 @@ def export_listen_evidence(
             raise StageGateError(
                 f"Stored evidence is not an object for post {row['post_id']}"
             )
+        if frozen_window and not publication_decision(packet, frozen_window)["eligible"]:
+            raise StageGateError(f"Stored evidence is outside the publication window for post {row['post_id']}")
         evidence_hash = text(row["evidence_hash"])
         if (
             json_hash(packet) != evidence_hash
@@ -5808,6 +6169,8 @@ def export_listen_evidence(
                 "evidence_packet": projection,
             }
         )
+    if frozen_window:
+        records.sort(key=lambda value: publication_decision(value["evidence_packet"], frozen_window)["published_at"], reverse=True)
     return _write_jsonl(output, records)
 
 
@@ -7065,6 +7428,28 @@ def import_reclassification_results(
     }
 
 
+def _require_draft_stage_ready(
+    conn: sqlite3.Connection,
+    run: sqlite3.Row,
+) -> dict[str, int]:
+    """Apply the whole-run analysis gate to both draft entry points."""
+    counts = _refresh_counts(conn, run["run_id"], persist=False)
+    if counts["analyzed"] != run["requested_count"]:
+        raise StageGateError("every collected post must be analyzed before drafting")
+    return counts
+
+
+def _require_review_stage_ready(
+    conn: sqlite3.Connection,
+    run: sqlite3.Row,
+) -> dict[str, int]:
+    """Require all eligible drafts without blocking incremental reviews."""
+    counts = _refresh_counts(conn, run["run_id"], persist=False)
+    if counts["drafted"] + counts["skipped"] < run["requested_count"]:
+        raise StageGateError("every eligible post must be drafted before review")
+    return counts
+
+
 def export_draft_queue(
     conn: sqlite3.Connection,
     run_id: str,
@@ -7073,9 +7458,7 @@ def export_draft_queue(
     started_at = time.monotonic()
     run = _require_exact_collection(conn, run_id)
     _require_workflow(run, {"engage"}, "draft export")
-    counts = _refresh_counts(conn, run_id)
-    if counts["analyzed"] != run["requested_count"]:
-        raise StageGateError("every collected post must be analyzed before drafting")
+    counts = _require_draft_stage_ready(conn, run)
     rows = conn.execute(
         """
         SELECT * FROM engage_tiktok_posts
@@ -7173,6 +7556,7 @@ def import_draft_results(
     started_at = time.monotonic()
     run = _require_exact_collection(conn, run_id)
     _require_workflow(run, {"engage"}, "draft import")
+    _require_draft_stage_ready(conn, run)
     actor = require_builtin_ai_actor(actor, "draft")
     applied = 0
     for record in _read_records(source):
@@ -7439,9 +7823,7 @@ def export_review_queue(
     started_at = time.monotonic()
     run = _require_exact_collection(conn, run_id)
     _require_workflow(run, {"engage"}, "review export")
-    counts = _refresh_counts(conn, run_id)
-    if counts["drafted"] + counts["skipped"] < run["requested_count"]:
-        raise StageGateError("every eligible post must be drafted before review")
+    counts = _require_review_stage_ready(conn, run)
     rows = conn.execute(
         """
         SELECT * FROM engage_tiktok_posts
@@ -7538,6 +7920,7 @@ def import_review_results(
     started_at = time.monotonic()
     run = _require_exact_collection(conn, run_id)
     _require_workflow(run, {"engage"}, "review import")
+    _require_review_stage_ready(conn, run)
     actor = require_builtin_ai_actor(actor, "review")
     applied = 0
     rejected = 0
@@ -8281,7 +8664,18 @@ async def revalidate_run_browser(
 def run_status(conn: sqlite3.Connection, run_id: str) -> dict[str, Any]:
     _refresh_counts(conn, run_id)
     row = _run_row(conn, run_id)
+    _run_topic_query_policy(conn, row)
     result = {key: row[key] for key in row.keys()}
+    frozen_window = _run_publication_window(conn, row)
+    if frozen_window:
+        result["publication_window"] = frozen_window
+        result["publication_window_exclusions"] = {
+            item["reason"]: int(item["count"])
+            for item in conn.execute(
+                "SELECT reason,COUNT(DISTINCT post_id) AS count FROM engage_tiktok_publication_exclusions WHERE run_id=? GROUP BY reason ORDER BY reason",
+                (run_id,),
+            )
+        }
     events = conn.execute(
         """
         SELECT stage, event, payload_json, created_at
@@ -8363,6 +8757,17 @@ def run_status(conn: sqlite3.Connection, run_id: str) -> dict[str, Any]:
     return result
 
 
+def _resolved_topic_page_bound(
+    workflow: str,
+    requested_count: int,
+    supplied_bound: int | None,
+) -> int:
+    """Keep guarded LISTEN/AUDIT bounds; new ENGAGE has no implicit ceiling."""
+    if workflow == "engage":
+        return int(supplied_bound or 0)
+    return int(supplied_bound or max(3, math.ceil(requested_count / 12) * 4))
+
+
 def _default_database(project: str) -> Path:
     slug = re.sub(r"[^a-zA-Z0-9._-]+", "_", text(project)).strip("_").casefold()
     return (
@@ -8438,12 +8843,15 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
             ),
         )
         command_parser.add_argument("--max-comments", type=int, default=100)
+        command_parser.add_argument("--published-after", default="", help="Inclusive aware publication timestamp; requires --published-before and topic new_only LISTEN.")
+        command_parser.add_argument("--published-before", default="", help="Exclusive aware publication timestamp, frozen on this run.")
         command_parser.add_argument(
             "--max-pages",
             type=int,
             help=(
-                "Finite discovery bound for non-ALL scopes; invalid with "
-                "--all-posts, which requires an uncapped terminal frontier."
+                "Finite discovery bound for non-ALL scopes; new ENGAGE topic "
+                "runs otherwise deepen the same query without an overall cap. "
+                "Invalid with --all-posts, which requires an uncapped terminal frontier."
             ),
         )
         command_parser.add_argument(
@@ -8547,6 +8955,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Resume one explicitly identified partial collection from checkpoints.",
     )
     resume_parser.add_argument("--run-id", required=True)
+    resume_parser.add_argument("--published-after", default="", help="Optional verification only; must equal the saved publication window.")
+    resume_parser.add_argument("--published-before", default="", help="Optional verification only; must equal the saved publication window.")
     add_browser_options(resume_parser)
 
     evidence_export_parser = subparsers.add_parser(
@@ -8620,6 +9030,15 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     invoked_command = args.command
+    try:
+        requested_window = normalize_publication_window(getattr(args, "published_after", ""), getattr(args, "published_before", ""))
+        if requested_window and invoked_command in {"collect", "music-audit"} and (
+            not text(args.topic) or args.workflow != "listen" or args.collection_policy != "new_only"
+        ):
+            raise ValueError("publication windows require topic new_only LISTEN collection")
+    except (TypeError, ValueError) as exc:
+        print(json.dumps({"status": "blocked", "error": str(exc)}))
+        return 1
     if (
         invoked_command in {"collect", "music-audit"}
         and bool(args.all_posts)
@@ -8712,6 +9131,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         # prevents an explicit resume from synchronizing into the wrong
         # workspace registry and only then discovering the mismatch.
         conn = connect_database(database.resolve())
+        if args.command == "resume-collect":
+            try:
+                saved_window = _run_publication_window(conn, _run_row(conn, command_run_id))
+                if requested_window and requested_window != saved_window:
+                    raise StageGateError("resume publication window must match the immutable saved window")
+            except EngageError as exc:
+                conn.close()
+                print(json.dumps({"status": "blocked", "error": str(exc)}))
+                return 1
         saved_row = conn.execute(
             """
             SELECT master_database
@@ -8839,9 +9267,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 # fails closed on a stalled/non-terminal TikTok frontier.
                 max_pages = int(args.max_pages or 0)
             elif source_mode == "topic":
-                max_pages = args.max_pages or max(
-                    3,
-                    math.ceil(requested_count / 12) * 4,
+                max_pages = _resolved_topic_page_bound(
+                    args.workflow,
+                    requested_count,
+                    args.max_pages,
                 )
             else:
                 max_pages = int(args.max_pages or 1)
@@ -8926,6 +9355,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 mode=args.mode,
                 workflow=args.workflow,
                 collection_policy=args.collection_policy,
+                topic_query_policy="exact",
                 source_mode=source_mode,
                 creator_handle=(creator_handle if source_mode == "creator" else ""),
                 creator_profile_url=creator_profile_url,
@@ -8935,6 +9365,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     if args.music_catalog
                     else DEFAULT_MUSIC_CATALOGS
                 ),
+                publication_window=requested_window,
                 collect_all=bool(args.all_posts),
                 refresh_post_ids=explicit_refresh_ids,
                 refresh_candidates=selected_refresh_candidates,

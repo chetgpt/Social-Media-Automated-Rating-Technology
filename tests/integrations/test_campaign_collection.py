@@ -273,7 +273,7 @@ def test_tiktok_oembed_preflight_replaces_metric_only_card_metadata():
     assert candidate["metadata_method"] == "tiktok_oembed"
 
 
-def test_tiktok_ai_tools_search_variants_cover_related_subtopics():
+def test_explicit_tiktok_ai_tools_search_variants_cover_related_subtopics():
     variants = TikTokAPIIntegration(enable_api=False)._build_search_variants(
         "AI tools"
     )
@@ -291,7 +291,138 @@ def test_tiktok_ai_tools_search_variants_cover_related_subtopics():
     }.issubset(set(variants))
 
 
-def test_generic_tiktok_search_expands_past_one_twelve_result_query():
+def test_default_tiktok_search_keeps_one_exact_query_for_large_target():
+    class ExactQueryIntegration(TikTokAPIIntegration):
+        def __init__(self):
+            super().__init__(enable_api=False)
+            self.queries = []
+
+        async def _capture_search_api_pages(self, page, keyword, max_pages):
+            self.queries.append(keyword)
+            return [{
+                "url": (
+                    "https://www.tiktok.com/api/search/item/full/"
+                    f"?keyword={keyword}"
+                ),
+                "http": 200,
+                "bodyLen": 1000,
+                "data": {
+                    "status_code": 0,
+                    "has_more": False,
+                    "item_list": [{
+                        "id": "1",
+                        "desc": "mr diy post",
+                        "author": {"unique_id": "creator_1"},
+                        "stats": {"commentCount": 2},
+                    }],
+                },
+            }]
+
+        async def _get_search_template_url(self, page, keyword):
+            raise AssertionError(
+                "signed replay must not run after a valid live capture"
+            )
+
+    integration = ExactQueryIntegration()
+    videos = asyncio.run(
+        integration.discover_search_videos(
+            object(),
+            "  mr   diy  ",
+            max_offsets=200,
+            target_count=2000,
+        )
+    )
+
+    assert integration.queries == ["mr diy"]
+    assert [video["id"] for video in videos] == ["1"]
+    assert videos[0]["matched_queries"] == ["mr diy"]
+    assert integration.last_search_diagnostics["candidate_target"] == 2000
+    assert integration.last_search_diagnostics["queries_attempted"] == 1
+    assert integration.last_search_diagnostics["query_budget_limit"] == 1
+    assert integration.last_search_diagnostics["query_variants_planned"] == 1
+    assert integration.last_search_diagnostics["stop_reason"] == "source_exhausted"
+
+
+def test_default_exact_query_preserves_apostrophes_and_quotes():
+    class ExactPunctuationIntegration(TikTokAPIIntegration):
+        def __init__(self):
+            super().__init__(enable_api=False)
+            self.queries = []
+
+        async def _capture_search_api_pages(self, page, keyword, max_pages):
+            self.queries.append(keyword)
+            return [{
+                "url": "https://www.tiktok.com/api/search/item/full/",
+                "http": 200,
+                "bodyLen": 1000,
+                "data": {
+                    "status_code": 0,
+                    "has_more": False,
+                    "item_list": [],
+                },
+            }]
+
+    integration = ExactPunctuationIntegration()
+    asyncio.run(
+        integration.discover_search_videos(
+            object(),
+            '  McDonald\'s   "value menu"  ',
+            max_offsets=2,
+            target_count=10,
+        )
+    )
+
+    assert integration.queries == ['McDonald\'s "value menu"']
+    assert integration.last_search_diagnostics["keyword"] == (
+        'McDonald\'s "value menu"'
+    )
+
+
+def test_live_capture_navigation_preserves_exact_query_punctuation():
+    class Response:
+        url = "https://www.tiktok.com/api/search/item/full/?keyword=fixture"
+        status = 200
+
+        async def text(self):
+            return json.dumps({"status_code": 0, "has_more": False, "item_list": []})
+
+    class Mouse:
+        async def wheel(self, x, y):
+            return None
+
+    class Page:
+        def __init__(self):
+            self.callback = None
+            self.goto_url = ""
+            self.mouse = Mouse()
+
+        def on(self, event, callback):
+            assert event == "response"
+            self.callback = callback
+
+        async def goto(self, url, **kwargs):
+            self.goto_url = url
+            self.callback(Response())
+
+        async def evaluate(self, script):
+            return None
+
+        def remove_listener(self, event, callback):
+            assert event == "response" and callback is self.callback
+
+    page = Page()
+    asyncio.run(
+        TikTokAPIIntegration(enable_api=False)._capture_search_api_pages(
+            page,
+            '  McDonald\'s   "value menu"  ',
+            1,
+        )
+    )
+
+    assert "q=McDonald%27s%20%22value%20menu%22" in page.goto_url
+
+
+def test_explicit_related_tiktok_search_expands_past_one_query():
     class MultiQueryIntegration(TikTokAPIIntegration):
         def __init__(self):
             super().__init__(enable_api=False)
@@ -359,7 +490,7 @@ def test_generic_tiktok_search_expands_past_one_twelve_result_query():
     )
 
 
-def test_tiktok_search_variant_plan_has_no_fixed_fifty_or_sixty_four_ceiling():
+def test_explicit_tiktok_search_variant_plan_has_no_fixed_ceiling():
     target_count = 900
     variants = TikTokAPIIntegration(enable_api=False)._build_search_variants(
         "3D printing",
@@ -373,7 +504,7 @@ def test_tiktok_search_variant_plan_has_no_fixed_fifty_or_sixty_four_ceiling():
     assert all("3d printing" in item.casefold() for item in variants)
 
 
-def test_related_tiktok_queries_deduplicate_before_target_counting():
+def test_explicit_related_tiktok_queries_deduplicate_before_target_counting():
     class DuplicateQueryIntegration(TikTokAPIIntegration):
         def __init__(self):
             super().__init__(enable_api=False)
@@ -520,6 +651,53 @@ def test_tiktok_live_search_capture_is_used_before_signed_replay():
     assert videos[0]["discovery_method"] == "tiktok_search_api_live_capture"
 
 
+def test_signed_replay_target_on_terminal_page_reports_source_exhausted():
+    class SignedReplayIntegration(TikTokAPIIntegration):
+        async def _capture_search_api_pages(self, page, keyword, max_pages):
+            return []
+
+        async def _get_search_template_url(self, page, keyword):
+            return (
+                "https://www.tiktok.com/api/search/item/full/"
+                "?keyword=mr+diy&offset=0&count=12"
+            )
+
+    class FakePage:
+        async def evaluate(self, script, arg=None):
+            return {
+                "http": 200,
+                "bodyLen": 1000,
+                "data": {
+                    "status_code": 0,
+                    "has_more": False,
+                    "cursor": 12,
+                    "item_list": [{
+                        "id": "123456789",
+                        "desc": "mr diy terminal result",
+                        "author": {"unique_id": "creator"},
+                        "stats": {"commentCount": 1},
+                    }],
+                },
+            }
+
+        async def wait_for_timeout(self, timeout):
+            return None
+
+    integration = SignedReplayIntegration(enable_api=False)
+    videos = asyncio.run(
+        integration.discover_search_videos(
+            FakePage(),
+            "mr diy",
+            max_offsets=4,
+            target_count=1,
+        )
+    )
+
+    assert [video["id"] for video in videos] == ["123456789"]
+    assert integration.last_search_diagnostics["has_more"] is False
+    assert integration.last_search_diagnostics["stop_reason"] == "source_exhausted"
+
+
 def test_tiktok_live_search_accepts_result_bearing_nonzero_status():
     class LiveCaptureIntegration(TikTokAPIIntegration):
         async def _capture_search_api_pages(self, page, keyword, max_pages):
@@ -598,6 +776,131 @@ def test_tiktok_live_search_rejects_nonzero_status_without_extractable_video():
                 max_offsets=2,
             )
         )
+
+
+def test_tiktok_legacy_related_queries_preserve_later_variant_recovery():
+    class InvalidFirstQueryIntegration(TikTokAPIIntegration):
+        def __init__(self):
+            super().__init__(enable_api=False)
+            self.queries = []
+
+        def _build_search_variants(self, keyword, *, target_count=0):
+            assert target_count == 2000
+            return ["mr diy", "mr diy review", "mr diy indonesia"]
+
+        async def _capture_search_api_pages(self, page, keyword, max_pages):
+            self.queries.append(keyword)
+            if keyword == "mr diy review":
+                return [{
+                    "url": (
+                        "https://www.tiktok.com/api/search/item/full/"
+                        f"?keyword={keyword}"
+                    ),
+                    "http": 200,
+                    "bodyLen": 1000,
+                    "data": {
+                        "status_code": 0,
+                        "has_more": False,
+                        "item_list": [{
+                            "id": "2",
+                            "desc": "legacy related variant result",
+                            "author": {"unique_id": "creator_2"},
+                            "stats": {"commentCount": 3},
+                        }],
+                    },
+                }]
+            return [{
+                "url": (
+                    "https://www.tiktok.com/api/search/item/full/"
+                    f"?keyword={keyword}"
+                ),
+                "http": 200,
+                "bodyLen": 148,
+                "data": None,
+            }]
+
+        async def _search_session_diagnostics(self, page):
+            return {
+                "authenticated": True,
+                "page_no_results": False,
+                "login_prompt": False,
+            }
+
+    integration = InvalidFirstQueryIntegration()
+    videos = asyncio.run(
+        integration.discover_search_videos(
+            object(),
+            "mr diy",
+            max_offsets=200,
+            include_related_queries=True,
+            target_count=2000,
+        )
+    )
+
+    assert [video["id"] for video in videos] == ["2"]
+    assert integration.queries == ["mr diy", "mr diy review", "mr diy indonesia"]
+    assert integration.last_search_diagnostics["queries_attempted"] == 3
+    assert integration.last_search_diagnostics["query_variants_planned"] == 3
+    assert integration.last_search_diagnostics["stop_reason"] == "query_budget_exhausted"
+
+
+def test_tiktok_invalid_then_valid_capture_within_one_query_is_accepted():
+    class MixedCaptureIntegration(TikTokAPIIntegration):
+        def __init__(self):
+            super().__init__(enable_api=False)
+            self.queries = []
+
+        async def _capture_search_api_pages(self, page, keyword, max_pages):
+            self.queries.append(keyword)
+            return [
+                {
+                    "url": (
+                        "https://www.tiktok.com/api/search/item/full/"
+                        f"?keyword={keyword}&cursor=0"
+                    ),
+                    "http": 200,
+                    "bodyLen": 148,
+                    "data": None,
+                },
+                {
+                    "url": (
+                        "https://www.tiktok.com/api/search/item/full/"
+                        f"?keyword={keyword}&cursor=12"
+                    ),
+                    "http": 200,
+                    "bodyLen": 1000,
+                    "data": {
+                        "status_code": 0,
+                        "has_more": False,
+                        "item_list": [{
+                            "id": "2",
+                            "desc": "mr diy valid page",
+                            "author": {"unique_id": "creator_2"},
+                            "stats": {"commentCount": 3},
+                        }],
+                    },
+                },
+            ]
+
+        async def _get_search_template_url(self, page, keyword):
+            raise AssertionError(
+                "signed replay must not run after a valid page for this query"
+            )
+
+    integration = MixedCaptureIntegration()
+    videos = asyncio.run(
+        integration.discover_search_videos(
+            object(),
+            "mr diy",
+            max_offsets=200,
+            target_count=2000,
+        )
+    )
+
+    assert integration.queries == ["mr diy"]
+    assert [video["id"] for video in videos] == ["2"]
+    assert integration.last_search_diagnostics["queries_attempted"] == 1
+    assert integration.last_search_diagnostics["pages_received"] == 1
 
 
 def test_instagram_cdp_url_uses_shared_browser_setting(monkeypatch):

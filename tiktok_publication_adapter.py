@@ -129,6 +129,8 @@ PUBLISHABLE_RESPONSE_TYPES = frozenset(
     {POSITIVE_RESPONSE_TYPE, *UNRATED_RESPONSE_TYPES}
 )
 DEFAULT_DAILY_LIMIT = 0
+PUBLICATION_CAPTURE_SETTLE_TIMEOUT_SECONDS = 3.0
+PUBLICATION_CAPTURE_CANCEL_TIMEOUT_SECONDS = 0.5
 ENGAGE_FAILED_POST_STATUSES = frozenset(
     {
         "failed",
@@ -358,6 +360,85 @@ def capture_targets_content(record: dict[str, Any], content_key: str) -> bool:
         if key.casefold() in TIKTOK_TARGET_ID_KEYS and value:
             ids.add(value)
     return str(content_key) in ids
+
+
+def capture_confirms_submission(
+    record: dict[str, Any],
+    *,
+    content_key: str,
+    final_text: str,
+    observed_account: str,
+) -> bool:
+    """Validate a response captured from this attempt's own submit request.
+
+    The caller must separately fence capture to requests begun after submit
+    intent. A matching target alone does not bind a response to the reviewed
+    text, and a generic HTTP 200 does not prove that a comment was created.
+    """
+    if (
+        record.get("method") != "POST"
+        or not is_tiktok_comment_publish_url(str(record.get("request_url") or ""))
+        or not response_success(record)
+        or not capture_targets_content(record, content_key)
+        or not str(observed_account or "").strip()
+    ):
+        return False
+    request_values: dict[str, set[str]] = {}
+    body = record.get("request_body_template")
+    if isinstance(body, dict):
+        for key, value in body.items():
+            if isinstance(value, (str, int)):
+                request_values.setdefault(str(key).casefold(), set()).add(str(value))
+    for key, value in parse_qsl(
+        urlsplit(str(record.get("request_url") or "")).query,
+        keep_blank_values=True,
+    ):
+        request_values.setdefault(key.casefold(), set()).add(value)
+    texts = set().union(
+        *(request_values.get(key, set()) for key in ("text", "comment_text"))
+    )
+    targets = set().union(
+        *(request_values.get(key, set()) for key in TIKTOK_TARGET_ID_KEYS)
+    )
+    if texts != {final_text} or targets != {str(content_key)}:
+        return False
+    payload = record.get("response")
+    comment = payload.get("comment") if isinstance(payload, dict) else None
+    if not isinstance(comment, dict):
+        return False
+    raw_comment_ids = [
+        comment[key]
+        for key in ("cid", "comment_id", "commentId")
+        if comment.get(key) not in (None, "")
+    ]
+    if any(
+        isinstance(value, bool) or not isinstance(value, (str, int))
+        for value in raw_comment_ids
+    ):
+        return False
+    comment_ids = {str(value) for value in raw_comment_ids}
+    if len(comment_ids) != 1 or any(
+        re.search(r"[\s\x00-\x1f\x7f-\x9f]", value) for value in comment_ids
+    ):
+        return False
+    if "text" in comment and comment["text"] != final_text:
+        return False
+    response_targets = _target_ids_from_value(comment)
+    if response_targets and response_targets != {str(content_key)}:
+        return False
+    for author_key in ("user", "author"):
+        author = comment.get(author_key)
+        if not isinstance(author, dict):
+            continue
+        account = str(observed_account).lstrip("@").casefold()
+        handles = {
+            str(author[key]).lstrip("@").casefold()
+            for key in ("unique_id", "uniqueId")
+            if author.get(key)
+        }
+        if handles and handles != {account}:
+            return False
+    return True
 
 
 def deterministic_public_rating(
@@ -1921,7 +2002,18 @@ def response_success(record: dict[str, Any]) -> bool:
 
 
 def is_tiktok_comment_publish_url(url: str) -> bool:
-    return urlsplit(url).path.rstrip("/") == "/api/comment/publish"
+    try:
+        parsed = urlsplit(url)
+        return (
+            parsed.scheme.casefold() == "https"
+            and (parsed.hostname or "").casefold() in {"tiktok.com", "www.tiktok.com"}
+            and parsed.username is None
+            and parsed.password is None
+            and parsed.port is None
+            and parsed.path.rstrip("/") == "/api/comment/publish"
+        )
+    except ValueError:
+        return False
 
 
 async def _comment_identity_html(comment: Locator) -> str:
@@ -2210,7 +2302,15 @@ async def verify_persisted_comment(
     page: Page,
     draft_text: str,
     content_key: str,
+    *,
+    remote_comment_id: str = "",
+    observed_account: str = "",
 ) -> bool:
+    # The remote ID must come from this attempt's correlated publish response.
+    # Text alone can match a pre-existing comment from any account, so it is
+    # never independent evidence that our submit succeeded.
+    if not remote_comment_id or not observed_account:
+        return False
     try:
         await page.reload(wait_until="domcontentloaded", timeout=60000)
         await wait_for_first_visible(
@@ -2219,14 +2319,23 @@ async def verify_persisted_comment(
             timeout_ms=5000,
         )
         await open_comments_panel(page)
+        active_account = await active_tiktok_account(page)
     except Exception:
         return False
-    if tiktok_video_id_from_url(page.url) != str(content_key):
+    if (
+        tiktok_video_id_from_url(page.url) != str(content_key)
+        or str(active_account).lstrip("@").casefold()
+        != str(observed_account).lstrip("@").casefold()
+    ):
         return False
-    return await wait_for_published_comment(
-        page,
-        draft_text,
-        timeout_ms=3000,
+    return (
+        await exact_published_comment_locator(
+            page,
+            draft_text,
+            remote_comment_id=remote_comment_id,
+            timeout_ms=3000,
+        )
+        is not None
     )
 
 
@@ -2847,6 +2956,97 @@ def auto_prepare_enqueued_comment_showcase(
         )
 
 
+class _PublicationAttemptCapture:
+    """Fence and serialize one attempt's request/response event capture."""
+
+    def __init__(self, page: Page, recorder: PublicationCapture) -> None:
+        self.page = page
+        self.recorder = recorder
+        self.active = False
+        self.closed = False
+        self.settlement_complete: bool | None = None
+        self.initial_record_count = len(recorder.records)
+        self.request_tasks: dict[str, asyncio.Task[Any]] = {}
+        self.response_tasks: dict[str, asyncio.Task[Any]] = {}
+        self.listeners = {
+            "request": self.capture_request,
+            "response": self.capture_response,
+        }
+        self.attached: set[str] = set()
+
+    def attach(self) -> None:
+        for event, listener in self.listeners.items():
+            self.page.on(event, listener)
+            self.attached.add(event)
+
+    def capture_request(self, request: Any) -> None:
+        if (
+            not self.closed
+            and self.active
+            and request.method == "POST"
+            and is_tiktok_comment_publish_url(request.url)
+        ):
+            # Fence identity synchronously at event delivery, before awaiting
+            # payload access can cross the submit-intent boundary.
+            key = PublicationCapture._request_key(request)
+            if key not in self.request_tasks:
+                self.request_tasks[key] = asyncio.create_task(
+                    self.recorder.on_request(request)
+                )
+
+    def capture_response(self, response: Any) -> asyncio.Task[Any] | None:
+        key = PublicationCapture._request_key(response.request)
+        if self.closed or key not in self.request_tasks:
+            return None
+        # Playwright's event and explicit expect_response result can arrive
+        # together. Both must join the same in-flight task, not parse/store the
+        # response twice while PublicationCapture is still awaiting its body.
+        if key not in self.response_tasks:
+            self.response_tasks[key] = asyncio.create_task(
+                self._capture_response_once(key, response)
+            )
+        return self.response_tasks[key]
+
+    async def _capture_response_once(self, key: str, response: Any) -> None:
+        await self.request_tasks[key]
+        await self.recorder.on_response(response)
+
+    async def finish(self) -> bool:
+        self.active = False
+        self.closed = True
+        for event in tuple(self.attached):
+            try:
+                self.page.remove_listener(event, self.listeners[event])
+            except Exception:
+                # A page may already have closed on the error path. Never
+                # remove another listener or mask the original failure.
+                pass
+            self.attached.discard(event)
+        # Listener callbacks register tasks synchronously, and are detached
+        # before this snapshot: no pending response can be missed by flush.
+        if self.settlement_complete is not None:
+            return self.settlement_complete
+        tasks = {*self.request_tasks.values(), *self.response_tasks.values()}
+        if not tasks:
+            self.settlement_complete = True
+            return True
+        done, pending = await asyncio.wait(
+            tasks, timeout=PUBLICATION_CAPTURE_SETTLE_TIMEOUT_SECONDS
+        )
+        self.settlement_complete = not pending
+        if pending:
+            for task in pending:
+                task.cancel()
+            cancelled, _ = await asyncio.wait(
+                pending, timeout=PUBLICATION_CAPTURE_CANCEL_TIMEOUT_SECONDS
+            )
+            done.update(cancelled)
+        for task in done:
+            if task.cancelled() or task.exception() is not None:
+                self.settlement_complete = False
+        return self.settlement_complete
+
+
 async def _run_on_page(
     page: Page,
     args: argparse.Namespace,
@@ -2854,8 +3054,24 @@ async def _run_on_page(
     publication: dict[str, Any],
     recorder: PublicationCapture,
 ) -> dict[str, Any]:
-    page.on("request", recorder.on_request)
-    page.on("response", recorder.on_response)
+    capture = _PublicationAttemptCapture(page, recorder)
+    try:
+        capture.attach()
+        return await _run_on_page_attempt(
+            page, args, database, publication, recorder, capture
+        )
+    finally:
+        await capture.finish()
+
+
+async def _run_on_page_attempt(
+    page: Page,
+    args: argparse.Namespace,
+    database: Path,
+    publication: dict[str, Any],
+    recorder: PublicationCapture,
+    capture: _PublicationAttemptCapture,
+) -> dict[str, Any]:
     await page.goto(
         publication["target_url"],
         wait_until="domcontentloaded",
@@ -2970,32 +3186,38 @@ async def _run_on_page(
                 publication,
                 master_database=getattr(args, "master_database", None),
             )
+            capture.active = True
             if submit_locator and not await submit_locator.is_disabled():
                 await submit_locator.click()
             else:
                 await input_locator.focus()
                 await page.keyboard.press("Enter")
         publish_response = await response_info.value
-        await recorder.on_response(publish_response)
+        capture.capture_response(publish_response)
     except PlaywrightTimeoutError:
-        # A persisted UI verification below remains authoritative when the
-        # browser does not expose the response event in time.
+        # Any response captured for this attempt below can still confirm it.
+        # An unrelated persisted text match cannot stand in for that proof.
         pass
+    capture_settled = await capture.finish()
     recorder.flush_unanswered()
     publication_records = [
         record
-        for record in recorder.records
+        for record in recorder.records[capture.initial_record_count:]
         if is_tiktok_comment_publish_url(record.get("request_url", ""))
     ]
     successful_records = [
         record
         for record in publication_records
-        if response_success(record)
-        and capture_targets_content(record, publication["content_key"])
+        if capture_settled and capture_confirms_submission(
+            record,
+            content_key=publication["content_key"],
+            final_text=final_text,
+            observed_account=observed_account,
+        )
     ]
     remote_comment_id = ""
     for record in successful_records:
-        remote_comment_id = _walk_for_id(record.get("response"))
+        remote_comment_id = _walk_for_id(record["response"]["comment"])
         if remote_comment_id:
             break
     capture_timestamp = dt.datetime.now().astimezone().strftime(
@@ -3056,10 +3278,10 @@ async def _run_on_page(
         page,
         final_text,
         publication["content_key"],
+        remote_comment_id=remote_comment_id,
+        observed_account=observed_account,
     )
-    success = persisted or (
-        bool(successful_records) and (bool(remote_comment_id) or visible)
-    )
+    success = bool(successful_records) and bool(remote_comment_id)
     verification_path = output_dir / (
         "tiktok_comment_verification_"
         f"{dt.datetime.now().astimezone().strftime('%Y%m%d_%H%M%S_%f')}.png"
@@ -3079,8 +3301,9 @@ async def _run_on_page(
     store_captures(database, publication_records)
     outcome = "published" if success else "uncertain"
     error = "" if success else (
-        "TikTok submission was attempted but no persisted comment could be "
-        "verified; manual reconciliation is required before any retry"
+        "TikTok submission was attempted but no current-attempt, exact-text "
+        "comment creation could be verified; manual reconciliation is "
+        "required before any retry"
     )
     receipt_id = store_receipt(
         database,
@@ -3178,6 +3401,7 @@ async def _run_on_page(
             )
     return {
         "status": outcome,
+        "capture_settlement_complete": capture_settled,
         "publication_id": publication["publication_id"],
         "receipt_id": receipt_id,
         "target_url": publication["target_url"],

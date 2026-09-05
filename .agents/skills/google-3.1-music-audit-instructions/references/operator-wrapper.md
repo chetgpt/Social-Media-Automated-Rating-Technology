@@ -7,6 +7,14 @@ real durable `engage_*` run ID, and generates the evidence review from local and
 master state. It never calls `social_browser.py`, starts Edge directly, or
 accepts arbitrary browser flags.
 
+Each operator child accepts exactly one topic, creator, or URL source. For a
+new topic child it freezes `topic_query_policy=exact`: the normalized
+user-supplied topic is the sole TikTok query, and pagination/retries repeat that
+same query. Neither `--posts`, the candidate reserve, nor a page/retry budget
+may generate related terms or modifiers. A saved legacy
+`related_variants_v1` handoff resumes unchanged as a compatibility path; never
+use that policy for a new child.
+
 Set the workspace and interpreter once:
 
 ~~~powershell
@@ -20,6 +28,11 @@ $Operator = '.\.agents\skills\google-3.1-music-audit-instructions\scripts\music_
 ~~~powershell
 & $AuditPython $Operator start --run-label 'test' --topic 'music' --posts 1
 ~~~
+
+This searches only the normalized query `music`. A larger `--posts N` changes
+the exact-count target and same-query pagination work; it does not create
+count-scaled keyword combinations. Exhaustion or platform refusal produces an
+honest `collection_incomplete: X/N` review.
 
 When `--project` is omitted, the operator creates a unique semantic project
 name from the optional label, collection policy, actual source type and target,
@@ -120,6 +133,14 @@ Always obey the returned `next_action`. In particular, an exhausted epoch is
 `social_browser.py` command is diagnostic only: it does not consume the
 reported budget and cannot prove exhaustion. A Gemini task/server/app restart
 is not a Windows restart.
+
+For an explicit multi-topic MUSIC AUDIT, do not place several topics in one
+operator command or concatenate them into one query. First resolve the user's
+TOTAL, EACH, or CUSTOM quota semantics, then use `music_audit_topics.py plan`.
+That coordinator invokes these single-topic guarded children sequentially,
+preserves their exact handoffs, and exposes
+`collect|continue|status|validate --run-dir`. See the skill's multi-topic
+section and `docs/contracts/MULTI_TOPIC_MUSIC_AUDIT.md`.
 
 Use the same `start` command shape for another scope:
 
