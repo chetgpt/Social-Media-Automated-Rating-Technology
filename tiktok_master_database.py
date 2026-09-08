@@ -5691,16 +5691,19 @@ def _import_legacy_publications(
             if status in {"published", "deleted"}
             else "uncertain"
         )
+        attempt_number = int(item.get("attempts") or 0)
         attempt_id = "legacy_" + stable_id(source_id, publication_id)
         existing_attempt = conn.execute(
             f"""
-            SELECT state
+            SELECT state, attempt_id
             FROM {_table(schema, "tiktok_master_comment_attempts")}
-            WHERE attempt_id=?
+            WHERE attempt_id=? OR (source_id=? AND publication_id=? AND local_attempt_number=?)
             """,
-            (attempt_id,),
+            (attempt_id, source_id, publication_id, attempt_number),
         ).fetchone()
         prior_state = str(existing_attempt[0] or "") if existing_attempt else ""
+        if existing_attempt:
+            attempt_id = str(existing_attempt[1] or attempt_id)
         inserted = existing_attempt is None
         upgraded = (
             existing_attempt is not None

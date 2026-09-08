@@ -36,7 +36,9 @@ DEFAULT_RETRY_STATUSES = ("unavailable", "rate_limited", "provider_error")
 VALID_RETRY_STATUSES = frozenset(DEFAULT_RETRY_STATUSES)
 TERMINAL_OBSERVATION_STATUSES = frozenset({"completed", "unavailable"})
 DEFAULT_BROWSER_STATE = Path("comments_data") / "social_browser" / "state.json"
-DEFAULT_MUSIC_CATALOGS = ("musicbrainz",)
+# New backfills retain TikTok declarations and the Apple/iTunes mapping path.
+# MusicBrainz remains recognizable only in already-frozen historical runs.
+DEFAULT_MUSIC_CATALOGS: tuple[str, ...] = ()
 MUSIC_EVIDENCE_FIELDS = frozenset(
     {
         "schema_version",
@@ -213,14 +215,18 @@ def _run_candidates(run: Mapping[str, Any]) -> list[dict[str, Any]]:
 
 
 def _run_catalogs(run: Mapping[str, Any]) -> tuple[str, ...]:
+    """Use the frozen catalog set, including an explicitly empty set."""
+
     raw = run.get("configured_catalogs")
     if raw is None:
         raw = run.get("configured_catalogs_json")
+    if raw is None:
+        return DEFAULT_MUSIC_CATALOGS
     parsed = _parse_json_list(raw)
     catalogs = tuple(
         dict.fromkeys(_text(value).casefold() for value in parsed if _text(value))
     )
-    return catalogs or DEFAULT_MUSIC_CATALOGS
+    return catalogs
 
 
 def _connect_master_readonly(path: str | Path) -> sqlite3.Connection:

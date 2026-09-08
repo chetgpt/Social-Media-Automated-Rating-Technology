@@ -1,5 +1,6 @@
 import argparse
 import json
+import math
 import sqlite3
 import subprocess
 import sys
@@ -8,6 +9,10 @@ from pathlib import Path
 from typing import Sequence
 
 from tiktok_master_database import DEFAULT_MASTER_DATABASE
+from engage_publication_worker import (
+    DEFAULT_CANCEL_GRACE, DEFAULT_STALL_TIMEOUT, DEFAULT_TOTAL_TIMEOUT,
+    supervise_adapter,
+)
 
 
 DEFAULT_SOCIAL_BROWSER_STATE = (
@@ -41,6 +46,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         type=float,
         default=120.0,
     )
+    parser.add_argument("--worker-timeout", type=float, default=DEFAULT_TOTAL_TIMEOUT,
+                        help="Total seconds allowed per owned publication worker (default: 1200).")
+    parser.add_argument("--worker-stall-timeout", type=float, default=DEFAULT_STALL_TIMEOUT,
+                        help="Seconds without a new operation phase before cancellation (default: 600).")
+    parser.add_argument("--worker-cancel-grace", type=float, default=DEFAULT_CANCEL_GRACE,
+                        help="Seconds for cooperative cancellation before stopping only the owned worker (default: 10).")
     selection = parser.add_mutually_exclusive_group(required=True)
     selection.add_argument(
         "--publication-id",
@@ -113,6 +124,9 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         parser.error("--max-attempts must be positive")
     if args.inter_publication_delay < 0:
         parser.error("--inter-publication-delay cannot be negative")
+    for option in ("worker_timeout", "worker_stall_timeout", "worker_cancel_grace"):
+        if not math.isfinite(getattr(args, option)) or getattr(args, option) <= 0:
+            parser.error(f"--{option.replace('_', '-')} must be positive finite seconds")
     return args
 
 
@@ -179,6 +193,7 @@ def build_adapter_command(
 ) -> list[str]:
     command = [
         sys.executable,
+        "-u",
         str(ADAPTER_PATH),
         "--database",
         str(database),
@@ -265,21 +280,62 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
 
         adapter_succeeded = False
+        must_stop = False
         try:
-            result = subprocess.run(cmd, check=True, text=True, capture_output=True)
-            print("Adapter completed successfully.")
+            result = supervise_adapter(
+                cmd, database=db_path, publication_id=str(pub_id),
+                social_browser_state=args.social_browser_state,
+                total_timeout=args.worker_timeout, stall_timeout=args.worker_stall_timeout,
+                cancel_grace=args.worker_cancel_grace,
+            )
             output = None
             try:
                 output = json.loads(result.stdout)
-                print(f"Receipt ID: {output.get('receipt_id')}")
-                print(f"Result Status: {output.get('status')}")
             except json.JSONDecodeError:
-                print("Adapter output:")
-                print(result.stdout)
+                print("Adapter returned no valid final JSON; inspect durable state before any retry.")
+                must_stop = True
+            if not isinstance(output, dict):
+                output = {}
+                must_stop = True
+            status = output.get("status")
+            safe_statuses = {
+                "published", "dry_run", "failed", "reconcile_required", "worker_busy",
+                "worker_start_failed", "human_verification_required", "retryable_failure",
+                "uncertain",
+                "blocked",
+            }
+            print(f"Adapter exit code: {result.returncode}")
+            print(f"Result Status: {status if status in safe_statuses else 'unverified'}")
+            receipt_id = str(output.get("receipt_id") or "")
+            if len(receipt_id) > 128 or not all(c.isalnum() or c in "_-" for c in receipt_id):
+                receipt_id = ""
+            if receipt_id:
+                print(f"Receipt ID: {receipt_id}")
+            if status in {"reconcile_required", "worker_busy", "human_verification_required", "uncertain"}:
+                must_stop = True
+                print("Publication needs recovery before another worker can proceed.")
+            human = output.get("human_verification") if status == "published" else output
+            if isinstance(human, dict) and human.get("status") == "human_verification_required":
+                must_stop = True
+                print("Complete the CAPTCHA in the preserved Profile 7 tab before continuing.")
+                phase = str(human.get("phase", ""))
+                if phase and len(phase) <= 80 and all(c.isalnum() or c in "_." for c in phase):
+                    print("Verification phase: " + phase)
+                screenshot = str(human.get("screenshot_path") or "")
+                if screenshot and "\n" not in screenshot and "\r" not in screenshot:
+                    screenshot_path = Path(screenshot).resolve()
+                    allowed_roots = [Path(__file__).resolve().parent / "comments_data" / "publication_captures",
+                                     Path(args.social_browser_state).resolve().parent / "publication_challenges"]
+                    if screenshot_path.suffix.lower() == ".png" and any(screenshot_path.is_relative_to(root) for root in allowed_roots):
+                        print("Verification screenshot: " + str(screenshot_path))
+                if human.get("submit_intent_recorded") and status != "published":
+                    print("Submission may have happened; reconcile before any retry.")
+            if output.get("worker_progress_path"):
+                from engage_publication_worker import worker_state_path
+                print("Worker progress: " + str(worker_state_path(db_path, str(pub_id), args.social_browser_state)))
             if args.execute:
                 adapter_succeeded = (
-                    isinstance(output, dict)
-                    and output.get("status") == "published"
+                    result.returncode == 0 and output.get("status") == "published"
                 )
                 if not adapter_succeeded:
                     print(
@@ -326,15 +382,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                             "Comment publication is confirmed, but its "
                             "showcase needs auxiliary recovery: "
                             + "; ".join(
-                                f"{key}={value}"
-                                for key, value in auxiliary_errors.items()
+                                f"{key}=recovery_required"
+                                for key in auxiliary_errors
                             )
                         )
                         if auxiliary_errors.get("capture"):
                             print(
                                 "Recovery target: "
                                 f"publication_id={pub_id}, "
-                                f"receipt_id={output.get('receipt_id')}"
+                                f"receipt_id={receipt_id}"
                             )
                     elif preparation_status in {
                         "not_configured",
@@ -347,18 +403,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                             f"{preparation_status} and needs attention."
                         )
             else:
-                adapter_succeeded = True
+                adapter_succeeded = result.returncode == 0 and status == "dry_run"
         except subprocess.CalledProcessError as e:
             print(f"Failed to execute adapter for {pub_id}.")
             print(f"Exit code: {e.returncode}")
-            print(f"Stdout:\n{e.stdout}")
-            print(f"Stderr:\n{e.stderr}")
+            print("Inspect durable publication state before retrying; raw subprocess output was withheld.")
         if adapter_succeeded:
             success_count += 1
-        elif not args.continue_on_error:
+        if must_stop or (not adapter_succeeded and not args.continue_on_error):
             remaining = len(rows) - index - 1
             print(
-                "Stopping the batch after the first unverified outcome; "
+                "Stopping the batch for required recovery; "
                 f"{remaining} later approved response(s) remain available "
                 "for resume."
             )

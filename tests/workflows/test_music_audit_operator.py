@@ -1,6 +1,7 @@
 import asyncio
 import importlib.util
 import json
+import sqlite3
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -38,8 +39,8 @@ def terminal_record(post_id: str) -> dict:
         "like_count": 2,
         "comment_count": 0,
         "share_count": 0,
-        "music_id": "music-1",
-        "music_title": "Known Song",
+        "music_id": "6817155068127610882",
+        "music_title": "France Accordion Swing",
         "music_author": "Known Artist",
         "music_duration_seconds": 180,
         "post_duration_seconds": 15,
@@ -242,6 +243,8 @@ def completed_operator_run(tmp_path):
         args=args,
         paths=paths,
     )
+    assert handoff["topic_query_policy"] == "exact"
+    assert handoff["intent"]["topic_query_policy"] == "exact"
     database = Path(handoff["database"])
     conn = engage.connect_database(
         database,
@@ -662,6 +665,19 @@ def test_completed_validation_accepts_replacement_candidate_history(
     assert review["status"]["unique_collected"] == 4
     assert review["status"]["failed"] == 3
     assert review["artifacts"]["evidence_export"]["records"] == 1
+    assert review["posts"][0]["music"]["music_page"] == {
+        "schema_version": "tiktok-music-page-locator-v1",
+        "status": "derived",
+        "music_id": "6817155068127610882",
+        "slug": "France-Accordion-Swing",
+        "url": (
+            "https://www.tiktok.com/music/"
+            "France-Accordion-Swing-6817155068127610882"
+        ),
+        "source": "derived_from_platform_music",
+        "online_verification": "not_attempted",
+        "reason": "derived_from_music_id_and_title",
+    }
     assert review["output_layout"] == {
         "schema_version": "tiktok-music-audit-project-layout-v2",
         "artifact_stem": handoff["artifact_stem"],
@@ -674,7 +690,12 @@ def test_completed_validation_accepts_replacement_candidate_history(
         "machine_result": handoff["review_json"],
         "review_log": handoff["review_markdown"],
     }
-    assert "## Project output" in operator.review_markdown(review)
+    markdown = operator.review_markdown(review)
+    assert "## Project output" in markdown
+    assert (
+        "https://www.tiktok.com/music/"
+        "France-Accordion-Swing-6817155068127610882"
+    ) in markdown
     assert review["ai_actions"] == []
     assert review["outbound_actions"] == []
 
@@ -2193,6 +2214,7 @@ def test_poll_is_read_only(blocked_operator_run, capsys):
 
     result = json.loads(capsys.readouterr().out)
     assert result["run_id"] == handoff["run_id"]
+    assert result["topic_query_policy"] == "exact"
     assert result["durable_status"] == "browser_blocked"
     assert result["operator_status"] == "RESUME_READY"
     assert result["same_handoff_resume_available"] is True
@@ -2219,6 +2241,54 @@ def test_poll_is_read_only(blocked_operator_run, capsys):
     assert result["replacement_project_allowed"] is False
     assert handoff_path.read_bytes() == handoff_before
     assert ledger_path.read_bytes() == ledger_before
+
+
+def test_precolumn_legacy_topic_run_polls_before_engine_migration(
+    completed_operator_run,
+    capsys,
+):
+    paths, handoff_path, _handoff = completed_operator_run
+    handoff = operator.load_handoff(handoff_path, paths)
+    handoff.pop("topic_query_policy")
+    intent = dict(handoff["intent"])
+    intent.pop("topic_query_policy")
+    handoff["intent"] = intent
+    handoff["intent_hash"] = operator.json_hash(intent)
+    operator.write_handoff(handoff_path, handoff)
+
+    connection = sqlite3.connect(handoff["database"])
+    connection.row_factory = sqlite3.Row
+    try:
+        created = connection.execute(
+            """
+            SELECT event_id, payload_json
+            FROM engage_tiktok_events
+            WHERE run_id=? AND stage='run' AND event='created'
+            """,
+            (handoff["run_id"],),
+        ).fetchone()
+        payload = json.loads(created["payload_json"])
+        payload.pop("topic_query_policy")
+        connection.execute(
+            "UPDATE engage_tiktok_events SET payload_json=? WHERE event_id=?",
+            (json.dumps(payload), created["event_id"]),
+        )
+        connection.execute(
+            "ALTER TABLE engage_tiktok_runs DROP COLUMN topic_query_policy"
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    verified = operator.validate_run_intent(
+        operator.load_handoff(handoff_path, paths), paths=paths
+    )
+    assert verified["topic_query_policy"] == "related_variants_v1"
+
+    assert operator.poll_command(SimpleNamespace(handoff=handoff_path), paths) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["topic_query_policy"] == "related_variants_v1"
+    assert result["operator_status"] == "COLLECTION_COMPLETE_NEEDS_FINALIZE"
 
 
 def test_poll_requires_finalize_when_collection_is_only_durably_complete(

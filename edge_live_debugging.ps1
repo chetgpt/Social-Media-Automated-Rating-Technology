@@ -13,6 +13,11 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$bridgeClock = [System.Diagnostics.Stopwatch]::StartNew()
+
+function Test-BridgeDeadline {
+    return $bridgeClock.Elapsed.TotalSeconds -lt [Math]::Max(1, $TimeoutSeconds)
+}
 
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
@@ -182,6 +187,7 @@ function Test-RemoteDebuggingAllowButton {
 function Navigate-ToRemoteDebugging {
     param([System.Windows.Automation.AutomationElement]$Window)
 
+    if (-not (Test-BridgeDeadline)) { return }
     $handle = [IntPtr]$Window.Current.NativeWindowHandle
     $null = [EdgeNativeWindow]::ShowWindowAsync($handle, 9)
     $null = [EdgeNativeWindow]::SetForegroundWindow($handle)
@@ -205,7 +211,8 @@ function Navigate-ToRemoteDebugging {
         $null = [EdgeNativeWindow]::SetForegroundWindow($handle)
         [EdgeNativeWindow]::SwitchToThisWindow($handle, $true)
         Start-Sleep -Milliseconds 150
-    } while ([DateTime]::UtcNow -lt $deadline)
+    } while ([DateTime]::UtcNow -lt $deadline -and (Test-BridgeDeadline))
+    if (-not (Test-BridgeDeadline)) { return }
     $shell.SendKeys("^l")
     Start-Sleep -Milliseconds 250
     $shell.SendKeys("edge://inspect/#remote-debugging")
@@ -214,21 +221,19 @@ function Navigate-ToRemoteDebugging {
 
 function Wait-ForProfileWindow {
     param([long]$PreferredHandle = 0)
-    $deadline = [DateTime]::UtcNow.AddSeconds([Math]::Max(1, $TimeoutSeconds))
-    do {
+    while (Test-BridgeDeadline) {
         $window = Find-ProfileWindow -PreferredHandle $PreferredHandle
         if ($null -ne $window) {
             return $window
         }
         Start-Sleep -Milliseconds 250
-    } while ([DateTime]::UtcNow -lt $deadline)
+    }
     return $null
 }
 
 function Wait-ForRemoteDebuggingCheckbox {
     param([System.Windows.Automation.AutomationElement]$Window)
-    $deadline = [DateTime]::UtcNow.AddSeconds([Math]::Max(1, $TimeoutSeconds))
-    do {
+    while (Test-BridgeDeadline) {
         try {
             $checkbox = Find-RemoteDebuggingCheckbox -Window $Window
             if ($null -ne $checkbox) {
@@ -242,7 +247,7 @@ function Wait-ForRemoteDebuggingCheckbox {
             }
         }
         Start-Sleep -Milliseconds 250
-    } while ([DateTime]::UtcNow -lt $deadline)
+    }
     return $null
 }
 
@@ -348,6 +353,10 @@ if ($null -eq $checkbox) {
 }
 
 $toggle = $checkbox.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
+if (-not (Test-BridgeDeadline)) {
+    Write-Result @{ success = $false; action = "bridge_deadline_exceeded" }
+    exit 6
+}
 $before = $toggle.Current.ToggleState.ToString()
 $wantOn = $Command -eq "enable"
 if (($wantOn -and $before -ne "On") -or (-not $wantOn -and $before -eq "On")) {

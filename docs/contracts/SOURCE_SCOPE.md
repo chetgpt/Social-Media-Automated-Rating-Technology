@@ -6,6 +6,43 @@ authenticated workstation state.
 
 ## Active workflow source
 
+The separate recency-first POSTS DISCOVERY mode consists of
+`posts_discovery.py`, its publication-window support in the guarded topic
+collector/export path, `.agents/skills/posts-discovery/SKILL.md`,
+`docs/contracts/POSTS_DISCOVERY.md`, and focused tests. These are versionable
+source. The coordinator freezes topic, positive post count, and publication
+window, then delegates to one exact guarded MUSIC AUDIT topic child. Full child
+evidence stays in the canonical project directory with normal master lineage.
+Its manifest binds exact child paths; parent reporting reads validated evidence
+without modifying child or master state. Publication-window enforcement does
+not imply exhaustive TikTok coverage or semantic verification of every topic
+match. Generated manifests, posts SQLite/JSONL, and review JSON/Markdown under
+`comments_data/posts_discovery_runs/` are runtime data, not Git source.
+
+The legacy `music_discovery_search.py`, `music_discovery.py`,
+`music_discovery_sources.py`, `music_discovery_corpus.py`,
+`music_discovery_classification.py`, legacy skill/contract, and focused tests
+remain versionable source for explicit legacy research continuation. Existing
+briefs, live-search manifests, corpus generations, review checkpoints/packets,
+dossiers, SQLite state, and shortlists under
+`comments_data/music_discovery_runs/` remain runtime data at their old paths.
+They are not migrated or retrospectively certified as POSTS DISCOVERY output.
+
+The explicit multi-topic MUSIC AUDIT coordinator source consists of
+`music_audit_topics.py`, its focused tests,
+`docs/contracts/MULTI_TOPIC_MUSIC_AUDIT.md`, and the corresponding workspace and
+skill instructions. It freezes ordered normalized topics, one
+TOTAL/EACH/CUSTOM quota plan, positive fixed child quotas, plan hash, and exact
+guarded child bindings. TOTAL uses deterministic floor/remainder allocation in
+input order and rejects a total smaller than the number of topics. Every child
+is an ordinary sequential exact-query `workflow=listen`, `new_only` MUSIC AUDIT
+run with its own canonical project database/artifacts and the shared master
+lineage. Global deduplication gives overlap to the earliest child; quotas are
+never borrowed or redistributed. Parent `status` and `validate` are offline,
+and continuation may address only the saved current child handoff. Generated
+manifests, state, reviews, and child-link records beneath
+`comments_data/music_audit_topic_runs/` are runtime data, not Git source.
+
 `AGENTS.md` and `WORKFLOWS.md` define the binding TikTok-only PULSE,
 MUSIC AUDIT (implemented as `workflow=listen`), MUSIC AUDIT BACKFILL, isolated
 SONIC AUDIT, AUDIT, ENGAGE, publication, and comment-showcase paths. The active implementation is
@@ -17,9 +54,12 @@ package including `sonic_audit/corpus.py` and `sonic_audit/evaluation.py`,
 `tiktok_master_database.py`, `tiktok_scraper/music_enrichment.py`,
 `tiktok_scraper/tt2dsp_resolution.py`, the guarded
 publication/showcase modules, and their tests. Canonical MUSIC AUDIT supports
-topic, exact-creator, and exact-URL collection through the LISTEN engine. Its deterministic
-MusicBrainz adapter runs before evidence hashing and stores sanitized terminal
-catalog outcomes as evidence; it is not an AI-analysis or publication path.
+topic, exact-creator, and exact-URL collection through the LISTEN engine. TikTok
+music declarations and eligible Apple exact-ID resolution are collected before
+evidence hashing. MusicBrainz is retired; its compatibility schema preserves
+historical results and produces terminal retirement outcomes without requests
+for preserved runs. See `MUSICBRAINZ_RETIREMENT.md`. This remains an evidence
+collection path with no AI analysis or publication.
 The source-only cross-platform MUSIC AUDIT substrate consists of
 `social_music_audit.py`, `tiktok_scraper/social_music_contract.py`,
 `tiktok_scraper/social_music_projection.py`,
@@ -113,6 +153,24 @@ remains exploratory. The separately gated Mirelo symbolic diagnostic below is
 the only optional learned-provider branch. The plan itself still grants no
 execution authority.
 
+The standalone Audio Archive source consists of `audio_archive_tiktok.py`, its
+focused support modules and tests, `run_audio_archive_batch.py`, and
+`docs/contracts/AUDIO_ARCHIVE.md`. It reads evidence-ready rows query-only from
+any compatible current, incomplete, copied, moved, restored, or legacy project
+database. It requires no master binding, terminal status, original path,
+rights/storage/TTL form, or separate authorization statement. It freezes all
+usable evidence-ready public videos or a selected subset and never discovers,
+refreshes, or substitutes posts. `run` and `resume` use Profile 7 for one
+acquisition per item,
+then locally create one normalized M4A AAC-LC 192 kbit/s 44.1 kHz file and one
+MP3 192 kbit/s 44.1 kHz file. Each format has its own size and SHA-256 binding;
+the pair commits as one logical checkpoint and no half-pair counts. Handled
+failure rolls back both names; same-run resume removes exact manifest-owned
+residue after a hard interruption. Temporary media and source video are
+deleted after success and handled failure. Status, validation, and batch
+`--dry-run` are offline. The workflow has no AI, provider upload, source write,
+engagement, or publication capability.
+
 Optional Mirelo Audio-to-MIDI remains inside the isolated SONIC source scope.
 It can be selected only when creating an ad hoc `run` or exact
 `run-plan-batch` with `--mirelo-audio-to-midi`, the ordinary
@@ -176,6 +234,14 @@ through this legacy experiment or a raw database rewrite.
   input/output audio, MIDI, MusicXML, raw notes/instrument tracks, provider
   payloads/URLs, API keys, and acoustic-model caches (runner/source adapters
   and deterministic or provider-mocked fixtures/tests remain in Git);
+- Audio Archive manifests, state, records, reviews, batch reports, normalized
+  M4A and MP3 files, source downloads, partial files, transcoder scratch data,
+  and archive contents under `comments_data/audio_archive_runs/`
+  (runner/source and deterministic tests remain in Git);
+- multi-topic MUSIC AUDIT parent manifests, state, reviews, validations, and
+  child-link records under `comments_data/music_audit_topic_runs/` (the
+  coordinator, contract, and focused deterministic tests remain in Git; child
+  evidence stays in its canonical ignored project directory);
 - one-off scripts that fabricate analysis/review state, mutate workflow hashes
   or approvals directly, impersonate human authorization, publish without the
   guarded adapters, or launch a substitute browser profile.

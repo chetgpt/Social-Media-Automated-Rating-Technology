@@ -545,7 +545,7 @@ def test_publish_pending_processes_every_approved_response_without_a_ceiling(
             stderr="",
         )
 
-    monkeypatch.setattr(publish_pending.subprocess, "run", fake_run)
+    monkeypatch.setattr(publish_pending, "supervise_adapter", fake_run)
     result = publish_pending.main(
         [
             "--database",
@@ -597,8 +597,8 @@ def test_publish_pending_applies_optional_cadence_between_live_items(
     )
     sleeps = []
     monkeypatch.setattr(
-        publish_pending.subprocess,
-        "run",
+        publish_pending,
+        "supervise_adapter",
         lambda command, **kwargs: subprocess.CompletedProcess(
             command,
             0,
@@ -664,7 +664,7 @@ def test_publish_pending_stops_on_first_failure_unless_explicitly_overridden(
             stderr="",
         )
 
-    monkeypatch.setattr(publish_pending.subprocess, "run", fail_first)
+    monkeypatch.setattr(publish_pending, "supervise_adapter", fail_first)
     stopped = publish_pending.main(
         [
             "--database",
@@ -718,7 +718,7 @@ def test_live_mode_does_not_imply_execute(tmp_path, monkeypatch):
             stderr="",
         )
 
-    monkeypatch.setattr(publish_pending.subprocess, "run", fake_run)
+    monkeypatch.setattr(publish_pending, "supervise_adapter", fake_run)
     result = publish_pending.main(
         [
             "--database",
@@ -768,7 +768,7 @@ def test_batch_reports_confirmed_comment_showcase_recovery_target(
             stderr="",
         )
 
-    monkeypatch.setattr(publish_pending.subprocess, "run", fake_run)
+    monkeypatch.setattr(publish_pending, "supervise_adapter", fake_run)
     result = publish_pending.main(
         [
             "--database",
@@ -807,8 +807,8 @@ def test_batch_counts_unprepared_showcase_as_needing_attention(
     )
 
     monkeypatch.setattr(
-        publish_pending.subprocess,
-        "run",
+        publish_pending,
+        "supervise_adapter",
         lambda command, **kwargs: subprocess.CompletedProcess(
             command,
             0,
@@ -924,7 +924,7 @@ def test_batch_publisher_propagates_explicit_master_database(
             stderr="",
         )
 
-    monkeypatch.setattr(publish_pending.subprocess, "run", fake_run)
+    monkeypatch.setattr(publish_pending, "supervise_adapter", fake_run)
     result = publish_pending.main(
         [
             "--database",
@@ -1082,7 +1082,7 @@ def test_adapter_closes_only_its_page_not_the_shared_browser(
             self.chromium = self
             self.browser = browser
 
-        async def connect_over_cdp(self, _url):
+        async def connect_over_cdp(self, _url, **_kwargs):
             return self.browser
 
     class FakePlaywrightContext:
@@ -1090,6 +1090,9 @@ def test_adapter_closes_only_its_page_not_the_shared_browser(
             self.playwright = playwright
 
         async def __aenter__(self):
+            return self.playwright
+
+        async def start(self):
             return self.playwright
 
         async def __aexit__(self, *_args):

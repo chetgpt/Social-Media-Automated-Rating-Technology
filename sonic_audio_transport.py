@@ -43,6 +43,14 @@ DEFAULT_BROWSER_STATE = Path("comments_data") / "social_browser" / "state.json"
 _POST_PATH = re.compile(r"^/@([^/]+)/(video|photo)/(\d+)$", re.IGNORECASE)
 _HANDLE = re.compile(r"^[A-Za-z0-9._]{1,64}$")
 _SAFE_ERROR_CODE = re.compile(r"^[a-z][a-z0-9_]{0,95}$")
+_SAFE_AUDIO_CONVERSION = re.compile(r"^[a-z0-9][a-z0-9_]{0,127}$")
+DEFAULT_AUDIO_CONVERSION = "local_ffmpeg_pcm_s16le_mono_16000hz"
+ARCHIVE_M4A_AUDIO_CONVERSION = (
+    "local_ffmpeg_aac_lc_stereo_44100hz_192kbps_ipod_m4a"
+)
+ALLOWED_AUDIO_CONVERSIONS = frozenset(
+    {DEFAULT_AUDIO_CONVERSION, ARCHIVE_M4A_AUDIO_CONVERSION}
+)
 _RUN_ID = re.compile(r"^sonic_[0-9a-f]{16}$")
 _TEMP_OWNER_SCHEMA = "tiktok-sonic-temp-owner-v1"
 _TEMP_OWNER_MARKER = ".sonic-audit-owner.json"
@@ -1089,7 +1097,14 @@ def _safe_provenance(
     observed_account: str,
     *,
     authenticated_media_request: bool = False,
+    audio_conversion: str = DEFAULT_AUDIO_CONVERSION,
 ) -> dict[str, Any]:
+    conversion = _text(audio_conversion).casefold()
+    if (
+        _SAFE_AUDIO_CONVERSION.fullmatch(conversion) is None
+        or conversion not in ALLOWED_AUDIO_CONVERSIONS
+    ):
+        raise SonicTransportError("audio_conversion_provenance_invalid")
     return {
         "browser_profile": "Profile 7",
         "browser_mode": "existing_profile_attach",
@@ -1101,7 +1116,7 @@ def _safe_provenance(
             if authenticated_media_request
             else "bounded_injected_test_stream"
         ),
-        "audio_conversion": "local_ffmpeg_pcm_s16le_mono_16000hz",
+        "audio_conversion": conversion,
         "cookies_forwarded_to_media": bool(authenticated_media_request),
         "signed_url_retained": False,
         "raw_payload_retained": False,
@@ -1122,6 +1137,7 @@ class SonicAudioTransport:
     media_inspector: MediaInspector | None = None
     audio_transcoder: AudioTranscoder | None = None
     audio_inspector: MediaInspector = inspect_pcm_wave
+    audio_conversion: str = DEFAULT_AUDIO_CONVERSION
     playwright_manager_factory: Callable[[], Any] | None = None
     cdp_url_provider: Callable[[], str] | None = None
     designation_loader: Callable[[Path], Any] | None = None
@@ -1410,6 +1426,7 @@ class SonicAudioTransport:
             provenance = _safe_provenance(
                 observed_account,
                 authenticated_media_request=authenticated_media_request,
+                audio_conversion=self.audio_conversion,
             )
             transient = TransientAudioItem(
                 post_id=candidate.post_id,
@@ -1517,6 +1534,7 @@ class SonicAudioTransport:
                         provenance=_safe_provenance(
                             observed_account,
                             authenticated_media_request=self.media_fetcher is None,
+                            audio_conversion=self.audio_conversion,
                         ),
                         timing=dict(timing),
                         derived_result=error_result,

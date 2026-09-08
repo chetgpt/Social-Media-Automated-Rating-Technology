@@ -254,19 +254,33 @@ def test_live_path_quarantines_exact_id_before_reload_and_attaches_after_receipt
         "final_text_hash": hashlib.sha256(text.encode("utf-8")).hexdigest(),
         "public_rating": "",
     }
+    listeners = {}
+    request = SimpleNamespace(
+        method="POST", url="https://www.tiktok.com/api/comment/publish/"
+    )
 
     class _Control:
+        def __init__(self, *, submit=False):
+            self.submit = submit
+            self.value = ""
+
         async def focus(self):
             pass
 
         async def fill(self, value):
-            assert value == text
+            assert value in {"", text}
+            self.value = value
+
+        async def evaluate(self, _script):
+            return {"text": self.value, "native_labels": [], "links": []}
 
         async def is_disabled(self):
             return False
 
-        async def click(self):
+        async def click(self, **_kwargs):
             events.append("submit")
+            if self.submit:
+                listeners["request"](request)
 
     class _ResponseContext:
         async def __aenter__(self):
@@ -278,27 +292,35 @@ def test_live_path_quarantines_exact_id_before_reload_and_attaches_after_receipt
         @property
         def value(self):
             async def _value():
-                return object()
+                return SimpleNamespace(request=request)
 
             return _value()
 
     class _Keyboard:
         async def insert_text(self, _value):
-            pass
+            editor_control.value += _value
 
         async def type(self, _value):
-            pass
+            editor_control.value += _value
 
         async def press(self, _key):
-            pass
+            assert _key == 'Backspace'
+            editor_control.value = editor_control.value[:-1]
 
     class _LivePage:
         def __init__(self):
             self.url = target
             self.keyboard = _Keyboard()
 
-        def on(self, *_args):
+        async def bring_to_front(self):
             pass
+
+        def on(self, event, callback):
+            listeners[event] = callback
+
+        def remove_listener(self, event, callback):
+            assert listeners[event] == callback
+            del listeners[event]
 
         async def goto(self, url, **_kwargs):
             self.url = url
@@ -314,24 +336,28 @@ def test_live_path_quarantines_exact_id_before_reload_and_attaches_after_receipt
 
     class _Recorder:
         def __init__(self):
-            self.records = [
-                {
-                    "capture_id": "capture-1",
-                    "request_url": "https://www.tiktok.com/api/comment/publish/",
-                    "response": {"comment": {"cid": "9988776655"}},
-                }
-            ]
+            self.records = []
 
         async def on_request(self, *_args):
             pass
 
         async def on_response(self, *_args):
-            pass
+            self.records = [
+                {
+                    "capture_id": "capture-1",
+                    "request_url": "https://www.tiktok.com/api/comment/publish/",
+                    "method": "POST",
+                    "request_body_template": {"aweme_id": post_id, "text": text},
+                    "response_status": 200,
+                    "response": {"comment": {"cid": "9988776655", "text": text}},
+                }
+            ]
 
         def flush_unanswered(self):
             pass
 
-    controls = [_Control(), _Control()]
+    controls = [_Control(), _Control(submit=True)]
+    editor_control = controls[0]
 
     async def fake_first_visible(*_args, **_kwargs):
         return controls.pop(0), "selector"
@@ -391,6 +417,8 @@ def test_live_path_quarantines_exact_id_before_reload_and_attaches_after_receipt
     monkeypatch.setattr(adapter, "write_capture_files", lambda *_args: tmp_path / "capture.json")
     monkeypatch.setattr(adapter, "store_captures", lambda *_args: None)
     monkeypatch.setattr(adapter, "store_receipt", fake_store_receipt)
+    monkeypatch.setattr(adapter, "ensure_no_challenge", lambda *_a, **_k: _async(None))
+    monkeypatch.setattr(adapter, "update_receipt_verification", lambda *_a, **_k: None)
     monkeypatch.setattr(adapter, "promote_quarantined_comment_capture", fake_promote)
     monkeypatch.setattr(adapter, "attach_comment_showcase_capture", fake_attach)
     monkeypatch.setattr(showcase_state, "connect_database", lambda *_args: _ShowcaseConnection())
@@ -426,6 +454,7 @@ def test_live_path_quarantines_exact_id_before_reload_and_attaches_after_receipt
     assert result["status"] == "published"
     assert result["comment_screenshot_captured_before_reload"] is True
     assert events.index("capture_pre_reload") < events.index("reload_verify")
+    assert events.index("receipt_committed") < events.index("capture_pre_reload")
     assert events.index("receipt_committed") < events.index("capture_promoted")
     assert events.index("receipt_committed") < events.index("capture_attached")
 
