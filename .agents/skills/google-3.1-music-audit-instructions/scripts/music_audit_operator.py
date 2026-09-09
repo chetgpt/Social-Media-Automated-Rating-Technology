@@ -3409,6 +3409,15 @@ def validate_completed_artifacts(
 
     master = readonly_connect(master_database)
     try:
+        workspace = str(Path(__file__).resolve().parents[4])
+        if workspace not in sys.path:
+            sys.path.insert(0, workspace)
+        from tiktok_scraper.source_identity import SourceIdentityError, resolve_registered_source
+
+        try:
+            source = resolve_registered_source(master, "main", database)
+        except SourceIdentityError as exc:
+            raise OperatorError(str(exc)) from exc
         master_rows = master.execute(
             """
             SELECT r.*, s.database_path
@@ -3421,7 +3430,7 @@ def validate_completed_artifacts(
         matching = [
             row
             for row in master_rows
-            if Path(str(row["database_path"])).resolve() == database
+            if source is not None and row["source_id"] == source["source_id"]
         ]
         if len(matching) != 1:
             raise OperatorError("master registry run binding is missing or ambiguous")

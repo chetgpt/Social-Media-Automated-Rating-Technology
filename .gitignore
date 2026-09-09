@@ -51,6 +51,8 @@ FINAL_OUTPUT_SUNFLOWER/
 *.db-shm
 *.db-wal
 *.db-journal
+*.aesgcm
+*.aesgcm.json
 *.log
 /*.err
 evidence_packet_*.json

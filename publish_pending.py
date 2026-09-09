@@ -98,7 +98,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--continue-on-error",
         action="store_true",
         help=(
-            "Continue to later approved responses after one adapter failure. "
+            "Continue to later approved responses after a verified failure "
+            "before submission. Unresolved outcomes always stop the batch. "
             "By default the batch stops safely and leaves later rows approved "
             "for a resume."
         ),
@@ -311,7 +312,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                 receipt_id = ""
             if receipt_id:
                 print(f"Receipt ID: {receipt_id}")
-            if status in {"reconcile_required", "worker_busy", "human_verification_required", "uncertain"}:
+            if (
+                # Only the adapter's durable pre-submit failure result or a
+                # supervisor-confirmed launch failure permits continuation.
+                # A generic failed/blocked result says nothing about intent.
+                status not in {"published", "dry_run", "retryable_failure", "worker_start_failed"}
+                or (status in {"published", "dry_run"} and result.returncode != 0)
+                or (status != "published" and (
+                    output.get("submit_intent_recorded")
+                    or output.get("submission_possible")
+                    or output.get("action") in {
+                        "inspect_durable_attempt_before_retry", "remote_reconciliation_required",
+                        "preserve_uncertain", "manual_investigation_required",
+                    }
+                ))
+            ):
                 must_stop = True
                 print("Publication needs recovery before another worker can proceed.")
             human = output.get("human_verification") if status == "published" else output
@@ -405,6 +420,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             else:
                 adapter_succeeded = result.returncode == 0 and status == "dry_run"
         except subprocess.CalledProcessError as e:
+            must_stop = True
             print(f"Failed to execute adapter for {pub_id}.")
             print(f"Exit code: {e.returncode}")
             print("Inspect durable publication state before retrying; raw subprocess output was withheld.")

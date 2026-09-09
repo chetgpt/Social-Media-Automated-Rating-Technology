@@ -140,7 +140,7 @@ print(json.dumps({'status': 'dry_run'}), flush=True)
     assert "SHOULD_NOT_LEAK" not in captured.err + captured.out
 
 
-def test_timeout_stops_only_owned_child_and_requires_reconciliation(tmp_path):
+def test_timeout_stops_only_owned_child_and_requires_reconciliation(tmp_path, monkeypatch):
     program = """
 import time
 from engage_publication_worker import WorkerProgress
@@ -150,10 +150,33 @@ while True:
     time.sleep(1)
 """
     scope = _scope(tmp_path)
-    started = time.monotonic()
+    path = worker.worker_state_path(**scope)
+    original_popen = subprocess.Popen
+    ready_at = None
+
+    def launch_ready_child(*args, **kwargs):
+        # Exercise a timeout after synthetic submit intent, independent of
+        # Windows/Python startup latency. The watchdog starts after Popen.
+        nonlocal ready_at
+        child = original_popen(*args, **kwargs)
+        deadline = time.monotonic() + 10
+        try:
+            while time.monotonic() < deadline and child.poll() is None:
+                if worker._read(path).get("submit_intent") is True:
+                    ready_at = time.monotonic()
+                    return child
+                time.sleep(0.05)
+            pytest.fail("Synthetic child did not reach its submit-intent checkpoint")
+        except BaseException:
+            if child.poll() is None:
+                child.terminate()
+            child.wait(timeout=5)
+            raise
+
+    monkeypatch.setattr(worker.subprocess, "Popen", launch_ready_child)
     result = worker.supervise_adapter([sys.executable, "-u", "-c", program], **scope,
                                        total_timeout=1.5, stall_timeout=10, cancel_grace=0.2)
-    assert time.monotonic() - started < 10
+    assert ready_at is not None and time.monotonic() - ready_at < 10
     output = json.loads(result.stdout)
     assert result.returncode == 1
     assert output["status"] == "reconcile_required"
@@ -203,7 +226,7 @@ def test_worker_cli_rejects_unbounded_deadlines(option, value):
         publish_pending.parse_args(["--database", "test.sqlite", "--publication-id", "pub", option, value])
 
 
-@pytest.mark.parametrize("status", ["human_verification_required", "reconcile_required", "uncertain"])
+@pytest.mark.parametrize("status", ["human_verification_required", "reconcile_required", "uncertain", "blocked", "unknown_result"])
 def test_batch_always_stops_for_human_or_reconciliation_blocker(tmp_path, monkeypatch, status):
     scope = _scope(tmp_path)
     scope["database"].touch()

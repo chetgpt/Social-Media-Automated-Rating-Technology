@@ -101,6 +101,40 @@ def test_failed_fill_reclears_partial_text_before_insert_fallback():
     assert all(call.args[0] != "Enter" for call in page.keyboard.press.await_args_list)
 
 
+def test_editor_click_deadline_stops_before_composition_or_submit(tmp_path, monkeypatch):
+    editor = Editor(initial="")
+    editor.click.side_effect = adapter.BrowserOperationTimeout("editor_click", 4)
+    page = Page(editor)
+    publication = {
+        "publication_id": "offline", "target_url": TARGET,
+        "content_key": "7654321098765432109", "expected_account": "publisher",
+        "final_text": TEXT, "decision_json": "{}",
+    }
+    first = AsyncMock(return_value=(editor, "input"))
+    compose = AsyncMock()
+    intent = Mock()
+    monkeypatch.setattr(adapter, "first_visible", first)
+    monkeypatch.setattr(adapter, "active_tiktok_account", AsyncMock(return_value="publisher"))
+    monkeypatch.setattr(adapter, "open_comments_panel", AsyncMock(return_value={}))
+    monkeypatch.setattr(adapter, "inspect_controls", AsyncMock(return_value={}))
+    monkeypatch.setattr(adapter, "load_approved_publication", lambda *_args: dict(publication))
+    monkeypatch.setattr(adapter, "claim_publication", Mock())
+    monkeypatch.setattr(adapter, "_compose_plain_comment", compose)
+    monkeypatch.setattr(adapter, "mark_publication_submit_intent", intent)
+    capture = SimpleNamespace(active=False)
+    with pytest.raises(adapter.BrowserOperationTimeout, match="editor_click"):
+        asyncio.run(adapter._run_on_page_attempt(
+            page,
+            SimpleNamespace(execute=True, publication_id="offline", output_dir=str(tmp_path), daily_limit=0, max_attempts=3),
+            tmp_path / "never-opened.sqlite", publication, None, capture,
+        ))
+    compose.assert_not_awaited()
+    intent.assert_not_called()
+    first.assert_awaited_once()
+    page.keyboard.type.assert_not_awaited()
+    assert capture.active is False
+
+
 @pytest.mark.parametrize("scenario", [
     "unclearable", "dirty_partial", "wrong_fill", "fallback_bad_text",
     "control_mutation", "context_mutation", "disabled", "missing_submit",

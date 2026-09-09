@@ -1,7 +1,8 @@
 # Source and Backup Scope
 
-The private GitHub repository stores source code, tests, documentation, and
-reusable configuration. It is not a backup of harvested TikTok evidence or
+The GitHub repository stores source code, tests, documentation, and
+reusable configuration. Repository visibility must be checked before each
+publication; do not assume it is private. It is not a backup of harvested TikTok evidence or
 authenticated workstation state.
 
 ## Active workflow source
@@ -149,9 +150,8 @@ expected account when supplied. A duplicate plan-hash/batch-ID run is rejected
 in favor of `resume`; the normal status, validation, suite, and export source
 paths remain applicable. Its media is bounded and transient with cleanup, its
 master access is read-only, it invokes no built-in semantic AI, and its result
-remains exploratory. The separately gated Mirelo symbolic diagnostic below is
-the only optional learned-provider branch. The plan itself still grants no
-execution authority.
+remains exploratory. Mirelo Audio-to-MIDI is reserved and unavailable in the active runner.
+The plan itself grants no execution authority.
 
 The standalone Audio Archive source consists of `audio_archive_tiktok.py`, its
 focused support modules and tests, `run_audio_archive_batch.py`, and
@@ -171,30 +171,19 @@ deleted after success and handled failure. Status, validation, and batch
 `--dry-run` are offline. The workflow has no AI, provider upload, source write,
 engagement, or publication capability.
 
-Optional Mirelo Audio-to-MIDI remains inside the isolated SONIC source scope.
-It can be selected only when creating an ad hoc `run` or exact
-`run-plan-batch` with `--mirelo-audio-to-midi`, the ordinary
-`--authorize-transient-audio`, a separate exact-run rights/upload attestation
-through `--authorize-mirelo-upload`, and a positive frozen
-`--mirelo-max-credits N` ceiling. Its secret is runtime-only
-`MIRELO_API_KEY`; source, fixtures, plans, manifests, logs, databases, and
-exports must never contain it. Preflight must keep provider work within the
-frozen credit budget and exact candidate set. The provider may retain assets
-for up to 24 hours, so local cleanup is not represented as remote deletion.
+Mirelo Audio-to-MIDI is reserved, not an executable SONIC AUDIT capability.
+The active `sonic_audit_tiktok.py` runner rejects all Mirelo options, including
+`--mirelo-audio-to-midi`, upload authorization, and credit-budget options.
+Retained provider helpers and mocked tests are reference source only; their
+presence does not enable uploads, credit-bearing calls, or a resume path.
+Enabling this branch requires a separately reviewed implementation and contract.
 
-Only sanitized, non-reconstructable, hash-bound aggregate symbolic summaries
-and safe provider/config/credit/timing provenance may become run artifacts.
-Uploaded/decoded audio, MIDI, MusicXML, raw/structured notes, instrument-track
-payloads, raw responses, and provider job/result/download URLs remain transient
-and outside both Git and durable run storage. Mirelo output is a separate
-probabilistic diagnostic: it never changes the primary `recording_score` or
-supports identity, genre, mood, lyrics, ownership, quality, or causal claims.
-Resume uses the frozen provider/upload/budget contract; `status` and `export`
-stay offline. Provider adapter tests are checked-in only as mocked transports
-and synthetic fixtures, never live uploads or credit-bearing calls. The source
-contract follows Mirelo's [API docs](https://mirelo.ai/api-docs#audio-to-midi),
-[model page](https://mirelo.ai/models/audio-to-midi), and
-[terms](https://mirelo.ai/terms).
+The supported offline registry repair consists of `master_registry_repair.py`,
+`tiktok_scraper/source_identity.py`, and focused tests. It restores only proven
+historical source rows and records verified moved-file aliases. It preserves
+all run, evidence, analysis, approval, and publication records. Its plans,
+receipts, rehearsal databases, and encrypted backups are local runtime artifacts.
+See `REGISTRY_REPAIR.md` for copy-first validation and backup/restore commands.
 
 ## Supporting and legacy source
 

@@ -16,6 +16,7 @@ from tiktok_scraper.run_lineage import (
     load_archive_run_posts,
     load_completed_run_lineage,
 )
+from tiktok_scraper.source_identity import insert_source_path_alias
 
 
 LOCAL_RUN_SCHEMA = """
@@ -477,3 +478,55 @@ def test_archive_loader_skips_bad_row_without_blocking_good_rows(tmp_path):
     assert result["skipped"] == [
         {"post_id": "202", "reason": "invalid_tiktok_post_url"}
     ]
+
+
+def register_relocated_copy(source: Path, master: Path) -> Path:
+    relocated = source.parent / "restored" / source.name
+    relocated.parent.mkdir()
+    shutil.copy2(source, relocated)
+    conn = sqlite3.connect(master)
+    try:
+        source_id, identity_path = conn.execute(
+            "SELECT source_id,database_path FROM tiktok_master_sources"
+        ).fetchone()
+        insert_source_path_alias(
+            conn, "main", source_id=source_id, identity_path=identity_path,
+            database_path=relocated, migration_id="verified-offline-test-migration",
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return relocated
+
+
+def test_verified_relocation_preserves_completed_run_and_snapshot_lineage(tmp_path):
+    source, run_id, master = build_lineage_databases(tmp_path)
+    original = load_completed_run_lineage(source, run_id, master)
+    relocated = register_relocated_copy(source, master)
+
+    restored = load_completed_run_lineage(relocated, run_id, master)
+
+    assert restored["candidates"] == original["candidates"]
+    assert restored["source_run"]["run_id"] == original["source_run"]["run_id"]
+    assert restored["source_run"]["database_path"] == str(relocated.resolve())
+    with pytest.raises(RunLineageError, match="relocated"):
+        load_completed_run_lineage(source, run_id, master)
+
+
+def test_relocated_lineage_still_rejects_changed_local_evidence(tmp_path):
+    source, run_id, master = build_lineage_databases(tmp_path)
+    relocated = register_relocated_copy(source, master)
+    conn = sqlite3.connect(relocated)
+    try:
+        packet = evidence("101", "first_creator")
+        packet["caption"] = "changed after relocation"
+        conn.execute(
+            "UPDATE engage_tiktok_posts SET evidence_json=?,evidence_hash=? WHERE post_id='101'",
+            (canonical_json(packet), canonical_sha256(packet)),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    with pytest.raises(RunLineageError, match="master/local evidence hash mismatch"):
+        load_completed_run_lineage(relocated, run_id, master)

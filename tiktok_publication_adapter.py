@@ -1989,7 +1989,7 @@ def mark_publication_submit_intent(
         row = conn.execute(
             """
             SELECT status, master_attempt_id, engage_run_id, engage_post_id,
-                   draft_text, draft_hash, decision_json
+                   draft_text, draft_hash, decision_json, valid_until
             FROM publication_queue
             WHERE publication_id=?
             """,
@@ -2022,6 +2022,11 @@ def mark_publication_submit_intent(
             )
         ):
             raise RuntimeError("ENGAGE creator mention response changed before submit intent")
+        if current.get("valid_until") != publication.get("valid_until"):
+            raise RuntimeError("Publication freshness deadline changed before submit intent")
+        deadline = parse_iso(current.get("valid_until"))
+        if deadline is None or deadline <= dt.datetime.now().astimezone():
+            raise RuntimeError("Publication freshness deadline expired before submit intent")
         mark_master_submit_intent(
             conn,
             master_schema,
@@ -3570,6 +3575,9 @@ async def _run_on_page_attempt(
     await input_locator.focus()
     try:
         await bounded_operation(input_locator.click(timeout=3000), timeout=4, phase="editor_click")
+    except BrowserOperationTimeout:
+        # Cancellation may leave the click alive; do not compose on this page.
+        raise
     except Exception:
         await ensure_no_challenge(page, phase="editor_click")
 
@@ -4022,67 +4030,88 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
                         exc = challenge
                     except Exception:
                         pass
-                if (
-                    execute
-                    and publication.get("_claimed")
-                    and publication_status(
-                        database,
-                        publication["publication_id"],
-                    )
-                    == "publishing"
-                ):
-                    recorder.flush_unanswered()
-                    publication_records = [
-                        safe_tiktok_publication_capture(
-                            record, final_text=str(publication.get("final_text") or ""),
-                            target_url=str(publication.get("target_url") or ""),
-                        )
-                        for record in recorder.records
-                        if is_tiktok_comment_publish_url(
-                            record.get("request_url", "")
-                        )
-                    ]
+                claimed = execute and publication.get("_claimed")
+                submit_possible = bool(publication.get("_submit_intent"))
+                receipt_id = ""
+                stored_status = ""
+                outcome_error = ""
+                if claimed:
                     try:
-                        submit_possible = bool(
-                            publication.get("_submit_intent")
-                            or publication_records
-                        )
-                        store_receipt(
-                            database,
-                            publication,
-                            success=False,
-                            capture_records=publication_records,
-                            remote_comment_id="",
-                            visible=False,
-                            persisted=False,
-                            verification_path="",
-                            error=(
-                                (
-                                    "Publication attempt ended after durable "
-                                    "submit intent; manual reconciliation is "
-                                    "required: "
-                                )
-                                if submit_possible
-                                else (
-                                    "Publication attempt ended before durable "
-                                    "submit intent; a fresh gated run may retry: "
-                                )
+                        recorder.flush_unanswered()
+                        publication_records = [
+                            safe_tiktok_publication_capture(
+                                record, final_text=str(publication.get("final_text") or ""),
+                                target_url=str(publication.get("target_url") or ""),
                             )
-                            + (exc.code if isinstance(exc, HumanVerificationRequired) else type(exc).__name__),
-                            outcome=(
-                                "uncertain"
-                                if submit_possible
-                                else "failed"
-                            ),
-                            master_database=args.master_database,
+                            for record in recorder.records
+                            if is_tiktok_comment_publish_url(record.get("request_url", ""))
+                        ]
+                        submit_possible = bool(
+                            submit_possible or publication_records
                         )
-                    except Exception as receipt_exc:
-                        raise RuntimeError(
-                            "Publication interrupted; durable outcome could not be stored; reconciliation required"
-                        ) from exc
+                        stored_status = publication_status(database, publication["publication_id"])
+                        if stored_status == "publishing":
+                            receipt_id = store_receipt(
+                                database,
+                                publication,
+                                success=False,
+                                capture_records=publication_records,
+                                remote_comment_id="",
+                                visible=False,
+                                persisted=False,
+                                verification_path="",
+                                error=(
+                                    "Publication attempt ended after possible submission; "
+                                    "manual reconciliation is required: "
+                                    if submit_possible else
+                                    "Publication attempt ended before durable submit intent; "
+                                    "a fresh gated run may retry: "
+                                ) + (exc.code if isinstance(exc, HumanVerificationRequired) else type(exc).__name__),
+                                outcome="uncertain" if submit_possible else "failed",
+                                master_database=args.master_database,
+                            )
+                            # Receipt storage may promote a pre-submit failure to
+                            # uncertainty when the durable master intent won the
+                            # race with the in-memory flag. Preserve that result.
+                            stored_status = publication_status(database, publication["publication_id"])
+                    except Exception:
+                        outcome_error = "durable_outcome_not_stored_or_verified"
+                retryable = bool(
+                    receipt_id and stored_status == "approved"
+                    and not submit_possible and not outcome_error
+                )
+                submit_possible = submit_possible or stored_status in {"uncertain", "published"}
                 if isinstance(exc, HumanVerificationRequired):
                     result = await _challenge_result(page, args, publication, exc)
-                    result["action"] = "remote_reconciliation_required" if publication.get("_submit_intent") else "complete_verification_then_gated_retry"
+                    result["submission_possible"] = submit_possible
+                    result["action"] = (
+                        "remote_reconciliation_required" if submit_possible else
+                        "inspect_durable_attempt_before_retry" if claimed and not retryable else
+                        "complete_verification_then_gated_retry"
+                    )
+                    if outcome_error:
+                        result["outcome_error"] = outcome_error
+                    return result
+                if claimed:
+                    result = {
+                        "status": "retryable_failure" if retryable else (
+                            "uncertain" if stored_status == "uncertain" and not outcome_error else "reconcile_required"
+                        ),
+                        "publication_id": publication["publication_id"],
+                        "receipt_id": receipt_id,
+                        "error_type": type(exc).__name__,
+                        "submit_intent_recorded": bool(publication.get("_submit_intent")),
+                        "submission_possible": submit_possible,
+                        "publication_confirmed": stored_status == "published",
+                        "action": "gated_retry_available" if retryable else (
+                            "confirmed_capture_recovery_only" if stored_status == "published" else
+                            "remote_reconciliation_required" if submit_possible else "inspect_durable_attempt_before_retry"
+                        ),
+                    }
+                    if hasattr(exc, "as_dict"):
+                        result.update(exc.as_dict())
+                    if outcome_error:
+                        result["outcome_error"] = outcome_error
                     return result
                 raise
         finally:

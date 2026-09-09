@@ -18,6 +18,8 @@ from pathlib import Path
 from typing import Any, Mapping
 from urllib.parse import urlsplit
 
+from tiktok_scraper.source_identity import SourceIdentityError, resolve_registered_source
+
 
 LINEAGE_SCHEMA_VERSION = "tiktok-completed-run-lineage-v1"
 SUPPORTED_WORKFLOWS = frozenset({"listen", "audit", "engage"})
@@ -503,29 +505,16 @@ def _validate_master_run(
         },
     )
 
-    matching_sources: list[dict[str, Any]] = []
-    for row in conn.execute(
-        "SELECT source_id, database_path FROM tiktok_master_sources"
-    ).fetchall():
-        saved_path = _text(row["database_path"])
-        try:
-            matches = bool(saved_path) and _path_key(saved_path) == _path_key(
-                source_database
-            )
-        except (OSError, RuntimeError):
-            matches = False
-        if matches:
-            matching_sources.append(_row_dict(row))
-    if len(matching_sources) != 1:
+    try:
+        source = resolve_registered_source(conn, "main", source_database)
+    except SourceIdentityError as exc:
+        raise RunLineageError(str(exc)) from exc
+    if source is None:
         raise RunLineageError(
             "master registry must contain exactly one source bound to the resolved "
-            f"project database; found {len(matching_sources)}"
+            "project database; found 0"
         )
-    source = matching_sources[0]
     source_id = _text(source["source_id"])
-    expected_source_id = _stable_id("tiktok-engage-source", str(source_database))
-    if source_id != expected_source_id:
-        raise RunLineageError("master source ID does not match its database path")
 
     master_rows = conn.execute(
         """

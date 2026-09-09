@@ -29,6 +29,12 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
+from tiktok_scraper.source_identity import (
+    ensure_source_alias_schema,
+    resolve_registered_source,
+    source_id_for_path,
+)
+
 
 DEFAULT_MASTER_DATABASE = (
     Path("comments_data")
@@ -36,7 +42,7 @@ DEFAULT_MASTER_DATABASE = (
     / "state"
     / "tiktok_master.sqlite"
 )
-MASTER_SCHEMA_VERSION = "7"
+MASTER_SCHEMA_VERSION = "8"
 MASTER_SCHEMA_NAMES = frozenset({"main", "master"})
 MUSIC_BACKFILL_RUN_STATUSES = frozenset(
     {"planned", "running", "backfill_complete", "backfill_incomplete", "failed"}
@@ -723,6 +729,7 @@ def ensure_master_schema(
     ]
     for statement in statements:
         conn.execute(statement)
+    ensure_source_alias_schema(conn, schema)
 
     run_columns = _columns(conn, schema, "tiktok_master_runs")
     run_additions = {
@@ -1087,7 +1094,9 @@ def register_source(
     imported: bool = False,
 ) -> str:
     path = _normalize_path(source_path)
-    source_id = stable_id("tiktok-engage-source", path)
+    registered = resolve_registered_source(conn, schema, path)
+    source_id = registered["source_id"] if registered else source_id_for_path(path)
+    identity_path = registered["identity_path"] if registered else path
     timestamp = now_iso()
     conn.execute(
         f"""
@@ -1104,7 +1113,7 @@ def register_source(
         """,
         (
             source_id,
-            path,
+            identity_path,
             timestamp,
             timestamp,
             timestamp if imported else "",
@@ -1412,10 +1421,7 @@ def store_audit_report(
         run_id,
         source_path,
     )
-    source_id = stable_id(
-        "tiktok-engage-source",
-        _normalize_path(source_path),
-    )
+    source_id = register_source(conn, schema, source_path)
     existing = conn.execute(
         f"""
         SELECT source_id, local_run_id, schema_version, rubric_version,
@@ -1555,10 +1561,8 @@ def audit_report_for_run(
         source_path = source_path or _main_database_path(conn)
         if not str(source_path or "").strip():
             raise ValueError("source_path is required with a local run_id")
-        source_id = stable_id(
-            "tiktok-engage-source",
-            _normalize_path(source_path),
-        )
+        source = resolve_registered_source(conn, schema, source_path)
+        source_id = source["source_id"] if source else source_id_for_path(source_path)
         master_run_id = stable_id(source_id, run_id)
     row = conn.execute(
         f"""

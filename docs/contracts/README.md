@@ -36,3 +36,6 @@ workspace root remains the controlling authority when documents differ.
   TikTok One link discovery and its LISTEN bridge.
 - [`SOURCE_SCOPE.md`](SOURCE_SCOPE.md) records source, runtime-data, and backup
   boundaries.
+
+- [`REGISTRY_REPAIR.md`](REGISTRY_REPAIR.md) defines offline source-identity
+  repair, preserved immutable records, moved-file aliases, and encrypted backups.

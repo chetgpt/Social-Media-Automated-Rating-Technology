@@ -651,11 +651,11 @@ def test_publish_pending_stops_on_first_failure_unless_explicitly_overridden(
     def fail_first(command, **kwargs):
         calls.append(command)
         if len(calls) == 1:
-            raise subprocess.CalledProcessError(
-                1,
+            return subprocess.CompletedProcess(
                 command,
-                output=json.dumps({"status": "uncertain"}),
-                stderr="manual reconciliation required",
+                1,
+                stdout=json.dumps({"status": "retryable_failure", "submit_intent_recorded": False}),
+                stderr="",
             )
         return subprocess.CompletedProcess(
             command,

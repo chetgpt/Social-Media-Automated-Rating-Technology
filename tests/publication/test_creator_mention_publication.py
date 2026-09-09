@@ -1,6 +1,7 @@
 """Offline publication gates for optional same-run creator mentions."""
 
 from copy import deepcopy
+import datetime as dt
 import hashlib
 import json
 import sqlite3
@@ -99,7 +100,7 @@ def submit_fixture(tmp_path, monkeypatch, matching_api, *, legacy=False):
             CREATE TABLE publication_queue (
                 publication_id TEXT PRIMARY KEY, status TEXT,
                 master_attempt_id TEXT, engage_run_id TEXT, engage_post_id TEXT,
-                draft_text TEXT, draft_hash TEXT, decision_json TEXT
+                draft_text TEXT, draft_hash TEXT, decision_json TEXT, valid_until TEXT
             );
             CREATE TABLE engage_tiktok_posts (
                 run_id TEXT, post_id TEXT, creator_mentions_json TEXT
@@ -107,10 +108,10 @@ def submit_fixture(tmp_path, monkeypatch, matching_api, *, legacy=False):
             """
         )
         conn.execute(
-            "INSERT INTO publication_queue VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO publication_queue VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 "publication-1", "publishing", "attempt-1", "run-1",
-                "source-post", TEXT, text_hash, json.dumps(decision),
+                "source-post", TEXT, text_hash, json.dumps(decision), "2099-01-01T00:00:00Z",
             ),
         )
         conn.execute(
@@ -131,8 +132,40 @@ def submit_fixture(tmp_path, monkeypatch, matching_api, *, legacy=False):
         "final_text": TEXT,
         "final_text_hash": text_hash,
         "decision_json": json.dumps(decision),
+        "valid_until": "2099-01-01T00:00:00Z",
     }
     return database, publication, master_intents
+
+
+@pytest.mark.parametrize("deadline", [None, "", "not-a-date", "2035-01-01T11:59:59Z", "2035-01-01T12:00:00Z"])
+def test_submit_intent_rejects_expired_or_invalid_deadline(tmp_path, monkeypatch, matching_api, deadline):
+    database, publication, intents = submit_fixture(tmp_path, monkeypatch, matching_api)
+    publication["valid_until"] = deadline
+    with sqlite3.connect(database) as conn:
+        conn.execute("UPDATE publication_queue SET valid_until=?", (deadline,))
+
+    class Clock(dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2035, 1, 1, 12, tzinfo=dt.timezone.utc).astimezone(tz)
+
+    monkeypatch.setattr(adapter.dt, "datetime", Clock)
+    with pytest.raises(RuntimeError, match="freshness deadline expired before submit intent"):
+        adapter.mark_publication_submit_intent(database, publication, master_database=tmp_path / "master.sqlite")
+    assert intents == []
+    assert "_submit_intent" not in publication
+    with sqlite3.connect(database) as conn:
+        assert conn.execute("SELECT status, valid_until FROM publication_queue").fetchone() == ("publishing", deadline)
+
+
+def test_deadline_extension_after_claim_is_rejected(tmp_path, monkeypatch, matching_api):
+    database, publication, intents = submit_fixture(tmp_path, monkeypatch, matching_api)
+    with sqlite3.connect(database) as conn:
+        conn.execute("UPDATE publication_queue SET valid_until='2099-01-02T00:00:00Z'")
+    with pytest.raises(RuntimeError, match="freshness deadline changed before submit intent"):
+        adapter.mark_publication_submit_intent(database, publication, master_database=tmp_path / "master.sqlite")
+    assert intents == []
+    assert "_submit_intent" not in publication
 
 
 @pytest.mark.parametrize("legacy", [False, True])

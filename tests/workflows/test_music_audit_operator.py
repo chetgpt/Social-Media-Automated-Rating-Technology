@@ -9,6 +9,8 @@ from types import SimpleNamespace
 import pytest
 
 import engage_tiktok as engage
+import tiktok_master_database as master_registry
+from tiktok_scraper.source_identity import insert_source_path_alias, source_id_for_path
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -650,6 +652,121 @@ def refresh_selection_run(tmp_path):
     operator.capture_frozen_selection(handoff)
     operator.write_handoff(handoff_path, handoff)
     return paths, handoff_path, handoff
+
+
+@pytest.fixture
+def relocated_completed_operator_run(completed_operator_run):
+    paths, handoff_path, handoff = completed_operator_run
+    current = Path(handoff["database"])
+    historical = paths.workspace / "previous-workspace" / current.relative_to(paths.workspace)
+    historical_source_id = source_id_for_path(historical)
+    conn = sqlite3.connect(paths.master_database)
+    conn.row_factory = sqlite3.Row
+    try:
+        original = conn.execute(
+            "SELECT source_id,master_run_id FROM tiktok_master_runs WHERE local_run_id=?",
+            (handoff["run_id"],),
+        ).fetchone()
+        historical_run_id = master_registry.stable_id(historical_source_id, handoff["run_id"])
+        snapshots = conn.execute(
+            "SELECT * FROM tiktok_master_snapshots WHERE source_id=?",
+            (original["source_id"],),
+        ).fetchall()
+        snapshot_mapping = {
+            row["snapshot_id"]: master_registry.stable_id(
+                historical_source_id, row["local_run_id"], row["post_id"],
+                row["evidence_hash"], row["observed_at"],
+            ) for row in snapshots
+        }
+        # Construct a coherent historical fixture before recording relocation.
+        # All local evidence and the exact current handoff remain untouched.
+        table_names = [row[0] for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        )]
+        for table in table_names:
+            assert table.isidentifier()
+            columns = {row[1] for row in conn.execute(f'PRAGMA table_info("{table}")')}
+            for column in columns & {"source_id", "first_source_id", "last_source_id"}:
+                conn.execute(f'UPDATE "{table}" SET "{column}"=? WHERE "{column}"=?',
+                             (historical_source_id, original["source_id"]))
+            if "master_run_id" in columns:
+                conn.execute(f'UPDATE "{table}" SET master_run_id=? WHERE master_run_id=?',
+                             (historical_run_id, original["master_run_id"]))
+            for column in columns & {
+                "snapshot_id", "latest_snapshot_id", "first_snapshot_id",
+                "last_snapshot_id", "previous_snapshot_id", "base_snapshot_id",
+            }:
+                for original_id, historical_id in snapshot_mapping.items():
+                    conn.execute(f'UPDATE "{table}" SET "{column}"=? WHERE "{column}"=?',
+                                 (historical_id, original_id))
+        conn.execute(
+            "UPDATE tiktok_master_sources SET database_path=? WHERE source_id=?",
+            (str(historical.resolve()), historical_source_id),
+        )
+        insert_source_path_alias(
+            conn, "main", source_id=historical_source_id,
+            identity_path=str(historical.resolve()), database_path=current,
+            migration_id="verified-offline-operator-test-relocation",
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return paths, handoff_path, handoff
+
+
+def test_completed_validation_accepts_verified_alias_without_changing_handoff(
+    relocated_completed_operator_run,
+):
+    paths, handoff_path, handoff = relocated_completed_operator_run
+    stored_handoff = handoff_path.read_bytes()
+    frozen_handoff = operator.canonical_json(handoff)
+    exact_handoff = operator.load_handoff(handoff_path, paths)
+
+    review = operator.validate_completed_artifacts(exact_handoff, paths=paths)
+
+    assert review["executor_compliance"] == "PASS"
+    assert review["task_outcome"] == "COMPLETE"
+    assert review["status"]["evidence_ready"] == 1
+    assert review["output_layout"]["workflow_database"] == handoff["database"]
+    assert review["output_layout"]["handoff"] == str(handoff_path)
+    assert review["artifacts"]["evidence_export"]["path"] == handoff["export_file"]
+    assert review["ai_actions"] == review["outbound_actions"] == []
+    assert handoff_path.read_bytes() == stored_handoff
+    assert operator.canonical_json(handoff) == frozen_handoff
+
+
+@pytest.mark.parametrize(
+    ("table", "column", "message"),
+    [
+        ("tiktok_master_snapshots", "evidence_hash", "master snapshot evidence hash"),
+        ("tiktok_master_source_path_aliases", "binding_hash", "alias checksum mismatch"),
+    ],
+)
+def test_verified_alias_does_not_bypass_evidence_or_binding_integrity(
+    relocated_completed_operator_run, table, column, message,
+):
+    paths, _handoff_path, handoff = relocated_completed_operator_run
+    conn = sqlite3.connect(paths.master_database)
+    try:
+        conn.execute(f'UPDATE "{table}" SET "{column}"=?', ("0" * 64,))
+        conn.commit()
+    finally:
+        conn.close()
+
+    with pytest.raises(operator.OperatorError, match=message):
+        operator.validate_completed_artifacts(handoff, paths=paths)
+
+
+def test_verified_alias_does_not_authorize_changing_the_exact_handoff_path(
+    relocated_completed_operator_run,
+):
+    paths, handoff_path, handoff = relocated_completed_operator_run
+    modified = dict(handoff)
+    modified["database"] = str(paths.workspace / "different-project.sqlite")
+    modified["handoff_hash"] = operator._handoff_hash(modified)
+
+    with pytest.raises(operator.OperatorError, match="database does not match the canonical path"):
+        operator.validate_handoff(modified, path=handoff_path, paths=paths)
 
 
 def test_completed_validation_accepts_replacement_candidate_history(
