@@ -131,13 +131,35 @@ Use `& $EngagePython` in place of `py -3` in the examples below. Bare
 `python` is intentionally not used because workspace path resolution can
 shadow it, and this machine's `py -3` launcher is not registered.
 
+Run the offline environment check before starting a workflow:
+
+```powershell
+& $EngagePython .\tools\check_environment.py --dev
+& $EngagePython .\engage_tiktok.py --help
+```
+
+The checker reads installed package metadata, declared requirements, the Python
+interpreter path, and native-tool availability. It does not inspect
+`comments_data/`, read credentials, open databases, start Edge, or contact a
+service. Omit `--dev` when checking runtime packages only; add `--json` for a
+machine-readable report. A nonzero exit reports a missing or incompatible
+workspace dependency or required tool. Unrelated packages in a shared Python
+installation are outside this check.
+
+For initial setup, install `requirements.txt`; development and offline
+maintenance additionally use `requirements-dev.txt`. On an existing
+workstation, use the report to update only missing or incompatible packages,
+then rerun the check. `psutil` is required by publication worker supervision
+and guarded collector process checks. Development checks also require
+`packaging`, `pytest`, typing tools, and the optional backup utility's
+`cryptography` dependency.
+
 SONIC AUDIT additionally requires the NumPy and SciPy packages declared in
 `requirements.txt`, plus `ffmpeg` and `ffprobe` on `PATH`. `fpcalc` is optional;
 when it is unavailable, the checked-in deterministic spectral-landmark
 fallback is used and recorded in the feature evidence.
-Optional Mirelo execution reads its API key only from the process environment
-variable `MIRELO_API_KEY`; do not put this secret in a command, repository
-file, plan, manifest, log, database, or export.
+Mirelo Audio-to-MIDI is reserved and disabled in this release. Its flags are
+rejected; no provider key is needed for the supported startup path.
 
 ## Separate LinkedIn Page collection
 
@@ -222,8 +244,6 @@ explicit per-run transient-audio authorization
 -> authenticated Profile 7/account preflight
 -> bounded transient media/audio acquisition and decode
 -> local deterministic fingerprints/features and comparison
--> optional separately authorized, preflighted, credit-capped Mirelo symbolic
-   diagnostic for the same frozen audio
 -> guaranteed raw-media cleanup
 -> persist only hashes, features, evaluation, and timings in an isolated run
 -> optionally validate the completed immutable run offline
@@ -766,16 +786,16 @@ and transient with finally-path cleanup, the master registry remains read-only,
 and no built-in semantic AI runs. Plan-bound evaluation remains
 `exploratory_only`.
 
-### Optional Mirelo Audio-to-MIDI diagnostic
+### Reserved Mirelo Audio-to-MIDI design
 
 > **Implementation status:** reserved and disabled. This release has no Mirelo
 > transport adapter, performs no Mirelo upload, and rejects Mirelo-enabled run
 > creation. The contract below is retained as design documentation only; do not
 > pass these flags or configure an API key for the current release.
 
-Mirelo is optional and disabled by default. To add its symbolic transcription
-to either a new ad hoc `run` or a new exact `run-plan-batch`, append all three
-Mirelo flags to the already-required local audio authorization:
+For a future implementation only, the proposed symbolic diagnostic would
+require the following authorization and budget fields for a new ad hoc `run`
+or exact `run-plan-batch`. These are design examples, not runnable commands:
 
 ```powershell
 --authorize-transient-audio `
@@ -784,8 +804,9 @@ Mirelo flags to the already-required local audio authorization:
 --mirelo-max-credits $MireloMaxCredits
 ```
 
-The same flag set is valid on both creation commands. It is invalid on
-`plan-corpus`, `resume`, `status`, `validate`, `validate-suite`, and `export`.
+The proposed flag set would apply only to creation commands. The current
+release rejects Mirelo configuration on every executable path. The remaining
+paragraphs describe requirements for a future adapter, not current behavior.
 The user must separately authorize third-party upload for that exact frozen
 run and confirm they have the rights needed to submit its audio under the
 current [Mirelo Terms](https://mirelo.ai/terms). Local transient-audio

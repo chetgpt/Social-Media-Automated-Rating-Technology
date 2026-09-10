@@ -2,4 +2,5 @@
 mypy>=1.10,<2
 pytest>=8,<9
 types-requests>=2.31,<3
+packaging>=24,<26
 cryptography>=42,<47
