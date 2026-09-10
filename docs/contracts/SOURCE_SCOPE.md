@@ -5,6 +5,20 @@ reusable configuration. Repository visibility must be checked before each
 publication; do not assume it is private. It is not a backup of harvested TikTok evidence or
 authenticated workstation state.
 
+## Routine analysis boundary
+
+`comments_data/` is generated runtime output and operational state. It is
+already Git-ignored and is excluded from routine code review, project-folder
+inventories, recursive source searches, and source backups. Growing result
+files do not restart or invalidate a source review. Code tests use temporary
+fixtures rather than production databases.
+
+Inspect specific runtime artifacts only when the requested workflow, data
+analysis, or troubleshooting issue requires them. Do not repeatedly inventory
+or hash all collected results while fixing source code. Runtime backups and
+registry migrations are separate maintenance tasks; preserve an interrupted or
+stale migration without automatically generating a new plan as data arrives.
+
 ## Active workflow source
 
 The separate recency-first POSTS DISCOVERY mode consists of

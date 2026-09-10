@@ -1,5 +1,23 @@
 # TikTok ENGAGE Workspace Contract
 
+## Routine project analysis scope
+
+For project analysis, code fixes, refactoring, and source Git backups, treat
+`comments_data/` as generated runtime results and operational state. Exclude it
+from routine inventories, recursive searches, payload hashing, database scans,
+and source snapshots. New collection results do not invalidate a source review
+or require restarting a backup or repair plan.
+
+Focus routine work on active source, tests, configuration, skills, and
+documentation. Use temporary fixtures for code regression tests. Inspect only
+the specific runtime artifacts needed for an explicitly requested workflow,
+data analysis, or relevant troubleshooting issue; do not expand that inspection
+into a sweep of all project results. Runtime data backups and database
+migrations are separate maintenance work, not prerequisites for ordinary source
+fixes. Preserve existing results and pending migration artifacts. A stale
+database repair plan must stop without automatically rescanning and replanning
+against a continually growing registry.
+
 This workspace's canonical evidence and engagement workflows are TikTok-only,
 with three canonical durable workflow modes: `LISTEN` collects evidence,
 `AUDIT` collects and analyzes evidence, and `ENGAGE` continues through response
