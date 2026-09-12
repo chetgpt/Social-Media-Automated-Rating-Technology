@@ -1,5 +1,11 @@
 # POSTS DISCOVERY and TikTok Evidence Workflows
 
+Threads and LinkedIn now have a separate [full ENGAGE workflow](docs/contracts/THREADS_LINKEDIN_ENGAGE.md),
+with Threads prioritized. `threads_workflow.py` and `linkedin_engage.py` provide
+official-API collection, built-in AI stages, independent review and guarded
+human-approved text replies/comments. They require platform app/token access;
+they do not use the TikTok browser or enable unsupported music/media features.
+
 `POSTS DISCOVERY` searches TikTok for any requested topic and enforces the
 chosen publication-time window before posts count. Missing/invalid or
 out-of-window dates cannot fill the requested quota. Eligible observed search

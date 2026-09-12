@@ -21,6 +21,15 @@ stale migration without automatically generating a new plan as data arrives.
 
 ## Active workflow source
 
+The Threads-first ENGAGE expansion consists of `engage_social.py`,
+`threads_workflow.py`, `linkedin_engage.py`, `social_engage/`, its focused tests,
+and `docs/contracts/THREADS_LINKEDIN_ENGAGE.md`. These are versionable source.
+Their isolated databases, packet files, AI inputs/outputs and receipts under
+`comments_data/threads/` or `comments_data/linkedin/` are generated operational
+data. Tokens remain in the process environment, never in source Git. This
+expansion does not modify the canonical TikTok modes or historical LinkedIn
+collector state.
+
 The separate recency-first POSTS DISCOVERY mode consists of
 `posts_discovery.py`, its publication-window support in the guarded topic
 collector/export path, `.agents/skills/posts-discovery/SKILL.md`,
