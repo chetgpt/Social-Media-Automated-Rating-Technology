@@ -13,11 +13,6 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$bridgeClock = [System.Diagnostics.Stopwatch]::StartNew()
-
-function Test-BridgeDeadline {
-    return $bridgeClock.Elapsed.TotalSeconds -lt [Math]::Max(1, $TimeoutSeconds)
-}
 
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
@@ -37,6 +32,9 @@ public static class EdgeNativeWindow {
 
     [DllImport("user32.dll")]
     public static extern void SwitchToThisWindow(IntPtr hWnd, bool fUnknown);
+
+    [DllImport("user32.dll")]
+    public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
 }
 "@
 
@@ -187,7 +185,6 @@ function Test-RemoteDebuggingAllowButton {
 function Navigate-ToRemoteDebugging {
     param([System.Windows.Automation.AutomationElement]$Window)
 
-    if (-not (Test-BridgeDeadline)) { return }
     $handle = [IntPtr]$Window.Current.NativeWindowHandle
     $null = [EdgeNativeWindow]::ShowWindowAsync($handle, 9)
     $null = [EdgeNativeWindow]::SetForegroundWindow($handle)
@@ -198,6 +195,28 @@ function Navigate-ToRemoteDebugging {
     catch {
         # A newly created Edge top-level element can reject UIA focus briefly.
     }
+    try {
+        $editCond = New-Object System.Windows.Automation.PropertyCondition(
+            [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+            [System.Windows.Automation.ControlType]::Edit
+        )
+        $edits = $Window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $editCond)
+        foreach ($edit in $edits) {
+            try {
+                $val = $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
+                if ($null -ne $val) {
+                    $val.SetValue("edge://inspect/#remote-debugging")
+                    [EdgeNativeWindow]::PostMessage($handle, 0x0100, [IntPtr]0x0D, [IntPtr]0x001C0001)
+                    [EdgeNativeWindow]::PostMessage($handle, 0x0102, [IntPtr]0x0D, [IntPtr]0x001C0001)
+                    [EdgeNativeWindow]::PostMessage($handle, 0x0101, [IntPtr]0x0D, [IntPtr]0xC01C0001)
+                    Start-Sleep -Milliseconds 500
+                    return
+                }
+            }
+            catch {}
+        }
+    }
+    catch {}
     $shell = New-Object -ComObject WScript.Shell
     $activated = $shell.AppActivate($Window.Current.ProcessId)
     if (-not $activated) {
@@ -211,8 +230,7 @@ function Navigate-ToRemoteDebugging {
         $null = [EdgeNativeWindow]::SetForegroundWindow($handle)
         [EdgeNativeWindow]::SwitchToThisWindow($handle, $true)
         Start-Sleep -Milliseconds 150
-    } while ([DateTime]::UtcNow -lt $deadline -and (Test-BridgeDeadline))
-    if (-not (Test-BridgeDeadline)) { return }
+    } while ([DateTime]::UtcNow -lt $deadline)
     $shell.SendKeys("^l")
     Start-Sleep -Milliseconds 250
     $shell.SendKeys("edge://inspect/#remote-debugging")
@@ -221,20 +239,26 @@ function Navigate-ToRemoteDebugging {
 
 function Wait-ForProfileWindow {
     param([long]$PreferredHandle = 0)
-    while (Test-BridgeDeadline) {
+    $deadline = [DateTime]::UtcNow.AddSeconds([Math]::Max(1, $TimeoutSeconds))
+    do {
         $window = Find-ProfileWindow -PreferredHandle $PreferredHandle
         if ($null -ne $window) {
             return $window
         }
         Start-Sleep -Milliseconds 250
-    }
+    } while ([DateTime]::UtcNow -lt $deadline)
     return $null
 }
 
 function Wait-ForRemoteDebuggingCheckbox {
     param([System.Windows.Automation.AutomationElement]$Window)
-    while (Test-BridgeDeadline) {
+    $deadline = [DateTime]::UtcNow.AddSeconds([Math]::Max(1, $TimeoutSeconds))
+    do {
         try {
+            $currentWindow = Find-ProfileWindow -PreferredHandle $WindowHandle
+            if ($null -ne $currentWindow) {
+                $Window = $currentWindow
+            }
             $checkbox = Find-RemoteDebuggingCheckbox -Window $Window
             if ($null -ne $checkbox) {
                 return $checkbox
@@ -247,7 +271,7 @@ function Wait-ForRemoteDebuggingCheckbox {
             }
         }
         Start-Sleep -Milliseconds 250
-    }
+    } while ([DateTime]::UtcNow -lt $deadline)
     return $null
 }
 
@@ -353,17 +377,21 @@ if ($null -eq $checkbox) {
 }
 
 $toggle = $checkbox.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
-if (-not (Test-BridgeDeadline)) {
-    Write-Result @{ success = $false; action = "bridge_deadline_exceeded" }
-    exit 6
-}
 $before = $toggle.Current.ToggleState.ToString()
 $wantOn = $Command -eq "enable"
 if (($wantOn -and $before -ne "On") -or (-not $wantOn -and $before -eq "On")) {
     $toggle.Toggle()
-    Start-Sleep -Milliseconds 500
+    $toggleDeadline = [DateTime]::UtcNow.AddSeconds(3)
+    do {
+        Start-Sleep -Milliseconds 250
+        $after = $toggle.Current.ToggleState.ToString()
+        if (($wantOn -and $after -eq "On") -or (-not $wantOn -and $after -ne "On")) {
+            break
+        }
+    } while ([DateTime]::UtcNow -lt $toggleDeadline)
+} else {
+    $after = $before
 }
-$after = $toggle.Current.ToggleState.ToString()
 
 $result = @{
     success = ($wantOn -and $after -eq "On") -or (-not $wantOn -and $after -ne "On")

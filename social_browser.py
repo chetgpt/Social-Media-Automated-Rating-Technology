@@ -897,14 +897,6 @@ def start_existing_profile(
     runtime_dir: Path,
     designation: dict[str, Any],
 ) -> int:
-    from social_browser_startup_guard import startup_guard
-    with startup_guard(runtime_dir, timeout=max(30, args.startup_timeout)):
-        return _start_existing_profile_locked(args, runtime_dir, designation)
-
-
-def _start_existing_profile_locked(
-    args: argparse.Namespace, runtime_dir: Path, designation: dict[str, Any]
-) -> int:
     profile = Path(str(designation["user_data_dir"])).absolute()
     profile_directory = str(designation["profile_directory"])
     display_name = str(

@@ -1587,9 +1587,21 @@ class TikTokAPIIntegration:
                 navigation_error = f"{type(exc).__name__}: {exc}"
 
             try:
-                await asyncio.wait_for(post_event.wait(), timeout=15)
+                await asyncio.wait_for(post_event.wait(), timeout=3.0)
             except asyncio.TimeoutError:
-                pass
+                try:
+                    mouse = getattr(page, "mouse", None)
+                    if mouse is not None and hasattr(mouse, "click"):
+                        await mouse.click(500, 300)
+                    keyboard = getattr(page, "keyboard", None)
+                    if keyboard is not None and hasattr(keyboard, "press"):
+                        await keyboard.press("PageDown")
+                except Exception:
+                    pass
+                try:
+                    await asyncio.wait_for(post_event.wait(), timeout=12.0)
+                except asyncio.TimeoutError:
+                    pass
 
             while True:
                 cursor_chain = self._creator_profile_cursor_chain(
@@ -1631,8 +1643,24 @@ class TikTokAPIIntegration:
                 before = len(post_pages)
                 post_event.clear()
                 try:
-                    await page.mouse.wheel(0, 2600)
-                    await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                    mouse = getattr(page, "mouse", None)
+                    if mouse is not None:
+                        if hasattr(mouse, "move"):
+                            await mouse.move(500, 400)
+                        if hasattr(mouse, "wheel"):
+                            await mouse.wheel(0, 2600)
+                    keyboard = getattr(page, "keyboard", None)
+                    if keyboard is not None and hasattr(keyboard, "press"):
+                        await keyboard.press("PageDown")
+                    if hasattr(page, "evaluate"):
+                        await page.evaluate("""() => {
+                            const links = document.querySelectorAll('a[href*="/video/"]');
+                            if (links.length > 0) {
+                                links[links.length - 1].scrollIntoView({ behavior: 'smooth', block: 'end' });
+                            } else {
+                                window.scrollTo(0, Math.max(document.body.scrollHeight, document.documentElement.scrollHeight));
+                            }
+                        }""")
                 except Exception:
                     pass
                 try:
@@ -2117,11 +2145,11 @@ class TikTokAPIIntegration:
                 else:
                     await route.continue_()
             await tab.route("**/*", block_media)
-            deadline = time.monotonic() + max(1, timeout_ms) / 1000
             response = await tab.goto(target_url, wait_until="domcontentloaded", timeout=timeout_ms)
             if response is not None and not response.ok:
                 logger.warning("Exact metadata refresh %s: browser_http_%s", expected_id, response.status)
                 return None
+            deadline = time.monotonic() + max(1, timeout_ms) / 1000
             first_read = True
             while True:
                 if not first_read and time.monotonic() >= deadline:
@@ -2263,6 +2291,14 @@ class TikTokAPIIntegration:
             "Referer": "https://www.tiktok.com/",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.9",
+            "sec-ch-ua": '"Microsoft Edge";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"Windows"',
+            "sec-fetch-dest": "document",
+            "sec-fetch-mode": "navigate",
+            "sec-fetch-site": "none",
+            "sec-fetch-user": "?1",
+            "upgrade-insecure-requests": "1",
         }
         try:
             evaluate_fn = getattr(page, "evaluate", None)
