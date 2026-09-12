@@ -1,0 +1,143 @@
+{
+  "schema_version": 1,
+  "name": "operasi_pesta_copet_broad_raw",
+  "project": "operasi_pesta_copet_broad_raw",
+  "title": "Operasi Pesta Copet Broad Raw Collection",
+  "timezone": "Asia/Jakarta",
+  "platforms": ["youtube", "tiktok", "instagram", "facebook"],
+  "keywords": {
+    "core": [
+      "Operasi Pesta Copet",
+      "Operasi Pesta Pora",
+      "OPC"
+    ],
+    "hashtags": [
+      "OperasiPestaCopet",
+      "OperasiPestaPora"
+    ],
+    "entities": [
+      "Imajinari",
+      "Ijal",
+      "Iqbal",
+      "Iqbaal",
+      "Iqbaal Ramadhan"
+    ],
+    "optional": [
+      "copet",
+      "copet konser",
+      "pesta pora",
+      "pespor",
+      "nekat"
+    ],
+    "campaign": [
+      "bungkus gorengan",
+      "buron wrap"
+    ],
+    "exclusions": [
+      "operasi polisi",
+      "operasi premanisme",
+      "pesta rakyat",
+      "copet tertangkap",
+      "opel astra"
+    ]
+  },
+  "queries": {
+    "all": [
+      "Operasi Pesta Copet",
+      "Operasi Pesta Pora",
+      "trailer Operasi Pesta Copet",
+      "trailer Operasi Pesta Pora",
+      "film Operasi Pesta Copet",
+      "film Operasi Pesta Pora",
+      "Imajinari Operasi Pesta Copet",
+      "Imajinari Operasi Pesta Pora",
+      "Iqbaal Operasi Pesta Copet",
+      "Iqbaal Operasi Pesta Pora",
+      "Ijal Operasi Pesta Copet",
+      "Ijal Operasi Pesta Pora",
+      "bungkus gorengan Operasi Pesta Copet",
+      "buron wrap Operasi Pesta Copet"
+    ],
+    "youtube": [],
+    "tiktok": [],
+    "instagram": [],
+    "facebook": []
+  },
+  "accounts": {
+    "youtube": [],
+    "tiktok": [
+      {"handle": "imajinari.id", "label": "Imajinari TikTok", "role": "owned"},
+      {"handle": "ijal_woi", "label": "Ijal TikTok", "role": "cast"}
+    ],
+    "instagram": [
+      {"handle": "imajinari.id", "label": "Imajinari Instagram", "role": "owned"},
+      {"handle": "iqbaal.e", "label": "Iqbaal Instagram", "role": "cast"}
+    ],
+    "facebook": []
+  },
+  "date_windows": [],
+  "discovery": {
+    "include_core": true,
+    "include_hashtags": true,
+    "include_campaign": true,
+    "pair_entities_with_core": true,
+    "pair_optional_with_core": true,
+    "anchor_limit": 0,
+    "max_sources_per_platform": 0
+  },
+  "relevance": {
+    "mode": "audit",
+    "review_action": "scrape",
+    "accept_threshold": 60,
+    "review_threshold": 30,
+    "require_anchor": false,
+    "anchor_terms": [
+      "Operasi Pesta Copet",
+      "Operasi Pesta Pora",
+      "OperasiPestaCopet",
+      "OperasiPestaPora"
+    ],
+    "ambiguous_terms": [
+      "OPC"
+    ],
+    "context_terms": [
+      "film",
+      "trailer",
+      "teaser",
+      "poster",
+      "bioskop",
+      "tayang",
+      "rilis",
+      "sutradara",
+      "produser",
+      "jamet",
+      "pencopet",
+      "Pestapora"
+    ]
+  },
+  "collection": {
+    "videos_per_source": 0,
+    "discovery_candidates_per_source": 0,
+    "comments_per_post": 0,
+    "transport_mode": "api-first",
+    "refresh_limit_per_platform": 0,
+    "refresh_after_hours": 0,
+    "report_hours": [6, 12, 24, 72]
+  },
+  "storage": {
+    "provider": "google-drive",
+    "root_folder_name": "Social Listening Projects",
+    "account_hint": "redacted@example.invalid",
+    "mount_path": "I:\\My Drive",
+    "archive_raw_runs": true,
+    "archive_backlog": true,
+    "raw_run_archive_timing": "final",
+    "upload_compiled": true,
+    "upload_logs": true,
+    "snapshot_database": true,
+    "delete_local_after_upload": false,
+    "required": true,
+    "chunk_size_mb": 16,
+    "max_retries": 7
+  }
+}

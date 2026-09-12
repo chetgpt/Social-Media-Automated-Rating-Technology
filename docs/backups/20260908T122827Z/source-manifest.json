@@ -1,0 +1,2363 @@
+{
+  "schema": "workflow-source-backup-manifest-v1",
+  "captured_at_utc": "2026-09-08T12:28:32.618786+00:00",
+  "branch": "codex/backup-workflows-20260908T122827Z",
+  "parent_commit": "4e86ef9585408cb51402dbcddca9d0fdff89b67c",
+  "source_working_branch": "codex/quick-audit",
+  "source_files": [
+    {
+      "path": ".agents/skills/google-3.1-music-audit-instructions/SKILL.md",
+      "mode": "100644",
+      "git_blob": "d72f0d00d5e38cef2270f0021ee5e4646de2ecbc",
+      "bytes": 20307,
+      "sha256": "a1fd9de6842b4c0f8eeff43a7a2c18927f25f856c5c1e3ed56505487147ca888"
+    },
+    {
+      "path": ".agents/skills/google-3.1-music-audit-instructions/references/instagram-experimental.md",
+      "mode": "100644",
+      "git_blob": "a6c9dfb56a1bf082fa9af659bb86863e99791da5",
+      "bytes": 9486,
+      "sha256": "c839a6c9de5023514ee143fc53ed3f7df5dc4aaa78c11a0407b25e777f7d56c1"
+    },
+    {
+      "path": ".agents/skills/google-3.1-music-audit-instructions/references/operator-wrapper.md",
+      "mode": "100644",
+      "git_blob": "942717c08e8a4df11d2623048fec44d72ab16254",
+      "bytes": 15547,
+      "sha256": "ce12c9b49273bba3a3b64e776fa5132aa069055ce75f2da24d1228cc0e08353b"
+    },
+    {
+      "path": ".agents/skills/google-3.1-music-audit-instructions/references/profile7-recovery.md",
+      "mode": "100644",
+      "git_blob": "607b50d7160bc42cc4fb6463321a8eda05b36eb6",
+      "bytes": 5451,
+      "sha256": "dd464b187e134587ef4f0d413a6204df0405d9d4604b0d68efa63019cb3a14a5"
+    },
+    {
+      "path": ".agents/skills/google-3.1-music-audit-instructions/scripts/music_audit_operator.py",
+      "mode": "100644",
+      "git_blob": "9c2dd1141eebc94bd8c668914b3f37f887952b0b",
+      "bytes": 198004,
+      "sha256": "382803b9e3e33840ab860e3f8fd5afc10462c7bc5b520d26f08b39bc9afc223b"
+    },
+    {
+      "path": ".agents/skills/music-discovery/SKILL.md",
+      "mode": "100644",
+      "git_blob": "86644f02bb71a088142f8409971ba35918e5c174",
+      "bytes": 8646,
+      "sha256": "61d6d99eabaf6d9ee3d8bd760bf8555dbd15f67636eff15b7829ba66766aaf35"
+    },
+    {
+      "path": ".agents/skills/posts-discovery/SKILL.md",
+      "mode": "100644",
+      "git_blob": "b5832d00b2b5884e670a6a701d4136c9033fd7bf",
+      "bytes": 6803,
+      "sha256": "0b383acc8b41ae6f62b679af2582de330ec8b794e6837abdca79a369a7c53017"
+    },
+    {
+      "path": ".agents/skills/social-browser-checker/SKILL.md",
+      "mode": "100644",
+      "git_blob": "f1a5f856af7b91c56e528c69df54acc3c5198ee5",
+      "bytes": 2036,
+      "sha256": "fa79d56840dea9d159e88a6df09c3ba6567ac22e1960927f07e9e3f0cfe6b04d"
+    },
+    {
+      "path": ".gitattributes",
+      "mode": "100644",
+      "git_blob": "2494dc8f37f4eff37ef3a4dd94cafe0eef4ada7f",
+      "bytes": 524,
+      "sha256": "86e49b26e44bebb1e00007393ba1a2e200c3da17d7a715ce0a3bff8704a43774"
+    },
+    {
+      "path": ".gitignore",
+      "mode": "100644",
+      "git_blob": "bd2143b1a369ae77c51727a7f2b0cbf02ec4c8c8",
+      "bytes": 2089,
+      "sha256": "56158840eddfd41bf79e36e6ac13b1ea398a5a037d2d2986178c3d343dc33e05"
+    },
+    {
+      "path": "AGENTS.md",
+      "mode": "100644",
+      "git_blob": "b10aff3269965559dcd029db41a0533e33b8a193",
+      "bytes": 117993,
+      "sha256": "da2142c42474ec58cc1e0d278a32568fe6618dfadc4d9a56d26b90885f9c239c"
+    },
+    {
+      "path": "GEMINI.md",
+      "mode": "100644",
+      "git_blob": "aee47d350c074d487d40a3a49a905cca0d81abc8",
+      "bytes": 3126,
+      "sha256": "1e1a1487810d3739defbadbef2a1a5baa5c6b2ac666c93e35a0cb006d6638ff3"
+    },
+    {
+      "path": "GEMINI_3_1_PRO_WORKFLOW.md",
+      "mode": "100644",
+      "git_blob": "7ec8bdb8be7ac5a057933d7118bde13d8bbf3402",
+      "bytes": 93164,
+      "sha256": "a9d0389cbdbb3147ac2596a274186eb9b739971c8768f12dc0d4dd706226e9ff"
+    },
+    {
+      "path": "README.md",
+      "mode": "100644",
+      "git_blob": "118bdc85d3ab14fe2f1f3fcd3f8e42938d725c0a",
+      "bytes": 80477,
+      "sha256": "9d8fad26e8cf010339d5b548b734878a7afc9934aa058749f653695b94138ab9"
+    },
+    {
+      "path": "WORKFLOWS.md",
+      "mode": "100644",
+      "git_blob": "c15786e99ee2b02b5f1a532adbaae643408cd3c7",
+      "bytes": 106214,
+      "sha256": "81c0be860daf6f5824d9302e07b68bb03ec5ba69bad4d8f876052c50ad759b33"
+    },
+    {
+      "path": "analytics_pdf_generator.py",
+      "mode": "100644",
+      "git_blob": "395410e9862acf0599c5bd102a5444fc8ef4e563",
+      "bytes": 26373,
+      "sha256": "1bb8d503cb1aff184611f7a9a68c3d7370ae552c4a17b07175927193be8a9df4"
+    },
+    {
+      "path": "audio_archive_tiktok.py",
+      "mode": "100644",
+      "git_blob": "3b83663e530c6f13884e5724b9710b0c856ac8b5",
+      "bytes": 86401,
+      "sha256": "83bfeb75a6a891eaaa083e3db616a779f64fbcff4dcaa1f6a0cc975855d26b57"
+    },
+    {
+      "path": "audio_archive_transport.py",
+      "mode": "100644",
+      "git_blob": "591aa00e65648ae860a0c4a2850a8ff52090f308",
+      "bytes": 42317,
+      "sha256": "8b3aacffc89004b24e406bf9e9f4d80af23007a85c4dd0b436ab368a051b1647"
+    },
+    {
+      "path": "author_activity_trace.py",
+      "mode": "100644",
+      "git_blob": "883ebc542f7dc6eecda0be7e081a95f7866acae9",
+      "bytes": 3448,
+      "sha256": "74be7e0493c400a5a318e4b2b73921237a9a2e339a7c5a530d822118e200eeb1"
+    },
+    {
+      "path": "campaign_spec.py",
+      "mode": "100644",
+      "git_blob": "00ce28a311b187cdf608769f00369b039fb46021",
+      "bytes": 36326,
+      "sha256": "9f8543c10d058e56017592478523f7c65a2d68d23dfa11511b8848f3f14c482c"
+    },
+    {
+      "path": "comment_compiler.py",
+      "mode": "100644",
+      "git_blob": "36a8c73121d708fd676de54cf82548fe64e7cce6",
+      "bytes": 108050,
+      "sha256": "bc5d4f9c3775b5658313b91d2ec1bd157bfff80854a9b1dae6afd0f38a4817f8"
+    },
+    {
+      "path": "comment_compiler_pdf.py",
+      "mode": "100644",
+      "git_blob": "bde1e76c92869b71f504dfaf9792c1d9835b74b0",
+      "bytes": 43351,
+      "sha256": "6ecae0489695130631262ba828f4e74bf9f80d205a517e41955c25363d9a8c2f"
+    },
+    {
+      "path": "comment_publication_capture.py",
+      "mode": "100644",
+      "git_blob": "c086221ad13d022d87f1d4395ccf7067ff3be4b1",
+      "bytes": 13670,
+      "sha256": "c4a558208ee139046e446604c57369f71cb6c8bc6896487fa65b4ab888b00d56"
+    },
+    {
+      "path": "comment_showcase_status.py",
+      "mode": "100644",
+      "git_blob": "98321480a7312352c4e0bdb96e93ec0a8921e7d1",
+      "bytes": 23371,
+      "sha256": "6ee458596c981e5537cc0a664f9aa769720bece1c3e523724873ecfa422e4c76"
+    },
+    {
+      "path": "complete_pdf_generator.py",
+      "mode": "100644",
+      "git_blob": "715d90c249ac3394868e7c43c28ce0f4e4ab2f35",
+      "bytes": 29012,
+      "sha256": "01a723ba41bdef5454f2c855133db464ee19089cbfd20f0a5d6584c3a60995ad"
+    },
+    {
+      "path": "config/README.md",
+      "mode": "100644",
+      "git_blob": "ffe2c5be9ceb6e2795a5f8ff5b862fb00692c6bb",
+      "bytes": 313,
+      "sha256": "07903d894b3c0f467c41e343b13f3825a595fe3eb61299dd197a3874635cadc3"
+    },
+    {
+      "path": "config/campaign_specs/NEW_CAMPAIGN_RUNBOOK.md",
+      "mode": "100644",
+      "git_blob": "b8e83601c554c846440648be810dff6127d4eb36",
+      "bytes": 13009,
+      "sha256": "6c2bc3ad7c56054fb0ac6b7cc766cb1b926b00ef56c39f0a6fbf9c1ae7726f34"
+    },
+    {
+      "path": "config/campaign_specs/README.md",
+      "mode": "100644",
+      "git_blob": "a96f630218cf0bf096db1c8655067a7db0564195",
+      "bytes": 7299,
+      "sha256": "dd9a2815b31cccdd0b7aa6f9cd17b80b9350ccb0cdd41aa44d915132c038c78b"
+    },
+    {
+      "path": "config/campaign_specs/desk_setups.json",
+      "mode": "100644",
+      "git_blob": "18739d4cea031302a192c77350b8b5c8bc618a4d",
+      "bytes": 3370,
+      "sha256": "b24ce9543fb892e0e3a671fade3ab7419650829e5cafe3c034eac31a43a25c26"
+    },
+    {
+      "path": "config/campaign_specs/gkps.json",
+      "mode": "100644",
+      "git_blob": "544afb319dfb8e33155e3bab859eefea23bf952a",
+      "bytes": 66743,
+      "sha256": "f4d848d3939b44a4a12e255a5e91642d1969c982d19157fcf86ad150cda6f1cd"
+    },
+    {
+      "path": "config/campaign_specs/iklan_indonesia.json",
+      "mode": "100644",
+      "git_blob": "9cf23c936b2e2646dfb42cdeea5ec6dc3417a807",
+      "bytes": 1686,
+      "sha256": "6f711b8c6577374cb41f8dbd6abce9cca55674c08d0dadffec01ee2c92aea38e"
+    },
+    {
+      "path": "config/campaign_specs/interactive_engage_spec.json",
+      "mode": "100644",
+      "git_blob": "a2879d5d1b9bd4978e7035d7b74c5e291554165f",
+      "bytes": 7577,
+      "sha256": "8dcc31032f0a7679b64914e79f4d7aea3dfa5f7c0d1476d2222982884617f309"
+    },
+    {
+      "path": "config/campaign_specs/keyboard.json",
+      "mode": "100644",
+      "git_blob": "51aa714700858b5314fb7ed2333f84ee459f97b9",
+      "bytes": 7137,
+      "sha256": "4334d9f61c81c4d65653aa25ad8d10fcf3bc6c47076ed3eae9b629d96a709e3d"
+    },
+    {
+      "path": "config/campaign_specs/operasi_pesta_copet.json",
+      "mode": "100644",
+      "git_blob": "2528e680a9f0b45c052f5ebebbd02d9e8b880e1c",
+      "bytes": 1912,
+      "sha256": "b17328e0329e805cd5c55fd85aca03b3754a98555740fb486c7d921b77aaaf1a"
+    },
+    {
+      "path": "config/campaign_specs/operasi_pesta_copet_api_first_validation.json",
+      "mode": "100644",
+      "git_blob": "6602f187b0bf2b1fbea83f884e5c5303798a4127",
+      "bytes": 2163,
+      "sha256": "ffda2b87ac1306c1117f20e971770f4c59fca02371ef2a48eb1ed3a8d147346a"
+    },
+    {
+      "path": "config/campaign_specs/operasi_pesta_copet_brief_smoke.json",
+      "mode": "100644",
+      "git_blob": "8f56d0f21e00b92b2a9e33321e1893d0de7955d7",
+      "bytes": 3527,
+      "sha256": "40f0f3c25a602d5a3ef32d60f5c606dee4319d54989425ed10850d20a1156d53"
+    },
+    {
+      "path": "config/campaign_specs/operasi_pesta_copet_broad_raw.json",
+      "mode": "100644",
+      "git_blob": "5fd3a900b941257873889bca2a2cb03787ca7733",
+      "bytes": 3486,
+      "sha256": "8ae7a04bda587915e294cc1e81d4650da0bba83c5e4e7b7e08af610ffb9ff973"
+    },
+    {
+      "path": "config/campaign_specs/operasi_pesta_copet_formula_recommended_20260714.json",
+      "mode": "100644",
+      "git_blob": "80e78a6ab908299c12f55dddcdb9167438eac0b4",
+      "bytes": 3930,
+      "sha256": "2721be5bb40cfb3c96eb0a5eed85295a0ab37be15eb4d412df739bd3307cbc02"
+    },
+    {
+      "path": "config/campaign_specs/operasi_pesta_copet_keyword_experiment.json",
+      "mode": "100644",
+      "git_blob": "85afe7ebbd115c176118ca4eb1cf1493de3c419e",
+      "bytes": 2490,
+      "sha256": "91afb3c245b9f4027e6697707cefe56ad52c81dfc08f57f9525fc8c2d551473f"
+    },
+    {
+      "path": "config/campaign_specs/operasi_pesta_copet_keyword_strategy_fresh.json",
+      "mode": "100644",
+      "git_blob": "27c78f5282a144db0de7ee5ce44ac266ff2ff65a",
+      "bytes": 3330,
+      "sha256": "3688a6d07c692553df90f8125aa065d4ee17161f67778b5fbbe8830a8e5d9f05"
+    },
+    {
+      "path": "config/campaign_specs/street_food.json",
+      "mode": "100644",
+      "git_blob": "11504bcb949aa66c584e1731fee7b8eac387755e",
+      "bytes": 3378,
+      "sha256": "a3d488f1b5b3b125cfbfdd023a8dde51a376cd5004dec4c96a014a7173108f25"
+    },
+    {
+      "path": "config/campaign_specs/template.json",
+      "mode": "100644",
+      "git_blob": "87327501f9fd9c5f70cd9593c2e2eba5e058b3b7",
+      "bytes": 7174,
+      "sha256": "e7d449a9119c6227f0234aafc3818fc7c9453311232541ec36392f3d893df997"
+    },
+    {
+      "path": "config/campaign_specs/test_engage.json",
+      "mode": "100644",
+      "git_blob": "994853008cd9bd7b4666a671d8bbbf50b28f5d05",
+      "bytes": 3171,
+      "sha256": "0167c97c5bebc2b694a4020c1ef1d18f66694e640aaae9dbded77678ad1514dd"
+    },
+    {
+      "path": "config/campaign_specs/test_one_keyword.json",
+      "mode": "100644",
+      "git_blob": "41cd1a813d325a224ce81125d6abe61cba735160",
+      "bytes": 1429,
+      "sha256": "5ec9ec9fa6686b801a582747745bc0395cd18963c1e65ca1eb217e759cffa572"
+    },
+    {
+      "path": "config/campaign_specs/test_tiktok_coffee.json",
+      "mode": "100644",
+      "git_blob": "5cb7e804ee952bf5f13aa702aaeefedcdaafdd6a",
+      "bytes": 6433,
+      "sha256": "7bab38216313d29b3e001d395698c72fa03cb967624decb61afeaee89da6184d"
+    },
+    {
+      "path": "config/campaign_specs/test_tiktok_gaming.json",
+      "mode": "100644",
+      "git_blob": "72d1a9ac00853a1d4b34c2555209ff1471266446",
+      "bytes": 6465,
+      "sha256": "434edf5f90e0455b498e24e55c7ecd8c9d8dd836bb3ef3d9c8fc9f70f814beed"
+    },
+    {
+      "path": "config/campaign_specs/us_iran_war.json",
+      "mode": "100644",
+      "git_blob": "d8411768f40057d7f5374dd6c2c680770157bbf3",
+      "bytes": 1654,
+      "sha256": "0b4a4a71694c2c31b6e25e55c638c1df7443af231ccb9be9ef911c79e5e9e3ec"
+    },
+    {
+      "path": "config/topic_profiles/agensi_rumah_tangga.json",
+      "mode": "100644",
+      "git_blob": "d92e0dfaacb8524a324aa2690028e6639471ecfe",
+      "bytes": 875,
+      "sha256": "20fc3672a372fde90e7a32e5befa36ea75f69f5eca951b2e087689bafcd53606"
+    },
+    {
+      "path": "config/topic_profiles/harusnya_horror.json",
+      "mode": "100644",
+      "git_blob": "a12b3504e583dc42db7226568d290d8456fb161c",
+      "bytes": 840,
+      "sha256": "e8812e6ccc1f181dbe57eaf7cdca591dcb32fd678fff42608be246968f6c6739"
+    },
+    {
+      "path": "config/topic_profiles/operasi_pesta_copet.json",
+      "mode": "100644",
+      "git_blob": "63f80d5904a587b28d9b91c22ff0db5101dc83cd",
+      "bytes": 1362,
+      "sha256": "825997d9205a20b391b2e90af709b4d2632e3c459f9e17ba969912571f87c82e"
+    },
+    {
+      "path": "config/topic_profiles/template.json",
+      "mode": "100644",
+      "git_blob": "9b9d438d3ab73990c9fd80a767313c22f9e800f3",
+      "bytes": 770,
+      "sha256": "2f406496849bab841042c760b3a89ba749be9dafb57379dbaa71d9c1d1b7a948"
+    },
+    {
+      "path": "docs/README.md",
+      "mode": "100644",
+      "git_blob": "7341fdc5f115b279b2182f15cc5236eb11585f54",
+      "bytes": 496,
+      "sha256": "1e444dfc545935d5fd12cfa9dd39b72ec69ee4dde0621b3f986a105c4d2a4de5"
+    },
+    {
+      "path": "docs/cleanup/2026-08-26-reorganization.md",
+      "mode": "100644",
+      "git_blob": "2b0a44c71649392bde0c863b458b48bd3eafba3a",
+      "bytes": 4428,
+      "sha256": "954179a89560a53b723d4fb7f5657fe70b49128eac1c7476c3695857b9d73d76"
+    },
+    {
+      "path": "docs/contracts/AUDIO_ARCHIVE.md",
+      "mode": "100644",
+      "git_blob": "63d90ded7d788be670a01f2094ee69ca59e65130",
+      "bytes": 5103,
+      "sha256": "1088e49035694e401fb6f4ab6ead6a17079b37e654452081e34ddbd1f235a843"
+    },
+    {
+      "path": "docs/contracts/CROSS_PLATFORM_MUSIC_AUDIT.md",
+      "mode": "100644",
+      "git_blob": "3d9bb0e1d2bdef05de531772e3ea934fef9147d7",
+      "bytes": 29484,
+      "sha256": "e12f9fce87b6bfd4df4b757463d836527e32082812b554e3b20691ad0d736ed3"
+    },
+    {
+      "path": "docs/contracts/ENGAGE_CREATOR_MENTIONS.md",
+      "mode": "100644",
+      "git_blob": "3b25fe40c45e325c08130726cf46c64d0f3b2624",
+      "bytes": 15284,
+      "sha256": "14ff97bcb5ac4151b547ec086c02a18888c52be1aca9b61b1ef9dde7649e311b"
+    },
+    {
+      "path": "docs/contracts/ENGAGE_GOOGLE_PUBLISHING.md",
+      "mode": "100644",
+      "git_blob": "002ccde1b8abca756ba2e403276fb71969771871",
+      "bytes": 8457,
+      "sha256": "5ca6499581f3ca2457d636298ef093780e6ef70d993988c9dd0d3905a3769f1e"
+    },
+    {
+      "path": "docs/contracts/ENGAGE_PUBLICATION_RECOVERY.md",
+      "mode": "100644",
+      "git_blob": "581354852d7cb78c1afd477673c6f7cc530abd3d",
+      "bytes": 5899,
+      "sha256": "c8b61a1c96eb63f4ffeaaedd2b39d5dce4499ac7a396a9bd3833198e6bca9d1a"
+    },
+    {
+      "path": "docs/contracts/LINKEDIN_WORKFLOW.md",
+      "mode": "100644",
+      "git_blob": "35feff6684319e5537591aebc1095e21f5d2797b",
+      "bytes": 8398,
+      "sha256": "1182fac6a427eb543f0edb3eeb4f17428f045c5f1e73e19de0cf5efea90c8026"
+    },
+    {
+      "path": "docs/contracts/MULTI_TOPIC_MUSIC_AUDIT.md",
+      "mode": "100644",
+      "git_blob": "c68f3a0d11860d7513fd1d75a0c682c65e526993",
+      "bytes": 8487,
+      "sha256": "ed8b73e12500bb0bc0fb308789c89b86630280e03abacffbec28b552cd9e1f7a"
+    },
+    {
+      "path": "docs/contracts/MUSICBRAINZ_RETIREMENT.md",
+      "mode": "100644",
+      "git_blob": "6a4de433e33c9145ffaee5e097e8d98913b1c587",
+      "bytes": 2164,
+      "sha256": "9b97183a78525cce8c2b9fbedcc829f42f3edacfe5c91c07ce8a0c7ac83f00a2"
+    },
+    {
+      "path": "docs/contracts/MUSIC_DISCOVERY.md",
+      "mode": "100644",
+      "git_blob": "a36ca0a15fc7c0082453837c82826e28e3af095c",
+      "bytes": 28281,
+      "sha256": "860602e6d2dfc78d12c941a5d0c7eb84008605b46889b71599e34997f4f85d03"
+    },
+    {
+      "path": "docs/contracts/POSTS_DISCOVERY.md",
+      "mode": "100644",
+      "git_blob": "50a0957d8d619b5ba645b575fc824029bf79a5ae",
+      "bytes": 11750,
+      "sha256": "ac6d65e2923fe1325d1a74a9cba3ad8fb6673ad36f9ec1790dbaa4e1e6a8fa0d"
+    },
+    {
+      "path": "docs/contracts/README.md",
+      "mode": "100644",
+      "git_blob": "81c0b22e6506db4b8bc94d7b262405d4c2146501",
+      "bytes": 2311,
+      "sha256": "48e6b64284539e62baa1482d6082fa3b01b2a23e1dd7704c9e263b9cee509a96"
+    },
+    {
+      "path": "docs/contracts/SOURCE_SCOPE.md",
+      "mode": "100644",
+      "git_blob": "f8bd12e80ec28481f9e1b9c1673da2ddbcab91d6",
+      "bytes": 16137,
+      "sha256": "60760223f6db5bbeff65bcce1e9a6cc48c770178c57d76bea6bf26dd6fd79071"
+    },
+    {
+      "path": "docs/contracts/TIKTOK_ONE_TOP_CONTENT.md",
+      "mode": "100644",
+      "git_blob": "586d805797586aa45e115e9b9d6321d71fa60d85",
+      "bytes": 9479,
+      "sha256": "6c149d2b78b264b37773d9b607dd03a0dd44ebf48cb8ad9d2b75ec7fb71597cc"
+    },
+    {
+      "path": "docs/legacy/LEGACY_LISTEN.md",
+      "mode": "100644",
+      "git_blob": "ab3f8ebb6795081af7722071a35d7d88fa7d2ec1",
+      "bytes": 32815,
+      "sha256": "fef91b0c039df4773cf097b6f37ef8e166dc8af4dbe27159a57ec7cd1b0f341d"
+    },
+    {
+      "path": "docs/legacy/README.md",
+      "mode": "100644",
+      "git_blob": "917fbe73b62ee5e389494d8e4f88ebe21372a4e8",
+      "bytes": 197,
+      "sha256": "7cc5701310c46027c0a08c60cc3a62a05685fece860380cba41af3854b60b7b3"
+    },
+    {
+      "path": "docs/legacy/google 3.1 social browser instructions.md",
+      "mode": "100644",
+      "git_blob": "e23a99c91214915c4106fb846eadd204be747531",
+      "bytes": 833,
+      "sha256": "d5553d48fb585e409e65e3021088f46b693183aa4f7572044a4f5d6661e96570"
+    },
+    {
+      "path": "docs/verification/ENGAGE_GOOGLE_PUBLISHING_2026-09-08.md",
+      "mode": "100644",
+      "git_blob": "04874ab4403bd6a296ef53660617856b1cff7545",
+      "bytes": 5263,
+      "sha256": "64bc0572d3cad17da4f309947e5132b1116e72666c84ee85b62f5b277d75dcc6"
+    },
+    {
+      "path": "docs/verification/ENGAGE_LIVE_2026-09-07.md",
+      "mode": "100644",
+      "git_blob": "e60e22f5d0f02a36635c858bc7b09b1a10fcba89",
+      "bytes": 8373,
+      "sha256": "c4c4aa6efcf7074a352c7c264c59fff5d49a54a1dde08c6deda26a247f83a82c"
+    },
+    {
+      "path": "docs/verification/ENGAGE_RECOVERY_2026-09-08.md",
+      "mode": "100644",
+      "git_blob": "11b8039d44f2f16d911505ba07796b9233bab798",
+      "bytes": 4601,
+      "sha256": "8d9864726092b52c497eb006a525f35059258e293ded7bfab816f03e8c878af1"
+    },
+    {
+      "path": "edge_live_debugging.ps1",
+      "mode": "100644",
+      "git_blob": "9ce169ca76c3310f2c381d29c04e9154b30ae020",
+      "bytes": 12967,
+      "sha256": "6a2dc18f8d960dbd6c503593bd5d2b3ac85b89a8f653bd4f466e9dc53a3a2a61"
+    },
+    {
+      "path": "engage_browser_guard.py",
+      "mode": "100644",
+      "git_blob": "807816bad9e4126689284e460beddc6c797c98fc",
+      "bytes": 6344,
+      "sha256": "5a5affdd7800179e541813aec5813539526f822c9780cabbc341f3823ba551a4"
+    },
+    {
+      "path": "engage_creator_matching.py",
+      "mode": "100644",
+      "git_blob": "b1105c03cde2b2554e936329c17311f5f1a551d3",
+      "bytes": 31740,
+      "sha256": "26aaf06a39d4cbcacc05b0ac4f6b23f4e7ce93a4a53444def6d7ba37a451c56c"
+    },
+    {
+      "path": "engage_creator_mentions_ui.py",
+      "mode": "100644",
+      "git_blob": "398a8b29995785b911282f6c83361da0799a4e6a",
+      "bytes": 20230,
+      "sha256": "e481c1848da2859db365effa11e05e72adfc88800926db7863d649299e5e0fff"
+    },
+    {
+      "path": "engage_creator_native_labels.py",
+      "mode": "100644",
+      "git_blob": "e4d4178424ca1121806816f8a8c8144558f12898",
+      "bytes": 9407,
+      "sha256": "fa40c10b7196885499e8546f6e7985ef04bb5e2b7f474856e9ffffab6c85a96e"
+    },
+    {
+      "path": "engage_mentions_probe.py",
+      "mode": "100644",
+      "git_blob": "17dd132eee28b32a29440a39e71f8ea9114162b1",
+      "bytes": 24412,
+      "sha256": "5ecd50d06c6d60da6f79aa75376c046c79a8806983da4f5875cc631ad08bd6e4"
+    },
+    {
+      "path": "engage_publication_recovery.py",
+      "mode": "100644",
+      "git_blob": "66d94f57725bb08783b1591c9be51a47a3042cb1",
+      "bytes": 9001,
+      "sha256": "45883f4f84316868dc4c775f9a1e3601636385b43cbb9189f798cd681c8772d2"
+    },
+    {
+      "path": "engage_publication_worker.py",
+      "mode": "100644",
+      "git_blob": "687bf362d7490bb3ef5cc66fbaf07b90e98bbf4a",
+      "bytes": 17193,
+      "sha256": "12f94f7d08879632bacf0d12b2043d188ae800375cedbd4a356d8008d8c8b55a"
+    },
+    {
+      "path": "engage_tiktok.py",
+      "mode": "100644",
+      "git_blob": "8cd919534ca15b71993883fae4e500d55dab20f0",
+      "bytes": 408236,
+      "sha256": "1dd44fac8f7d57e6330ac3b82f9c7eb095f64c40e14009007b54f1470959541a"
+    },
+    {
+      "path": "google_drive_setup.py",
+      "mode": "100644",
+      "git_blob": "b730d5733ab3623d0b4b984cd81e8acdeab271b3",
+      "bytes": 2807,
+      "sha256": "3ee75020a8ab8bd7f2f6f5ef84c30ca91c01fbf91d09c814232a87e235b0aeca"
+    },
+    {
+      "path": "incremental_metrics.py",
+      "mode": "100644",
+      "git_blob": "afa5543948df8e1833ee425fb9747cb17e1f3b0d",
+      "bytes": 157052,
+      "sha256": "5c12de68df8bfb24d523d540064b8713f2123259d76808dae997c223ad0b8f87"
+    },
+    {
+      "path": "incremental_project.py",
+      "mode": "100644",
+      "git_blob": "4b936524da4c4db5f8ac35581d4961ee6c431df0",
+      "bytes": 191661,
+      "sha256": "b0cab70c27a3d6831a3f477803e7522d4df2948649a6a1612bb249eafc2bf65c"
+    },
+    {
+      "path": "legacy/README.md",
+      "mode": "100644",
+      "git_blob": "d82f9f67fe0e478b9e05843a7575cdd911eb360e",
+      "bytes": 448,
+      "sha256": "43958cdcb80409dc6eb85b2f03d2c2de0cc52be71e9950219483b856df5a60aa"
+    },
+    {
+      "path": "legacy/browser_recorders/button_recorder.py",
+      "mode": "100644",
+      "git_blob": "e7f5468c6463e9015e6246c3ecb813da2acf0f4c",
+      "bytes": 14746,
+      "sha256": "10433e69e176a5eea33014557916cc15792ad0bf24adc5bb50cd846930641aa4"
+    },
+    {
+      "path": "legacy/browser_recorders/network_recorder.py",
+      "mode": "100644",
+      "git_blob": "1862f13e0a06b8dc62cff06297a2192b3a0f41eb",
+      "bytes": 9023,
+      "sha256": "b453617435c71fd4443d90b57283a873e5da0f2b9ef766c0c4ecb0733f165368"
+    },
+    {
+      "path": "legacy/json_compiler/README.md",
+      "mode": "100644",
+      "git_blob": "4ff10294f0825fcec1fafb20f8576a2a692d94c8",
+      "bytes": 2632,
+      "sha256": "ae7933c3fdd0c7c61d59f040897f44472031a1322bf580cbc1db24e81bed8422"
+    },
+    {
+      "path": "legacy/json_compiler/compile_comments.py",
+      "mode": "100644",
+      "git_blob": "5b73fd80e6126f1c14c4c9ed88c5692a35670fee",
+      "bytes": 15326,
+      "sha256": "c5309a9a5c3b3cd763fa1caee3ebe45948346457696768457b124602192ac21c"
+    },
+    {
+      "path": "legacy/old_code/2 copy.py",
+      "mode": "100644",
+      "git_blob": "197e2a2c144a8de0fea153c306c893ce9af8e0a8",
+      "bytes": 68165,
+      "sha256": "d1a2746730b19c06c32db884a15f47be0c6a1e975c599e4b0bb35d2279f09bba"
+    },
+    {
+      "path": "legacy/old_code/2.py",
+      "mode": "100644",
+      "git_blob": "197e2a2c144a8de0fea153c306c893ce9af8e0a8",
+      "bytes": 68165,
+      "sha256": "d1a2746730b19c06c32db884a15f47be0c6a1e975c599e4b0bb35d2279f09bba"
+    },
+    {
+      "path": "legacy/old_code/2oldCode.py",
+      "mode": "100644",
+      "git_blob": "0f3e1cf955e50d566069a576dc924d02c0f235d0",
+      "bytes": 71588,
+      "sha256": "7370c0fea4420e647483af58a1dfe95841b9a941ebd5a1d2a7ea21e23bcdebab"
+    },
+    {
+      "path": "linkedin_workflow.py",
+      "mode": "100644",
+      "git_blob": "4eed07e65a7ca950830c5f610c687e0f3d25be9d",
+      "bytes": 17375,
+      "sha256": "41ad21ef6ccc811e48146ecd1dab0a85ca270e511ce6730b90031d2270d161f6"
+    },
+    {
+      "path": "local_artifacts/README.md",
+      "mode": "100644",
+      "git_blob": "b37b1c5f30d3feb7a9b3b277aafec55de1ac2a22",
+      "bytes": 402,
+      "sha256": "262c1e4a2ded6bf739c202c5c1b9f60dc7589a9b6333c917e79e95752e094685"
+    },
+    {
+      "path": "metrics_tiktok_scraper/__init__.py",
+      "mode": "100644",
+      "git_blob": "7d6ce14ef376457b7e3786cb319419378598fb1a",
+      "bytes": 74,
+      "sha256": "e11824181716f686d5ea2e7096e3719a107bbd82f40541302f3cd8aa5132ee91"
+    },
+    {
+      "path": "metrics_tiktok_scraper/ai_analytics.py",
+      "mode": "100644",
+      "git_blob": "76e6c22a2edb98b975703ebca79af91de51219e1",
+      "bytes": 14155,
+      "sha256": "5956cc931c36a5e30576ed93c0f475d1fea11623f4587427bd40f9a26bac4068"
+    },
+    {
+      "path": "metrics_tiktok_scraper/api_integration.py",
+      "mode": "100644",
+      "git_blob": "5073c5918376f043a85d205e7e7af38a51f6342a",
+      "bytes": 62003,
+      "sha256": "d9f58fa0180e00caecca6baa3f63065ebdd957c7d8399c85b35b0196393cf7b6"
+    },
+    {
+      "path": "metrics_tiktok_scraper/author_activity_trace.py",
+      "mode": "100644",
+      "git_blob": "aa78cd00341c8a2eea21dc40b55d5f87e7d90c7a",
+      "bytes": 52389,
+      "sha256": "36b4713ad9a025476521eca47b2f57957ff200937e349b1d72f9523602172422"
+    },
+    {
+      "path": "metrics_tiktok_scraper/date_filter.py",
+      "mode": "100644",
+      "git_blob": "227f589ec2b3a4dc425ab300e575cad082a0e154",
+      "bytes": 10419,
+      "sha256": "1e70d2044410ba7d3ccb2c9017fe37a71d527d59136ff78b8fe2097b28f19e8e"
+    },
+    {
+      "path": "metrics_tiktok_scraper/known_content.py",
+      "mode": "100644",
+      "git_blob": "d1756eeeb87753b533b1c1f2c05873f4e871a47e",
+      "bytes": 8722,
+      "sha256": "4716d55cb6905bceb240a610736e83cae8b349b5f06b8f7b04ad3597c4fe5bb2"
+    },
+    {
+      "path": "metrics_tiktok_scraper/main.py",
+      "mode": "100644",
+      "git_blob": "226effadf8944fb88b6a6fa6043b3e2a2befa6ab",
+      "bytes": 106166,
+      "sha256": "7002827e599e7b32c1ee453f79d9f8f383201a06dcdc71428477737fc4155043"
+    },
+    {
+      "path": "metrics_tiktok_scraper/owner_profile_export.py",
+      "mode": "100644",
+      "git_blob": "187b3fb2ed5f70d2906e8906bd95971a5d917f6b",
+      "bytes": 35843,
+      "sha256": "8e7bc8b5c207155f4f835126a40bc0df4e80b305886769d0e4af78f61f742efb"
+    },
+    {
+      "path": "metrics_tiktok_scraper/owner_reply_probe.py",
+      "mode": "100644",
+      "git_blob": "5381bd941773199942272d3d5b19e4163cfe79fe",
+      "bytes": 44203,
+      "sha256": "c495ad80c664202015b12fa7d22f18ee595336d57b4ada3ad135b53f3d9423a3"
+    },
+    {
+      "path": "metrics_tiktok_scraper/profile_contract.py",
+      "mode": "100644",
+      "git_blob": "b1095f569e076c187beb46911f831147f37d7670",
+      "bytes": 31448,
+      "sha256": "eba54c767f4a4e57d6b5ac64d3d76e4a0a21ff3b8ea08214f28ed1bdad2ff273"
+    },
+    {
+      "path": "metrics_tiktok_scraper/profile_enrichment.py",
+      "mode": "100644",
+      "git_blob": "64721e135d2194d13b922c6ef1853be80140b5ad",
+      "bytes": 88371,
+      "sha256": "16d66915bfac2caa4b5526aad4fcf5835692a0af6415eaf3e6e6596f22e7ff7e"
+    },
+    {
+      "path": "metrics_tiktok_scraper/profile_web_api.py",
+      "mode": "100644",
+      "git_blob": "cd11670f4282b96b3ce694ad2de41f7eff9df568",
+      "bytes": 47316,
+      "sha256": "b9e403aefdfa83817f0a2a8598be4c2b6bddbcf203d96cf682ac9ed977ca28ea"
+    },
+    {
+      "path": "metrics_tiktok_scraper/raw_contract.py",
+      "mode": "100644",
+      "git_blob": "f77338d906b5d4651585bc90cb6ab04a187b7e83",
+      "bytes": 35363,
+      "sha256": "42f253eef186f93e3d1789f865ec005b28dfd9d1528dffca823d7fbe303c245c"
+    },
+    {
+      "path": "metrics_tiktok_scraper/relevance.py",
+      "mode": "100644",
+      "git_blob": "520898e1268e319b03f71d8420e6a4509411f6ed",
+      "bytes": 19426,
+      "sha256": "e0aaf53b4f31eb939ed82d62e43fd705029fa88e2b0c71fdcfb059f37485a74f"
+    },
+    {
+      "path": "metrics_tiktok_scraper/scraper.py",
+      "mode": "100644",
+      "git_blob": "c575a4c7ac7d34af694edf59e78e02b9541893d8",
+      "bytes": 9588,
+      "sha256": "97d79c482a8aa3f9e55921f0cff469decf48564d89d55bae0b6fd052304d077f"
+    },
+    {
+      "path": "metrics_tiktok_scraper/scrapers/__init__.py",
+      "mode": "100644",
+      "git_blob": "36fdf0fc3ccaf425deb7571009fc398596b3e457",
+      "bytes": 49,
+      "sha256": "3d5be380a0bdf923fcf28918270d86c8a355fe4b2249b777531aef40a5263e17"
+    },
+    {
+      "path": "metrics_tiktok_scraper/scrapers/base_scraper.py",
+      "mode": "100644",
+      "git_blob": "58270560aadf2001a00c53366691c25024b034eb",
+      "bytes": 1383,
+      "sha256": "b79afa260be7e3c8d07b076d3e4e77f196ac11b975f5c7d98997722145490719"
+    },
+    {
+      "path": "metrics_tiktok_scraper/scrapers/comment_scraper.py",
+      "mode": "100644",
+      "git_blob": "bfc87d30baf5537f942cc5a5caf3d4e0b927ff1a",
+      "bytes": 19744,
+      "sha256": "6bb60946e103d6786cb59d204df2a3d40061fc5fd453c751b9b3aa3a9cf0a0b3"
+    },
+    {
+      "path": "metrics_tiktok_scraper/scrapers/facebook_scraper.py",
+      "mode": "100644",
+      "git_blob": "eb514333c6fbfcadb4433ea1a284a48687688469",
+      "bytes": 85479,
+      "sha256": "5573e732ca674bb53a31c18b1e3c203dcdd1c1a1ed55e03b5743ab46f1943e5b"
+    },
+    {
+      "path": "metrics_tiktok_scraper/scrapers/instagram_scraper.py",
+      "mode": "100644",
+      "git_blob": "38a8cfa2173f47faaebc7bcc1853af6544a2c11c",
+      "bytes": 85265,
+      "sha256": "9425bbe14ee736d15fb896763d4d0b4930d3ecf82fde958c40c94201097af3da"
+    },
+    {
+      "path": "metrics_tiktok_scraper/scrapers/scraper_scripts.py",
+      "mode": "100644",
+      "git_blob": "c37740a6351273f5f3b90c7d5f14cff9d1d50409",
+      "bytes": 54937,
+      "sha256": "174fa84ea1060eab4361a09823e29b27c1f57f8fffce006d1c4abcbf391ea1b7"
+    },
+    {
+      "path": "metrics_tiktok_scraper/scrapers/x_browser_scraper.py",
+      "mode": "100644",
+      "git_blob": "95973883648a7b3b0066822e348868e94a00f0fa",
+      "bytes": 32485,
+      "sha256": "72f448feebf1dbdbba2474d09d48c346f2cb5b56d1772d8cc9b07638b0c54235"
+    },
+    {
+      "path": "metrics_tiktok_scraper/scrapers/x_scraper.py",
+      "mode": "100644",
+      "git_blob": "a4153865c1d704de0d598dc523b0e9b20702948d",
+      "bytes": 35873,
+      "sha256": "b3b3094331302525e0f39e572092f60b5f46819c6fb7d2c576b9e63633b02a14"
+    },
+    {
+      "path": "metrics_tiktok_scraper/scrapers/youtube_scraper.py",
+      "mode": "100644",
+      "git_blob": "ddb296c33e5e1fac475a6b0fe8664c1d4d97cfe9",
+      "bytes": 75501,
+      "sha256": "d44855037ae613c3e1c19fa95bd7ab89de295738ca2dd1dc749c9db21b75fc8d"
+    },
+    {
+      "path": "metrics_tiktok_scraper/storage/__init__.py",
+      "mode": "100644",
+      "git_blob": "d15c8f0460d61a707f661fc27c8cf09e041b4be2",
+      "bytes": 328,
+      "sha256": "39f2ae823cf5762f96971be95d0540193d51f974f1793324879cb6f85d5d8145"
+    },
+    {
+      "path": "metrics_tiktok_scraper/storage/google_drive.py",
+      "mode": "100644",
+      "git_blob": "7ac4d5dfa869965d0486ae36750373e44826ddb1",
+      "bytes": 53464,
+      "sha256": "d1fc61602e1e502b91ef837f1415d78b18b6bdd8cf15bb339a40faf666dc060d"
+    },
+    {
+      "path": "metrics_tiktok_scraper/username_comment_trace.py",
+      "mode": "100644",
+      "git_blob": "60dd79543773d5a7517383f9aa586aecb9e1cfda",
+      "bytes": 27869,
+      "sha256": "7934091c9973e94b632718b37020dbe90eb061af36779034f84176a1ed2e652d"
+    },
+    {
+      "path": "metrics_tiktok_scraper/utils/__init__.py",
+      "mode": "100644",
+      "git_blob": "cb632637fc659c3b24a9e2040a1df15e8fac2648",
+      "bytes": 47,
+      "sha256": "0104d659b22cebe7af3a879bdbfadc1446183f7521bbc0f15ce6c1dccfcde59e"
+    },
+    {
+      "path": "metrics_tiktok_scraper/utils/browser_utils.py",
+      "mode": "100644",
+      "git_blob": "458b2c0f9961b42f980eaeabf0dd17e69c09c3f0",
+      "bytes": 1663,
+      "sha256": "574bd0c208a3ab50b3aaf73e46a5f199b2eb6c757af791375d07563cc55ef891"
+    },
+    {
+      "path": "metrics_tiktok_scraper/utils/comment_count.py",
+      "mode": "100644",
+      "git_blob": "8d1e4a19a2727ba6de241053152f969bd91244f6",
+      "bytes": 21069,
+      "sha256": "10c15ccd40a13646d484da59f53ef2130b4b5040a3fbfbabcd50b9af77e735f1"
+    },
+    {
+      "path": "metrics_tiktok_scraper/utils/debug_utils.py",
+      "mode": "100644",
+      "git_blob": "206b09d7471a409803c5cdd80563e4d0fff659e0",
+      "bytes": 7757,
+      "sha256": "25775b98decd0cc30889e4b0002d32e7e6da59c6376b9acb563da7e5ed75f7e2"
+    },
+    {
+      "path": "metrics_tiktok_scraper/utils/element_recorder.py",
+      "mode": "100644",
+      "git_blob": "055aa0476570544babb6c8249f394660be4ce14c",
+      "bytes": 7730,
+      "sha256": "0592acbd55278e51cd996e78d40cae45d58e18af0235e4f0924e16b9c808542e"
+    },
+    {
+      "path": "metrics_tiktok_scraper/utils/file_utils.py",
+      "mode": "100644",
+      "git_blob": "1ab2db51db7674b731d13f577e90bcc4f40e9ce4",
+      "bytes": 11438,
+      "sha256": "ae39cd4acf32ef8dc744e45f15c6b3f99a38d9132d4592bfd902c9b0aebc1802"
+    },
+    {
+      "path": "metrics_tiktok_scraper/utils/navigation.py",
+      "mode": "100644",
+      "git_blob": "7d4631a2f3d337d7ac48c342882d2f9b5d2df679",
+      "bytes": 4421,
+      "sha256": "f1e2100909c57c57c19330b1b97941887dcabc35e697a4da4faed59f2b500426"
+    },
+    {
+      "path": "metrics_tiktok_scraper/utils/selectors.py",
+      "mode": "100644",
+      "git_blob": "a6c445ccbb04bdba02ad927546e0d4b33558d98b",
+      "bytes": 5965,
+      "sha256": "ca6dc98c3f7c26554cabeef4c4de76206c85a1899dde7f1815a4e4d680a0da89"
+    },
+    {
+      "path": "music_audit_topics.py",
+      "mode": "100644",
+      "git_blob": "a443ea7e7a2f5d41f383f3a8fb6c69c31dcb7953",
+      "bytes": 53667,
+      "sha256": "3f9c1d8a3ad441e19f3834729d605ef2f06aa435e1cc7396a8d66d0b2256bb6c"
+    },
+    {
+      "path": "music_backfill_tiktok.py",
+      "mode": "100644",
+      "git_blob": "5a91fd5204c90bd957b5cccf70d23ed7cb1aca69",
+      "bytes": 53929,
+      "sha256": "10d3993abb467584eb469739390cf053d979188b3c1e6f33beaa860ab62c0ab2"
+    },
+    {
+      "path": "music_discovery.py",
+      "mode": "100644",
+      "git_blob": "21730a5eb40fef34618d69fecac91eeab9d22484",
+      "bytes": 45024,
+      "sha256": "c1444877f656fe4410327c753f3763830f48eb4d99f17eff7ff8d6a094e2f383"
+    },
+    {
+      "path": "music_discovery_classification.py",
+      "mode": "100644",
+      "git_blob": "8834d57680f4b83249092996e6732c27b72aec9a",
+      "bytes": 15528,
+      "sha256": "f038a99ce5fa83611adecdb934ce6052932558c8a7076c8ac64f12aa43f4b9a4"
+    },
+    {
+      "path": "music_discovery_corpus.py",
+      "mode": "100644",
+      "git_blob": "967c318419dc126ac7fc3e80dded4054e4433b2a",
+      "bytes": 22838,
+      "sha256": "ad38310053ea1739d4dfd0b2214609a09aa001540948769729b7207b21dd0be7"
+    },
+    {
+      "path": "music_discovery_search.py",
+      "mode": "100644",
+      "git_blob": "1f4764587364459a080c33cee6facc57d66110fa",
+      "bytes": 27658,
+      "sha256": "817fff221b02a8b644f071fa6aec697aa4a6639ec40c32b7ad01fddde4ef94d2"
+    },
+    {
+      "path": "music_discovery_sources.py",
+      "mode": "100644",
+      "git_blob": "a11f2eac5d7aa3afef389e47cbdd6198fd835d3e",
+      "bytes": 26445,
+      "sha256": "ab300a467703d8673571d833ca46ebb0d24d2dea20e0cabb542a7f470a5febf3"
+    },
+    {
+      "path": "owner_reply_probe.py",
+      "mode": "100644",
+      "git_blob": "499db18a93bcc760deffffb4486cedf8108106cc",
+      "bytes": 2914,
+      "sha256": "afa25c4ca066762fb3c38ddb07653470e2a1fd38848275d3eccb454ba27d6eac"
+    },
+    {
+      "path": "participant_profile_export.py",
+      "mode": "100644",
+      "git_blob": "a0c14394de0a9a26d6836038fabd0ad81c6c56b8",
+      "bytes": 7255,
+      "sha256": "469b22991a48fce0180670e0f040de3d41d7c77de11525d1c162c911a3135546"
+    },
+    {
+      "path": "participant_self_access.py",
+      "mode": "100644",
+      "git_blob": "cfc45538978cb31fd45b519f23009b87b29b17f0",
+      "bytes": 9165,
+      "sha256": "da2ea9627c6705d096bcee9ea950c02acc4607b21a060c3fd5cd70c0416c0f76"
+    },
+    {
+      "path": "post_enrichment.py",
+      "mode": "100644",
+      "git_blob": "1eb637c2a340e5677c961bcf199ba79e7655f85c",
+      "bytes": 3329,
+      "sha256": "d57f4d56dabb1ca44b1d7df61fc86a275804e826bed3ee1a1bea26bf8bfc797b"
+    },
+    {
+      "path": "posts_discovery.py",
+      "mode": "100644",
+      "git_blob": "70c974fd75d68a50965ef981d2e8dfaae025b4d0",
+      "bytes": 33968,
+      "sha256": "86f4d0669f91b76c136191ed12c3c576c1525b35340cfe4848af65194c47123d"
+    },
+    {
+      "path": "profile_lookup.py",
+      "mode": "100644",
+      "git_blob": "57a4354534a1ecf6f1709d49bf3c12f3de8a209a",
+      "bytes": 13042,
+      "sha256": "ab14dca8e0d8ad1e957f921826f145c6483b74ac0c0531270dd9d8f20053a126"
+    },
+    {
+      "path": "publish_comment_showcase.py",
+      "mode": "100644",
+      "git_blob": "e6c4c3d059632920bdb09fdd2711759338b96186",
+      "bytes": 84383,
+      "sha256": "30e695939fcf050310315fb5e2356407fdb7bf0cdcf4939ff9e7adc49166ea62"
+    },
+    {
+      "path": "publish_pending.py",
+      "mode": "100644",
+      "git_blob": "8adf25d74b686b494e4e3610cddd82c0e38e1cd5",
+      "bytes": 18100,
+      "sha256": "40cb0c83496ad2dc071e506dde476922f399ba1c7debfa24ce1cbe255246e0cc"
+    },
+    {
+      "path": "pytest.ini",
+      "mode": "100644",
+      "git_blob": "c07d3cba0bae9e3e6843348aefac9912deea5a30",
+      "bytes": 178,
+      "sha256": "889fd2d4577576f6f5257afdd2288c186f9ed8057bd41b9eb58fc5e9380f2a9b"
+    },
+    {
+      "path": "quick_audit_tiktok.py",
+      "mode": "100644",
+      "git_blob": "5baa20652c9c7813b932fa0eb533bc094b0539e6",
+      "bytes": 49009,
+      "sha256": "709a7e1ac40b011b3c30da973e66d409cbd79786d69d58bacb5eb769c2213a37"
+    },
+    {
+      "path": "recorded_elements.json",
+      "mode": "100644",
+      "git_blob": "00e81957c0d7f1ade16bd0df87a0943034315fd3",
+      "bytes": 17961,
+      "sha256": "fd7fa05893f8722ddaabc62fbd377bb7c1905c46629950af37b0d7de9ebd1c51"
+    },
+    {
+      "path": "recover_tiktok_comment_capture.py",
+      "mode": "100644",
+      "git_blob": "929f5b125cc49a4da83d6894be66838281808e8e",
+      "bytes": 50789,
+      "sha256": "a1f41ed5da070bacc6244e63aaef8ad78356e97af48e80768768eed202c9b7ea"
+    },
+    {
+      "path": "requirements-dev.txt",
+      "mode": "100644",
+      "git_blob": "51fdc832c7c044c9ac45e7875625c11a92c041e3",
+      "bytes": 71,
+      "sha256": "5eb491fda46e8fa7d7e63915f211b3a1f16761812c259def6352adad75f2a39d"
+    },
+    {
+      "path": "requirements.txt",
+      "mode": "100644",
+      "git_blob": "721087c0ce2d96f02c2b91afcb16bbdb3721cf32",
+      "bytes": 251,
+      "sha256": "89f02b8fcd5f1aab74c85e1814f9f20a423af8dcaa2900e504ecd97f1ccb4a6d"
+    },
+    {
+      "path": "run_audio_archive_batch.py",
+      "mode": "100644",
+      "git_blob": "8f06924b11c5f190ffb8b6214fc44dfc3a002d77",
+      "bytes": 21727,
+      "sha256": "56fe632a5b03bf9a0d63dd8ba7b14c4b6287821ad8c5a13efbf54e7a58414f0a"
+    },
+    {
+      "path": "run_compiler.bat",
+      "mode": "100644",
+      "git_blob": "a5b70b7d1a46a2440f90e5959eaeca313437eac9",
+      "bytes": 1146,
+      "sha256": "edb36e2ea0f27e07a57d6aa6cf53a5d576d71ecf91926f305e04aa261167e996"
+    },
+    {
+      "path": "run_full_pipeline.py",
+      "mode": "100644",
+      "git_blob": "8c0db3f80f59195b91f8a08dfdb7aaa87f613c2b",
+      "bytes": 2090,
+      "sha256": "e26c0ff7d8cec17636b531d45486b4cbb706e9773377a941af5f3cf27eeccf2e"
+    },
+    {
+      "path": "run_metrics.py",
+      "mode": "100644",
+      "git_blob": "5ef0677d9b8ed56f64243c6323c30a4a8569a18d",
+      "bytes": 98800,
+      "sha256": "a7a2aec50b856aa065571817af81ff8884905ad88c56ca66a06a5bb8d53cad24"
+    },
+    {
+      "path": "run_scraper.py",
+      "mode": "100644",
+      "git_blob": "c92f5d61475e16c3e8875e78d39387e0ed4ca3fc",
+      "bytes": 101091,
+      "sha256": "7004ba60a7c565bee66e463abef70c4fc05d872de9ded18af80682fea5171612"
+    },
+    {
+      "path": "showcase_auto_prepare.example.json",
+      "mode": "100644",
+      "git_blob": "252fafa673835c212e7fa0a5feca944210344f6b",
+      "bytes": 479,
+      "sha256": "bb67ae65eb135465048518bb44cfa86083221230ee90cf020ec4c485b707344a"
+    },
+    {
+      "path": "smart_scraper.py",
+      "mode": "100644",
+      "git_blob": "09236a00a20e68c9737d50044a1d66f9be807bda",
+      "bytes": 4119,
+      "sha256": "de18e789a33b84c29f584aa9efa90d5756e9af1ab621b5fdfe3e7e474c64050d"
+    },
+    {
+      "path": "social_browser.py",
+      "mode": "100644",
+      "git_blob": "6752f5fa84cc30bbec83431cf2becb176d233f18",
+      "bytes": 56174,
+      "sha256": "cffdfd07330e5d6e3f5f8ec53c15712e3a15f99fa3eeedb33c06ab85157bb150"
+    },
+    {
+      "path": "social_browser_startup_guard.py",
+      "mode": "100644",
+      "git_blob": "f3ffb80283e7d24cdded9aefb0ee5c91178be825",
+      "bytes": 1565,
+      "sha256": "f2a3973628182d82024475aba4dd54604d849272ed4f439324a0391198dc5d4a"
+    },
+    {
+      "path": "social_music_audit.py",
+      "mode": "100644",
+      "git_blob": "a367f4b7181ef4c5a8cbdac36efff73d9d1e0c99",
+      "bytes": 47027,
+      "sha256": "f13a55be3ee4959bd50674f905931ffbe23dbfe2b8958079b4bc651538837cc8"
+    },
+    {
+      "path": "sonic_audio_transport.py",
+      "mode": "100644",
+      "git_blob": "0c362723c75207bdfb68eb14da2c92644ebeee52",
+      "bytes": 68033,
+      "sha256": "a240c4ccab2dbd107d13a06d8e284e592f620365dfd2ff1ed5201abce42d9ccc"
+    },
+    {
+      "path": "sonic_audit/__init__.py",
+      "mode": "100644",
+      "git_blob": "9f276b1f22091e0fec005193d5e5671f5d2e5a77",
+      "bytes": 1097,
+      "sha256": "80eb6e20530fdf8ec9a08ba55fd0e01695cd07b8b7305bf196399e9d4611cd3b"
+    },
+    {
+      "path": "sonic_audit/contracts.py",
+      "mode": "100644",
+      "git_blob": "daf817461d9d94a1d15d1dd5f248dca18a89ad9a",
+      "bytes": 31284,
+      "sha256": "73fba64e769a5e39624ab7c3dd14c74ee025a3b0424c1ba1f84cb8742a2e3612"
+    },
+    {
+      "path": "sonic_audit/corpus.py",
+      "mode": "100644",
+      "git_blob": "4f161f60203b176bfd0d96a8e0fbf6be7bc46f35",
+      "bytes": 53668,
+      "sha256": "331678b3d4d56a97ead5114d80e9300d25c53c5c762166d29beb6cf5c1a6860f"
+    },
+    {
+      "path": "sonic_audit/evaluation.py",
+      "mode": "100644",
+      "git_blob": "532427bbb3e2d9165e506169f71860fc6b2fc695",
+      "bytes": 20949,
+      "sha256": "16739897115990aa8895edffbeb326c02286ce35011edd2df1446ad4fa37403c"
+    },
+    {
+      "path": "sonic_audit/features.py",
+      "mode": "100644",
+      "git_blob": "f99defa30a147ddcd0571824924aae7d2cbd1f92",
+      "bytes": 60011,
+      "sha256": "90093dbe3290e2c158d3956fc5113eb58f6763f032fd4eac9a583cda0e08d8c9"
+    },
+    {
+      "path": "sonic_audit_tiktok.py",
+      "mode": "100644",
+      "git_blob": "8e59aafc85b2fecdd36c22d60582661e7a728182",
+      "bytes": 90201,
+      "sha256": "7dec7ada611ffd75ff56f0a9156633cce4753cd77aafadbc8b9197de803bce4d"
+    },
+    {
+      "path": "tests/README.md",
+      "mode": "100644",
+      "git_blob": "d4552dc1319fa3e718275dc048182c885934a9a9",
+      "bytes": 462,
+      "sha256": "db547a064119412cc9fcbce76e618558b1fde0146d1249e1ccf651f11c9faeec"
+    },
+    {
+      "path": "tests/audio_archive/test_audio_archive_batch.py",
+      "mode": "100644",
+      "git_blob": "e9979c67bfd689f6e816af3875c5e1864ae5dd7f",
+      "bytes": 12964,
+      "sha256": "6d1ed0dec826b3bf814c737a45ac593c8130434ef091837af4166a623f710034"
+    },
+    {
+      "path": "tests/audio_archive/test_audio_archive_cli.py",
+      "mode": "100644",
+      "git_blob": "1e108ef16855777c8ee15e1823e62f12ecc8a1de",
+      "bytes": 37076,
+      "sha256": "edd62d880c7edd1a5164a3b4ae5fa47ea5c1999b0d0707c5dda7fe4a3299be00"
+    },
+    {
+      "path": "tests/audio_archive/test_audio_archive_transport.py",
+      "mode": "100644",
+      "git_blob": "c29e83604d04440dfbf52a112e5e4fa0154fa034",
+      "bytes": 25710,
+      "sha256": "d73c57f4ef377bdfad6663e93ac8ee7fe393d4d591f1af56c088334ef59f44f9"
+    },
+    {
+      "path": "tests/audio_archive/test_run_lineage.py",
+      "mode": "100644",
+      "git_blob": "eb6175f725de09de57c520122e4de3a6d386e53f",
+      "bytes": 15198,
+      "sha256": "7969aef7c535e4cd778f0c18eb96e7f24bc6aabda6ababdac232ef12b703a30f"
+    },
+    {
+      "path": "tests/integrations/test_campaign_collection.py",
+      "mode": "100644",
+      "git_blob": "c457fa01ae0066c4d8447a9b463848f15a64c4e6",
+      "bytes": 54258,
+      "sha256": "4403911da9a61b960167434552b01f6321834d5fb7f611e018ae7b8d0b3e2ce8"
+    },
+    {
+      "path": "tests/integrations/test_exact_refresh_browser_fallback.py",
+      "mode": "100644",
+      "git_blob": "cfcf45d881d4172026f6aabd930187df39cb344c",
+      "bytes": 6222,
+      "sha256": "4ad8206b1635acb98abcbe73c0fdff227a8f8184a884edfe630d424387499509"
+    },
+    {
+      "path": "tests/integrations/test_google_drive_archive.py",
+      "mode": "100644",
+      "git_blob": "59b1eda6a6fc574fcb1bbf42b8895a4b5825c28e",
+      "bytes": 8186,
+      "sha256": "cbacd26ea280dcfefd8fd4ce1817a997c02740e655d64f802d15e89ef755cca3"
+    },
+    {
+      "path": "tests/integrations/test_linkedin_api.py",
+      "mode": "100644",
+      "git_blob": "7b454b98bf43b1dbcd3f4cfa3e7b512f418e2dd1",
+      "bytes": 17178,
+      "sha256": "e80858f0fa1e05cba5a87cb77c03c83f7d7b61a69b26a892145088136fc59b80"
+    },
+    {
+      "path": "tests/integrations/test_linkedin_state.py",
+      "mode": "100644",
+      "git_blob": "d5d679b2ba9cd9e92627cdc73bdf275e6b911ee1",
+      "bytes": 15965,
+      "sha256": "3e54d2d4470385d05d4d2021cecb36c4fcde513fb8946bd61050ce7a54544906"
+    },
+    {
+      "path": "tests/integrations/test_linkedin_workflow.py",
+      "mode": "100644",
+      "git_blob": "847adb9bff957777d86255eb9f25c7e934c7de5f",
+      "bytes": 17521,
+      "sha256": "5f54947c876f8adc76f0eaa803c15849fddf86cecf4c9363bdbf973f28d44b27"
+    },
+    {
+      "path": "tests/integrations/test_social_browser.py",
+      "mode": "100644",
+      "git_blob": "bdd43c83318d6e06847309e6339b250242e2845b",
+      "bytes": 23704,
+      "sha256": "31f85ba37c09425c73159dd284e79b538c1b96726b8ed4b89353f0c281420511"
+    },
+    {
+      "path": "tests/integrations/test_social_browser_startup_guard.py",
+      "mode": "100644",
+      "git_blob": "59660ab8de30bcc91b4a4d615a3ec5c0cb22ac3a",
+      "bytes": 1949,
+      "sha256": "4877786eace03cc8f80cc72adb126be920be2b45f4302f08af99222b71df8eb0"
+    },
+    {
+      "path": "tests/integrations/test_social_music_audit_cli.py",
+      "mode": "100644",
+      "git_blob": "27e3f6d969704e2af4ef0980c735c0088f285251",
+      "bytes": 19224,
+      "sha256": "c2393e91d8be8060d3b0c560a6fcd3b7b2ff1fe54977010e08c0f3b2aa50304b"
+    },
+    {
+      "path": "tests/integrations/test_social_music_contract.py",
+      "mode": "100644",
+      "git_blob": "af5cd1aa122c05332fb05d2ababce65d5c913d62",
+      "bytes": 13989,
+      "sha256": "ea70e1d790422ff94e4493897047f08691b75f1079980a78d96d583bbe4ec97e"
+    },
+    {
+      "path": "tests/integrations/test_social_music_projection.py",
+      "mode": "100644",
+      "git_blob": "55d4db1c6951f1cbf6f3d8390d257f57f98d5477",
+      "bytes": 11941,
+      "sha256": "3912f7b72d46c0e427d30e7ace338379cb861e18fac99d4ca9d2ba832ff7f753"
+    },
+    {
+      "path": "tests/integrations/test_social_music_state.py",
+      "mode": "100644",
+      "git_blob": "f2017b2ef43c12a61ab0096a6f3daa6e47fc1cec",
+      "bytes": 11645,
+      "sha256": "a87a8068f06f67ddeef4c41ee89a6cf9a35d22f1a27674a77009e5b1773cc02a"
+    },
+    {
+      "path": "tests/integrations/test_tiktok_search_capture.py",
+      "mode": "100644",
+      "git_blob": "4c95f4c464074e3f0e33489c45cd09ef067fac6d",
+      "bytes": 15835,
+      "sha256": "eb226a351329f6b8fb75f9fba022f292a7ace55871238dc759a2046285abe270"
+    },
+    {
+      "path": "tests/integrations/test_top_content_browser.py",
+      "mode": "100644",
+      "git_blob": "087244732a17c7cccc37e0587bee7b86b62af39a",
+      "bytes": 16575,
+      "sha256": "337184554e632f3f725dde26339b01aa25dbcd3f79cde49416f0c05eb3cc99e5"
+    },
+    {
+      "path": "tests/integrations/test_top_content_state.py",
+      "mode": "100644",
+      "git_blob": "75fb9c29f6a7072af4fdf34176a96d41e8a206e8",
+      "bytes": 20289,
+      "sha256": "a7ba1b0b0dba90ed6c85f6b0847a85bd41e84f4abff95a86e0e5bb434aafcdb4"
+    },
+    {
+      "path": "tests/integrations/test_x_browser_scraper.py",
+      "mode": "100644",
+      "git_blob": "e13c0afe12b8e28d1fd16d3876f0b9ae989180bd",
+      "bytes": 6888,
+      "sha256": "82541bb731fdc711d7b39f11019194233f08cd60856f08ed5bf7d76ea3bde75a"
+    },
+    {
+      "path": "tests/integrations/test_x_scraper.py",
+      "mode": "100644",
+      "git_blob": "654fcc145985b58679b2b38b742868fc02d5d24f",
+      "bytes": 6037,
+      "sha256": "c4e0e0e5e0443dd33f8d84c56c8b83ebef28a5d6d42f7eb4f466528b41060b19"
+    },
+    {
+      "path": "tests/publication/test_comment_showcase_status.py",
+      "mode": "100644",
+      "git_blob": "b6814d06a480831562fe3fb81698376d5af7d7a5",
+      "bytes": 10815,
+      "sha256": "3fa50c8f6a65632d47891f8b134bc0faf5051128bf0f88cd252eb0bbcb475ff3"
+    },
+    {
+      "path": "tests/publication/test_creator_mention_publication.py",
+      "mode": "100644",
+      "git_blob": "6c814904f7c0473ca26b2d3fed352751fe5f32d8",
+      "bytes": 7023,
+      "sha256": "ae189d2b8bf1d7862b5018674b8844a34701dd5ae131d2fee3603e203debffb1"
+    },
+    {
+      "path": "tests/publication/test_creator_mentions_ui.py",
+      "mode": "100644",
+      "git_blob": "8ed302f270556430f800b9a4f46ed659b6a0f9cc",
+      "bytes": 20359,
+      "sha256": "4d235e02d8b42b1847cdb7dce11f66a6d0ef2f17fe6c9c05059a7822e588a505"
+    },
+    {
+      "path": "tests/publication/test_engage_browser_guard.py",
+      "mode": "100644",
+      "git_blob": "515f3bd75e1b1ff0f83afd0f4700276da248c132",
+      "bytes": 4949,
+      "sha256": "ed06420d86c3040ca35b9b7bd0092f26f84247f1eb674da35183ccd49fdb71a7"
+    },
+    {
+      "path": "tests/publication/test_engage_mentions_probe.py",
+      "mode": "100644",
+      "git_blob": "2d027025342ee68dac28ac69d2a8cb49c3702f9d",
+      "bytes": 17383,
+      "sha256": "092725a625020d8693b0d72ef8b8a173972026a480cb4fa41c28f3c4f5776a8f"
+    },
+    {
+      "path": "tests/publication/test_plain_comment_composition.py",
+      "mode": "100644",
+      "git_blob": "c1fb3c1003f814480a3d3097b02e3341032743a5",
+      "bytes": 6105,
+      "sha256": "5ed04731ab8fc6a25fbba84cb4017d9ae2a0315cce076ee5df08b43911783f78"
+    },
+    {
+      "path": "tests/publication/test_publication_challenge_recovery.py",
+      "mode": "100644",
+      "git_blob": "ca4000f4c98a1c155a73dd2b480efc3880a13b38",
+      "bytes": 4413,
+      "sha256": "1ce1bbf3acf4b588cb7a76b780ba243643fca853a2ebceec6bb9906618f5fcd3"
+    },
+    {
+      "path": "tests/publication/test_publication_safety.py",
+      "mode": "100644",
+      "git_blob": "35c016fa8e54b38fd7daae378debba4770d5b40e",
+      "bytes": 34287,
+      "sha256": "d89e97d32a4cceaee809383890282603e154fcfa7a827647ba0705c567e029b4"
+    },
+    {
+      "path": "tests/publication/test_publication_worker.py",
+      "mode": "100644",
+      "git_blob": "0f7d13056b148cea67b61163dd866cce068e2c0e",
+      "bytes": 10913,
+      "sha256": "27f0d3658f3272c7eaca68deb8beeec7eba405d9d0a83a29058fe5dd94db469b"
+    },
+    {
+      "path": "tests/publication/test_publish_comment_showcase.py",
+      "mode": "100644",
+      "git_blob": "1ddd5a59aea9a4d8efb12027579197855c109dfe",
+      "bytes": 30772,
+      "sha256": "34ae4d50c8b0a50c45b938f07cc2d7d9ad5c145dcfa52c85a11416c5452d7f92"
+    },
+    {
+      "path": "tests/publication/test_recover_tiktok_comment_capture.py",
+      "mode": "100644",
+      "git_blob": "698b7780ca8ea3556b712a51a5e2ee2abc9f2fe6",
+      "bytes": 31852,
+      "sha256": "8ea8de221406407ba7acf93804d80e40353fbf6bfc5f9ca39b4bd5302fc33676"
+    },
+    {
+      "path": "tests/publication/test_tiktok_comment_capture.py",
+      "mode": "100644",
+      "git_blob": "d263fa81627fd9ba593b22cdc6629bbcaab3e308",
+      "bytes": 14632,
+      "sha256": "861379603e42bc13f6b3b93d781a4ee092b42e629100c2cd25e1b970f2ef67f6"
+    },
+    {
+      "path": "tests/publication/test_tiktok_comment_showcase.py",
+      "mode": "100644",
+      "git_blob": "32431dfbdff3fd1c66d0faad7e35f92edb20af85",
+      "bytes": 34164,
+      "sha256": "30e6f7845abb368d80f88203fdcfbecbed36944b3ac35f59650ab1e2dffe009d"
+    },
+    {
+      "path": "tests/publication/test_tiktok_content_posting_api.py",
+      "mode": "100644",
+      "git_blob": "b29fde0ab402dde26721af5d2b2b6f3e4fc21aa9",
+      "bytes": 17036,
+      "sha256": "50a7eb1094d4026888652341ba8e40caa4f717d3e238410896b1193989bb9736"
+    },
+    {
+      "path": "tests/publication/test_tiktok_publication_confirmation.py",
+      "mode": "100644",
+      "git_blob": "7f8493fd2bf8a15da81d08ad7bd9b4ba63cce1c2",
+      "bytes": 17908,
+      "sha256": "4ec4524a89bd66efb8d99e393e99d5a54f8bcdf164f3aa9a0a23f4598b43b56a"
+    },
+    {
+      "path": "tests/publication/test_tiktok_showcase_auto_prepare.py",
+      "mode": "100644",
+      "git_blob": "291b6b20b8c5de3fdca4339e9abb0950da9b1297",
+      "bytes": 11647,
+      "sha256": "5d053895adce0d8f5db176e0495f1c7c396ab454776f5eaed5f16a28036d78a0"
+    },
+    {
+      "path": "tests/publication/test_tiktok_showcase_media.py",
+      "mode": "100644",
+      "git_blob": "d48e541d70235293329ab5f2df3170c0adca14fe",
+      "bytes": 4536,
+      "sha256": "e331ea33dc13ef0cd463937c48334a111b3952e1c0c66926a3cd93370d4efc5e"
+    },
+    {
+      "path": "tests/sonic/test_sonic_audio_transport.py",
+      "mode": "100644",
+      "git_blob": "fae588a35c4ecbc7b2494ca60ac581362a26304a",
+      "bytes": 25154,
+      "sha256": "b19b71f95fff466dec16815ab413dd889c0a2c17ca44a55b85953ef8b02c34fb"
+    },
+    {
+      "path": "tests/sonic/test_sonic_audit_cli.py",
+      "mode": "100644",
+      "git_blob": "239b2e55435853d62e9cee982b756cffe3a3ee0f",
+      "bytes": 34766,
+      "sha256": "d0328129f99593b8396440c928c7a1cb3a49e286e029a83eea6f21f99573345a"
+    },
+    {
+      "path": "tests/sonic/test_sonic_contracts.py",
+      "mode": "100644",
+      "git_blob": "8eed3da9b2fdbda7d48cebb2aee6ae150cfb40cc",
+      "bytes": 13941,
+      "sha256": "992fa3c541d8e4328d8e9c0b135c20bbbd01fa2327fc9a33b9935c14e4414784"
+    },
+    {
+      "path": "tests/sonic/test_sonic_corpus_planning.py",
+      "mode": "100644",
+      "git_blob": "a8f45bff57f1fe20096b3fc46bb7ac41144d61e1",
+      "bytes": 27917,
+      "sha256": "2de5485c13cee5a5e5fd7027a752198ee12f2c6aa170f34f0f7c75796c80b508"
+    },
+    {
+      "path": "tests/sonic/test_sonic_evaluation.py",
+      "mode": "100644",
+      "git_blob": "34f1c2b1803be3dd5fa306ac2c3b31b886aae4e4",
+      "bytes": 3923,
+      "sha256": "abfc7741e6d8da3bb14a79d6992a0708ec3464c4a748de3cd477e55a4ec88f80"
+    },
+    {
+      "path": "tests/sonic/test_sonic_features.py",
+      "mode": "100644",
+      "git_blob": "42b0dfa268b9d9a6112accf8237ba510392a900b",
+      "bytes": 11207,
+      "sha256": "e9d1e76d5c2479a0217f47caa221dacfe12e00cf3f86b7d33a39637960c52c74"
+    },
+    {
+      "path": "tests/sonic/test_sonic_suite_validation.py",
+      "mode": "100644",
+      "git_blob": "afaeced318c64c8d9a820072d96bb67ec3e95670",
+      "bytes": 11308,
+      "sha256": "9ef0064effaff5598b6b3b19d4e89de91e80c5143f5580d04a1cc9dab8febb4c"
+    },
+    {
+      "path": "tests/unit/test_author_activity_trace.py",
+      "mode": "100644",
+      "git_blob": "2c70bb7a5ba1b24743f6eb33e89e504fa2f35c2d",
+      "bytes": 5617,
+      "sha256": "e4f4b5eb8859a3cad2e4f788be4fb0d1bda64fa0fe2f51033409825ce54ed8af"
+    },
+    {
+      "path": "tests/unit/test_music_audit_topics.py",
+      "mode": "100644",
+      "git_blob": "a4f8f0b92dbc1a5efdc35f9f4deaf940de48fb21",
+      "bytes": 19611,
+      "sha256": "ebf345c463ddd8d934b8b974349316643708f2d35991810103c467b61ba5868f"
+    },
+    {
+      "path": "tests/unit/test_music_discovery.py",
+      "mode": "100644",
+      "git_blob": "ad14cfbe5af36b054e722e9a98e558c4ea6c84c7",
+      "bytes": 22263,
+      "sha256": "6afab8ba518c14b67f91b8bf06e44a730b369ad7d869ddbfa50658160f7d3a8a"
+    },
+    {
+      "path": "tests/unit/test_music_discovery_classification.py",
+      "mode": "100644",
+      "git_blob": "0cd4ceff63bf6615841e34596184e85b6142e411",
+      "bytes": 11381,
+      "sha256": "ec9cf178d60cdd606ff37174e87d54a353baedce193d9df36d2b7339d2e8a08a"
+    },
+    {
+      "path": "tests/unit/test_music_discovery_corpus.py",
+      "mode": "100644",
+      "git_blob": "6e25d8819e64a5240dfb826220d3c475f721111c",
+      "bytes": 20107,
+      "sha256": "80b2c39aee0eb72b5b27f10c72d5c0243759bd6cf94bfe0351c4650b77c60a35"
+    },
+    {
+      "path": "tests/unit/test_music_discovery_search.py",
+      "mode": "100644",
+      "git_blob": "56d1e20bb5c679bc97c8c1b9bb071f2279dfbd5c",
+      "bytes": 20207,
+      "sha256": "ae5298a2cb776526b4b08abea60208dbd3c0c821fda018ca60956f4460a70111"
+    },
+    {
+      "path": "tests/unit/test_music_discovery_sources.py",
+      "mode": "100644",
+      "git_blob": "2cb7d2056f563d449f59495333d3ae343e92a90c",
+      "bytes": 19082,
+      "sha256": "b45b5c42819bd1d7db3c8f6c5cff17c2c1d46dbbe571cc8847a6057f62454d5a"
+    },
+    {
+      "path": "tests/unit/test_music_enrichment.py",
+      "mode": "100644",
+      "git_blob": "e6d9250fd2f9c864771c72355e12db05e6294e83",
+      "bytes": 14336,
+      "sha256": "107c7ecb39cf9ab07ea3d78460b3f8f87abcbc530b4908433a3ebc1c83207857"
+    },
+    {
+      "path": "tests/unit/test_owner_profile_export.py",
+      "mode": "100644",
+      "git_blob": "8263a0989303faed41c0f0d20e29848489ed107b",
+      "bytes": 4740,
+      "sha256": "679402739fd20c3d54f9a8474dbd137acaed9921b86e22377d9a5308a76bf72e"
+    },
+    {
+      "path": "tests/unit/test_owner_reply_probe.py",
+      "mode": "100644",
+      "git_blob": "e3419889f88333738f8309f59a1c02aa82d18a60",
+      "bytes": 11125,
+      "sha256": "189cb6d6cc818a48b1ab668bbaba0dd05461a438def21b5852b25e0a52c20b83"
+    },
+    {
+      "path": "tests/unit/test_posts_discovery.py",
+      "mode": "100644",
+      "git_blob": "871f415e47cb5739ac6f46cbb66d2945b34f8dfc",
+      "bytes": 25372,
+      "sha256": "1a2883403156609bb00a95d8d6370c60f12371c3bb98ad13a5e44c2ed81f6f5e"
+    },
+    {
+      "path": "tests/unit/test_profile_enrichment.py",
+      "mode": "100644",
+      "git_blob": "b0f4550e8336adf18f094d53c66fd856f7940865",
+      "bytes": 14244,
+      "sha256": "4ba92f450d853f9e6f2e132521ffc65e1dc2a45041eba1e553e950b3ccb8e439"
+    },
+    {
+      "path": "tests/unit/test_profile_lookup.py",
+      "mode": "100644",
+      "git_blob": "8ff490d232da47d8d62755ada43a07ee969751bc",
+      "bytes": 3067,
+      "sha256": "d9c940154f95088ca77766eb8a513c161181c01f0d22ab4cbaa0794a4167a222"
+    },
+    {
+      "path": "tests/unit/test_profile_web_api.py",
+      "mode": "100644",
+      "git_blob": "25925f2331ce218369e4109b6dc1debe8421c5bf",
+      "bytes": 14220,
+      "sha256": "24a88819b915b7831da978c2ac6b6720b51b38905c1d157d8e8a35bb3ff71b14"
+    },
+    {
+      "path": "tests/unit/test_publication_window.py",
+      "mode": "100644",
+      "git_blob": "c0b4c342f80aa4d7847cb8f1f0a2a5e5b2b431cf",
+      "bytes": 3449,
+      "sha256": "b82acf5e7301c8ff9950d5226896adf7d5c609a83e1721ada7c93fd50d159fda"
+    },
+    {
+      "path": "tests/unit/test_raw_contract.py",
+      "mode": "100644",
+      "git_blob": "f02484dec71fe7682bd755d03d9ea1965075230f",
+      "bytes": 17247,
+      "sha256": "d802c897a990e918f521e6b161a7adb111c2cf3e483df2330662c0993ccac843"
+    },
+    {
+      "path": "tests/unit/test_tiktok_master_database.py",
+      "mode": "100644",
+      "git_blob": "4feeb0387db3ce11e6e9e299fb064baff8326aee",
+      "bytes": 76377,
+      "sha256": "a246d431be6bdcb02eec334f6a07bf0f8f408d1f185adeb5bfe7b232471c0ead"
+    },
+    {
+      "path": "tests/unit/test_tiktok_music_page.py",
+      "mode": "100644",
+      "git_blob": "f4c8857b6212953a22065cd79d61b46ba22d5921",
+      "bytes": 6477,
+      "sha256": "a4bd0213a08f587b0c42602f93be5f5d8067291ea44bb52a0dee1d29da88926c"
+    },
+    {
+      "path": "tests/unit/test_tiktok_subtitles.py",
+      "mode": "100644",
+      "git_blob": "e4b62b5425e5ba687fa51d4e59e38c51b61c32d8",
+      "bytes": 8652,
+      "sha256": "94817943ba6506c579155316645ffc6d0798e938078a666bf7adf36a9daa21f4"
+    },
+    {
+      "path": "tests/unit/test_tt2dsp_resolution.py",
+      "mode": "100644",
+      "git_blob": "976d0dd50f90434009eca9ca9eb3a75187703b06",
+      "bytes": 5842,
+      "sha256": "f6214f7c232d4c77cb5e3f932db15356c9bdc97a8b7d6a27b057dc1851ea3f6b"
+    },
+    {
+      "path": "tests/unit/test_username_comment_trace.py",
+      "mode": "100644",
+      "git_blob": "d606788f68a7cad636557aeceeae81cc6a7d2ec9",
+      "bytes": 2648,
+      "sha256": "8527d2dfdc2199df03fd0a136079b45105629f64b31c57c6000ce21be702ac94"
+    },
+    {
+      "path": "tests/workflows/test_analysis_workflow.py",
+      "mode": "100644",
+      "git_blob": "b0e8134462ded29e7dc115d0b832369cdc72d04f",
+      "bytes": 37439,
+      "sha256": "67f464fdfaf06391ccbceba577b28ec25d542a61a323811f3b260739d8dbade6"
+    },
+    {
+      "path": "tests/workflows/test_audit_workflow.py",
+      "mode": "100644",
+      "git_blob": "4ea006ec6efb908aad591fc0840c67039fae8928",
+      "bytes": 19318,
+      "sha256": "20cb04f78dee48f0c2f7d1a5e29e283265192e7e4f8aba64bd6d636301c8d810"
+    },
+    {
+      "path": "tests/workflows/test_backfill_musicbrainz_retirement.py",
+      "mode": "100644",
+      "git_blob": "c0acd1a4c18cc15d9ec43706cbd652ea18044475",
+      "bytes": 7666,
+      "sha256": "0d103d9e0f12437fa401ca99409e73b421e52a42e2731740120fe19734140831"
+    },
+    {
+      "path": "tests/workflows/test_constructive_engage.py",
+      "mode": "100644",
+      "git_blob": "fc5d5fadfb46f81dd3602eb948c7653aaefbbef2",
+      "bytes": 27171,
+      "sha256": "4a0452b914c8af46075560d48d6431f91ca45dfd12e4ce9c66e0edeb16041f90"
+    },
+    {
+      "path": "tests/workflows/test_creator_engage_collection.py",
+      "mode": "100644",
+      "git_blob": "97085c33c22df4a55ba33bae46709a2bcc01ffe2",
+      "bytes": 29821,
+      "sha256": "52e8768b8ad3b6a7cb0146226f53a0b7a5a4518b4a8fe381ea769a1c0c04e953"
+    },
+    {
+      "path": "tests/workflows/test_creator_profile_discovery.py",
+      "mode": "100644",
+      "git_blob": "2b3c3e60e303d6fb068d827e7dc1945821843007",
+      "bytes": 22376,
+      "sha256": "d66373ddaf91045ae5277546094d9ad6ca60e2fb288e71cc7b73f8030e5205d7"
+    },
+    {
+      "path": "tests/workflows/test_engage_account_resolution.py",
+      "mode": "100644",
+      "git_blob": "19018c02361ca3b5957d5eea161c07ea3038d86f",
+      "bytes": 3469,
+      "sha256": "0466bdd12b89a3466f0d258bd7f9e54c0b299fcd4aec6aea0a1d80924e445dcc"
+    },
+    {
+      "path": "tests/workflows/test_engage_adaptive_pagination.py",
+      "mode": "100644",
+      "git_blob": "07871fe64ff887d8fd39d5da3e515c64fd8687df",
+      "bytes": 9413,
+      "sha256": "be96368d50937d34184b4abcccdaa80460b082da3ca0bd4007fe4d9ff6020ae7"
+    },
+    {
+      "path": "tests/workflows/test_engage_comment_projection.py",
+      "mode": "100644",
+      "git_blob": "bb41b7760759c2ecb09ad08381863ecfb078599b",
+      "bytes": 3059,
+      "sha256": "367d083695d548bead0c6dc916d601213a741518deeeb763c38edbc1f4009917"
+    },
+    {
+      "path": "tests/workflows/test_engage_creator_mentions.py",
+      "mode": "100644",
+      "git_blob": "f6caaa5bb420c65eefda6d95709d1f17843a82a4",
+      "bytes": 35801,
+      "sha256": "d6162e447b468f074057183b1513a021c43dde6834c86e017230bba0d2e23c23"
+    },
+    {
+      "path": "tests/workflows/test_engage_creator_native_labels.py",
+      "mode": "100644",
+      "git_blob": "f5aa4bab3f72996bf134e33e78c4b33ccbd5e2fe",
+      "bytes": 15243,
+      "sha256": "8e1bae6d9969ae5b2cd2ba83bf2d08c45349748ce1a0e60761f7a7954ed6dc4d"
+    },
+    {
+      "path": "tests/workflows/test_engage_handoff_history.py",
+      "mode": "100644",
+      "git_blob": "7d9c5129ff7394e2066869b850e2ea4a79c5e818",
+      "bytes": 10585,
+      "sha256": "a9a87bd63d7af0d7ae7b17b19e3a5ebe70b00691b92e1a57de8ef593e2987eb8"
+    },
+    {
+      "path": "tests/workflows/test_engage_publication_recovery.py",
+      "mode": "100644",
+      "git_blob": "8cbe54d95d4df11cdbbcae5decb7a782382bfa35",
+      "bytes": 5374,
+      "sha256": "4379b448a0d24c0090f962e57b16a19c1fb91d1d1e83905af86c67ce33c5b606"
+    },
+    {
+      "path": "tests/workflows/test_engage_quality_guards.py",
+      "mode": "100644",
+      "git_blob": "b8ac251084c01c648e7ecc8fb115dac0c6c7ecc8",
+      "bytes": 7877,
+      "sha256": "47801bb08f9450bb7f2390f1b049d6e0966d54b4d717f4714f63afebd14be6b3"
+    },
+    {
+      "path": "tests/workflows/test_engage_stage_gates.py",
+      "mode": "100644",
+      "git_blob": "705c98b352628c50417129d0bc2fa6379420f5c3",
+      "bytes": 10924,
+      "sha256": "951ee85a52253e520aa8a32864d5b24c5de9efc4adb1204545c557325ea1e8a8"
+    },
+    {
+      "path": "tests/workflows/test_engage_tiktok.py",
+      "mode": "100644",
+      "git_blob": "688d449193e88b89a179e96cb87831dd42f41031",
+      "bytes": 121698,
+      "sha256": "77a0cc7a4e14b001481a61d529fb3edac47967a4e8a9c9becaa6d7c216572bcd"
+    },
+    {
+      "path": "tests/workflows/test_listen_music_collection.py",
+      "mode": "100644",
+      "git_blob": "9d7babbfe4ae2fc680f8622f404f2e6f1007504b",
+      "bytes": 36261,
+      "sha256": "f412418dd9dc9c311a343d18db2204b695fe4aaaf881b6ce5d678563c7a85a32"
+    },
+    {
+      "path": "tests/workflows/test_music_audit_operator.py",
+      "mode": "100644",
+      "git_blob": "c4dc3c9a3d719ac01c411a7c71f2f79f9992135d",
+      "bytes": 80312,
+      "sha256": "ab6ac35673e75af628a2b56099487fb4baec1624b2432b678caeb55bc704b4d1"
+    },
+    {
+      "path": "tests/workflows/test_music_backfill.py",
+      "mode": "100644",
+      "git_blob": "bfb8235cf4c0e2dd4f3b2da0d3b4c1175a828ca4",
+      "bytes": 27871,
+      "sha256": "cef0f83d1d7cc26f7157c22d7f479b8b8bda736e6de89447493f1208a1722685"
+    },
+    {
+      "path": "tests/workflows/test_pipeline_reliability.py",
+      "mode": "100644",
+      "git_blob": "fb529ab4d56e522e510d1c0842519b5f5ac72c7b",
+      "bytes": 14660,
+      "sha256": "f732ed90771232c1c8504653fabc5815a251db63bb9c5b1e62aedd436646ed76"
+    },
+    {
+      "path": "tests/workflows/test_posts_recency.py",
+      "mode": "100644",
+      "git_blob": "a3d5ce2eed833bf112558cfc82d3eb6fdcf4fee6",
+      "bytes": 13190,
+      "sha256": "256a5e54312ed5796b35727c548784ef68460143432dafe62972e824595a94b1"
+    },
+    {
+      "path": "tests/workflows/test_posts_recency_operator.py",
+      "mode": "100644",
+      "git_blob": "1de669cc76f9ef9d5c22855cdcd0f1d97fdd8522",
+      "bytes": 14182,
+      "sha256": "b1760f855b5faac2bc8e4dea538ea900ae0cbb9cc1e435b433ffb9677b9e833a"
+    },
+    {
+      "path": "tests/workflows/test_quick_audit.py",
+      "mode": "100644",
+      "git_blob": "ff81c712ad28e00dd30ec440726b27af102d93d4",
+      "bytes": 32664,
+      "sha256": "dc2ce728a3a147d68c5eb474d20d04e23982d74c05bf1abea902cd47df495233"
+    },
+    {
+      "path": "tests/workflows/test_single_operator_approval.py",
+      "mode": "100644",
+      "git_blob": "f6bd86a74da6603d23071d22f65024d69f5049a2",
+      "bytes": 8479,
+      "sha256": "6fc35c03520f1d53a03e3c1ebc455af92058d436e2afb39786249f4db314a27b"
+    },
+    {
+      "path": "tests/workflows/test_tiktok_one_top_content.py",
+      "mode": "100644",
+      "git_blob": "f4de7f737389702b68260ee54d61944871e758f3",
+      "bytes": 23843,
+      "sha256": "18e6bb9f77cc0d1b887900edd89a13d5ae9ce235ba5d6ebc00a2b440ea9f7e55"
+    },
+    {
+      "path": "tests/workflows/test_topic_query_policy.py",
+      "mode": "100644",
+      "git_blob": "b30a30638890bc937f2cb0c4aef30643b8bb8407",
+      "bytes": 4990,
+      "sha256": "4027404b5e7df916f3904cfe115bd39bdef20cf3e42ee9903473e703dc08497b"
+    },
+    {
+      "path": "tiktok_api.py",
+      "mode": "100644",
+      "git_blob": "63c280268bea57ee8d81844e54a00bafee156e3a",
+      "bytes": 27875,
+      "sha256": "3a52f16d6301ff6c83a90cda6b948f95b5809426701596ce899e4b83ccd7d535"
+    },
+    {
+      "path": "tiktok_comment_showcase.py",
+      "mode": "100644",
+      "git_blob": "33f953da831518473f845d5af10d242c9bc066f8",
+      "bytes": 116000,
+      "sha256": "29dd90fcf42bb278e034ed9ec7c0e19ab22388ed682632458066f2ab7bc2c879"
+    },
+    {
+      "path": "tiktok_content_posting_api.py",
+      "mode": "100644",
+      "git_blob": "2c01b7da1389295404f264ff1c22336151f71d9a",
+      "bytes": 26236,
+      "sha256": "bd5d8bf76a5b1283976284c343ef6c0e2f4f1241222a118cce835dda2c57c65b"
+    },
+    {
+      "path": "tiktok_master_database.py",
+      "mode": "100644",
+      "git_blob": "8ab01efcdf1216b24706d2667cdc852fa2c545bb",
+      "bytes": 217336,
+      "sha256": "8d1a6d86aea0ab3791a6d4b548af8b322863f0e685db983b3dd0a2c1b4146fb5"
+    },
+    {
+      "path": "tiktok_music_page.py",
+      "mode": "100644",
+      "git_blob": "d80fc21db3467131ccd52445795091246e30a59e",
+      "bytes": 6809,
+      "sha256": "fd4a47f99b0b9669f63767783f34914c0664e661b2bb48cc2a8b18ad21c521d9"
+    },
+    {
+      "path": "tiktok_one_top_content.py",
+      "mode": "100644",
+      "git_blob": "d44212c0ee94ebfb220806897727143799f96a04",
+      "bytes": 50318,
+      "sha256": "8c9b4b2af4cd152c708d0c474387f01b7b79174efdbb3d96ead4dee26cab5f2e"
+    },
+    {
+      "path": "tiktok_publication_adapter.py",
+      "mode": "100644",
+      "git_blob": "c37b5537bd333e4206134cfa65086f54aeb450e9",
+      "bytes": 165947,
+      "sha256": "e6e3a8cb944b9aac6481eb09a090e67e7534e35db25741977840a5fe305a0f19"
+    },
+    {
+      "path": "tiktok_scraper/__init__.py",
+      "mode": "100644",
+      "git_blob": "51bc6a6d8ea7efcb6241777402c467036f491bbb",
+      "bytes": 75,
+      "sha256": "4696901a83fb5e188bef0cc1dd0d9690c7dc68b41ce1c4478c9f23961dadbd0d"
+    },
+    {
+      "path": "tiktok_scraper/ai_analytics.py",
+      "mode": "100644",
+      "git_blob": "76e6c22a2edb98b975703ebca79af91de51219e1",
+      "bytes": 14155,
+      "sha256": "5956cc931c36a5e30576ed93c0f475d1fea11623f4587427bd40f9a26bac4068"
+    },
+    {
+      "path": "tiktok_scraper/analysis_workflow.py",
+      "mode": "100644",
+      "git_blob": "a033508add06fc4436007e2eae3a27d1b71bcdd5",
+      "bytes": 101152,
+      "sha256": "440d6635c86943eaaec050cc80bc223e45d582e04d60c50552590906d89236d9"
+    },
+    {
+      "path": "tiktok_scraper/api_integration.py",
+      "mode": "100644",
+      "git_blob": "3399ce06a0e6fea9606a104860413481b6f7055c",
+      "bytes": 169688,
+      "sha256": "0a4b7fcb66becc1a06794ee8865d1406a60a896914d3535ae4acea7396bf2d1b"
+    },
+    {
+      "path": "tiktok_scraper/author_activity_trace.py",
+      "mode": "100644",
+      "git_blob": "aa78cd00341c8a2eea21dc40b55d5f87e7d90c7a",
+      "bytes": 52389,
+      "sha256": "36b4713ad9a025476521eca47b2f57957ff200937e349b1d72f9523602172422"
+    },
+    {
+      "path": "tiktok_scraper/date_filter.py",
+      "mode": "100644",
+      "git_blob": "227f589ec2b3a4dc425ab300e575cad082a0e154",
+      "bytes": 10419,
+      "sha256": "1e70d2044410ba7d3ccb2c9017fe37a71d527d59136ff78b8fe2097b28f19e8e"
+    },
+    {
+      "path": "tiktok_scraper/known_content.py",
+      "mode": "100644",
+      "git_blob": "d1756eeeb87753b533b1c1f2c05873f4e871a47e",
+      "bytes": 8722,
+      "sha256": "4716d55cb6905bceb240a610736e83cae8b349b5f06b8f7b04ad3597c4fe5bb2"
+    },
+    {
+      "path": "tiktok_scraper/linkedin_api.py",
+      "mode": "100644",
+      "git_blob": "11be56c11efb28ac8dbed69c2c11d14f559f831d",
+      "bytes": 46501,
+      "sha256": "ff8ea343f69bb3514f8a92aeb5355b03bebe59b7f16085ec0998ecf6ae759dc9"
+    },
+    {
+      "path": "tiktok_scraper/linkedin_state.py",
+      "mode": "100644",
+      "git_blob": "2972bfac43591a2a3d1fce2a9ecf7d32aae685c1",
+      "bytes": 44539,
+      "sha256": "3ca96ecd9ebc0fb55ea437496540135125fe1f91a29604243040da75423d9088"
+    },
+    {
+      "path": "tiktok_scraper/main.py",
+      "mode": "100644",
+      "git_blob": "ef1017004daa8fd6cffcd202a6f235818b5f6d57",
+      "bytes": 104505,
+      "sha256": "b707a6935a80b8db649197672d155ba2291c4ac978373de6a1bd341daca0fcde"
+    },
+    {
+      "path": "tiktok_scraper/music_enrichment.py",
+      "mode": "100644",
+      "git_blob": "24a4c686a3b149fc83da39d1b9c7e5d7ce5b9d38",
+      "bytes": 37175,
+      "sha256": "1a2b3d456217dcfd8919328cf84a41798e8c392005eefe031b9a85521d071f6c"
+    },
+    {
+      "path": "tiktok_scraper/music_page_locator.py",
+      "mode": "100644",
+      "git_blob": "790b647e20511903e58e54dd2f368102643c51fb",
+      "bytes": 6784,
+      "sha256": "25686e15e203cb736fc5d16aac9102172b5eed8be0ce16b2c94991f60934dedf"
+    },
+    {
+      "path": "tiktok_scraper/owner_profile_export.py",
+      "mode": "100644",
+      "git_blob": "187b3fb2ed5f70d2906e8906bd95971a5d917f6b",
+      "bytes": 35843,
+      "sha256": "8e7bc8b5c207155f4f835126a40bc0df4e80b305886769d0e4af78f61f742efb"
+    },
+    {
+      "path": "tiktok_scraper/owner_reply_probe.py",
+      "mode": "100644",
+      "git_blob": "5381bd941773199942272d3d5b19e4163cfe79fe",
+      "bytes": 44203,
+      "sha256": "c495ad80c664202015b12fa7d22f18ee595336d57b4ada3ad135b53f3d9423a3"
+    },
+    {
+      "path": "tiktok_scraper/profile_contract.py",
+      "mode": "100644",
+      "git_blob": "b1095f569e076c187beb46911f831147f37d7670",
+      "bytes": 31448,
+      "sha256": "eba54c767f4a4e57d6b5ac64d3d76e4a0a21ff3b8ea08214f28ed1bdad2ff273"
+    },
+    {
+      "path": "tiktok_scraper/profile_enrichment.py",
+      "mode": "100644",
+      "git_blob": "64721e135d2194d13b922c6ef1853be80140b5ad",
+      "bytes": 88371,
+      "sha256": "16d66915bfac2caa4b5526aad4fcf5835692a0af6415eaf3e6e6596f22e7ff7e"
+    },
+    {
+      "path": "tiktok_scraper/profile_web_api.py",
+      "mode": "100644",
+      "git_blob": "cd11670f4282b96b3ce694ad2de41f7eff9df568",
+      "bytes": 47316,
+      "sha256": "b9e403aefdfa83817f0a2a8598be4c2b6bddbcf203d96cf682ac9ed977ca28ea"
+    },
+    {
+      "path": "tiktok_scraper/publication_window.py",
+      "mode": "100644",
+      "git_blob": "9920c632b8daac0923848529f2fdba759d792203",
+      "bytes": 5127,
+      "sha256": "d2fe565a55b53ac2f18eee392db1e729546f2e15d70ba947b511858c874152ad"
+    },
+    {
+      "path": "tiktok_scraper/raw_contract.py",
+      "mode": "100644",
+      "git_blob": "743cf344d17bff170c7c1395fcdd64852a8f9a35",
+      "bytes": 37101,
+      "sha256": "7123d2e756b201fc67882e9cb59f9f3f611b18ced47dca1a4d6ec748c397314d"
+    },
+    {
+      "path": "tiktok_scraper/relevance.py",
+      "mode": "100644",
+      "git_blob": "520898e1268e319b03f71d8420e6a4509411f6ed",
+      "bytes": 19426,
+      "sha256": "e0aaf53b4f31eb939ed82d62e43fd705029fa88e2b0c71fdcfb059f37485a74f"
+    },
+    {
+      "path": "tiktok_scraper/run_lineage.py",
+      "mode": "100644",
+      "git_blob": "eec8e4838a06ce6f1a91e74e0ade8f0ced5cbce7",
+      "bytes": 33031,
+      "sha256": "12646e99e68195a04218ac9762519c7881e37dc4e4134f1ab83cf424d33cdcda"
+    },
+    {
+      "path": "tiktok_scraper/scraper.py",
+      "mode": "100644",
+      "git_blob": "25944de0e350c169beaff3d181bbad5596668f55",
+      "bytes": 10153,
+      "sha256": "0614b1ddcbdfd17d2b3533d658e884001aeb74668dce23333f1ea3302cddd5f1"
+    },
+    {
+      "path": "tiktok_scraper/scrapers/__init__.py",
+      "mode": "100644",
+      "git_blob": "8b4b26133724cdf269daf3c5793130b2aef94f63",
+      "bytes": 50,
+      "sha256": "0a5977faa03fdfa1f794fea8b1609efc906e38a7caf1b06ad40ae0f707c570e7"
+    },
+    {
+      "path": "tiktok_scraper/scrapers/base_scraper.py",
+      "mode": "100644",
+      "git_blob": "58270560aadf2001a00c53366691c25024b034eb",
+      "bytes": 1383,
+      "sha256": "b79afa260be7e3c8d07b076d3e4e77f196ac11b975f5c7d98997722145490719"
+    },
+    {
+      "path": "tiktok_scraper/scrapers/comment_scraper.py",
+      "mode": "100644",
+      "git_blob": "8384337dfd7724d6a479bd714c21fc112b72ada1",
+      "bytes": 20230,
+      "sha256": "328db706906b6ae2c1b9e9b8398cec2dff81b0e06e3b7ad9737e06d47fcc26f6"
+    },
+    {
+      "path": "tiktok_scraper/scrapers/facebook_scraper.py",
+      "mode": "100644",
+      "git_blob": "eb514333c6fbfcadb4433ea1a284a48687688469",
+      "bytes": 85479,
+      "sha256": "5573e732ca674bb53a31c18b1e3c203dcdd1c1a1ed55e03b5743ab46f1943e5b"
+    },
+    {
+      "path": "tiktok_scraper/scrapers/instagram_scraper.py",
+      "mode": "100644",
+      "git_blob": "f571a2a41fbbe3243ea8c3cf8d58057c2076745a",
+      "bytes": 90508,
+      "sha256": "5672086888046823bb15601ca3d568599f70dd51b934c3113dcf8e5151d06016"
+    },
+    {
+      "path": "tiktok_scraper/scrapers/scraper_scripts.py",
+      "mode": "100644",
+      "git_blob": "547819f99c83d82345a05799af5a5e578f68d7e5",
+      "bytes": 56931,
+      "sha256": "0ad522726d0ad40c2e736fbedc8d6923b91ab573a0936a9ce708c2e13a2e03ac"
+    },
+    {
+      "path": "tiktok_scraper/scrapers/x_browser_scraper.py",
+      "mode": "100644",
+      "git_blob": "95973883648a7b3b0066822e348868e94a00f0fa",
+      "bytes": 32485,
+      "sha256": "72f448feebf1dbdbba2474d09d48c346f2cb5b56d1772d8cc9b07638b0c54235"
+    },
+    {
+      "path": "tiktok_scraper/scrapers/x_scraper.py",
+      "mode": "100644",
+      "git_blob": "a4153865c1d704de0d598dc523b0e9b20702948d",
+      "bytes": 35873,
+      "sha256": "b3b3094331302525e0f39e572092f60b5f46819c6fb7d2c576b9e63633b02a14"
+    },
+    {
+      "path": "tiktok_scraper/scrapers/youtube_scraper.py",
+      "mode": "100644",
+      "git_blob": "ddb296c33e5e1fac475a6b0fe8664c1d4d97cfe9",
+      "bytes": 75501,
+      "sha256": "d44855037ae613c3e1c19fa95bd7ab89de295738ca2dd1dc749c9db21b75fc8d"
+    },
+    {
+      "path": "tiktok_scraper/social_music_contract.py",
+      "mode": "100644",
+      "git_blob": "36374c436338dbc53d3efe8ac5c7f1f8f0d45d78",
+      "bytes": 23297,
+      "sha256": "7325dc6f9f51f23a37d797f105c91b533f2fc5443e53bab6263dca3c216e01b6"
+    },
+    {
+      "path": "tiktok_scraper/social_music_projection.py",
+      "mode": "100644",
+      "git_blob": "b061e1f6250e7a6476008f7d2063c279d146cfc3",
+      "bytes": 10505,
+      "sha256": "38830f67e277cbd3b1553dba2f180fb4d0d4362bd1a33a68cbe816dd239bb101"
+    },
+    {
+      "path": "tiktok_scraper/social_music_state.py",
+      "mode": "100644",
+      "git_blob": "d33ea4e04b84c6eff8a060e50a57886621ea1c67",
+      "bytes": 31442,
+      "sha256": "6d02fdabf82fb6cb1ef4f74fa835901b56dc6f0061efb2ae7d5b8dcf49818618"
+    },
+    {
+      "path": "tiktok_scraper/storage/__init__.py",
+      "mode": "100644",
+      "git_blob": "d15c8f0460d61a707f661fc27c8cf09e041b4be2",
+      "bytes": 328,
+      "sha256": "39f2ae823cf5762f96971be95d0540193d51f974f1793324879cb6f85d5d8145"
+    },
+    {
+      "path": "tiktok_scraper/storage/google_drive.py",
+      "mode": "100644",
+      "git_blob": "7ac4d5dfa869965d0486ae36750373e44826ddb1",
+      "bytes": 53464,
+      "sha256": "d1fc61602e1e502b91ef837f1415d78b18b6bdd8cf15bb339a40faf666dc060d"
+    },
+    {
+      "path": "tiktok_scraper/tiktok_subtitles.py",
+      "mode": "100644",
+      "git_blob": "861dae03456a4e0909d87049eee3ff59eeaffae6",
+      "bytes": 23088,
+      "sha256": "2575aef91139f1e852bf1a06c9ab3919053ac8929348bdcb6d80fba66b4537c0"
+    },
+    {
+      "path": "tiktok_scraper/top_content_browser.py",
+      "mode": "100644",
+      "git_blob": "1539b14a45b39b9e9335120b9619d7c1a85986b6",
+      "bytes": 29923,
+      "sha256": "032f5ba009e571650c6b53f690fcf3518c7b496fd47f242faf8a41f67c981621"
+    },
+    {
+      "path": "tiktok_scraper/top_content_state.py",
+      "mode": "100644",
+      "git_blob": "453b76d9c5f7c732ff9710d525ab186f28c4a0c9",
+      "bytes": 77212,
+      "sha256": "407947968c3fa8d444dc3c435fabd37faaec4ce6457968d50adc0297ecd89bf9"
+    },
+    {
+      "path": "tiktok_scraper/tt2dsp_resolution.py",
+      "mode": "100644",
+      "git_blob": "10da339146b83a3b70b24d5ae14a070cfb57adb8",
+      "bytes": 13669,
+      "sha256": "4f5967c50e6a0e134fd05dbb82ab7c1111984ca2e0670c5d7e6224c0052deff4"
+    },
+    {
+      "path": "tiktok_scraper/username_comment_trace.py",
+      "mode": "100644",
+      "git_blob": "60dd79543773d5a7517383f9aa586aecb9e1cfda",
+      "bytes": 27869,
+      "sha256": "7934091c9973e94b632718b37020dbe90eb061af36779034f84176a1ed2e652d"
+    },
+    {
+      "path": "tiktok_scraper/utils/__init__.py",
+      "mode": "100644",
+      "git_blob": "024fa7d5ed542d853be5f94f29e800116280fea6",
+      "bytes": 48,
+      "sha256": "8af1d47ff03f98691f108e64f9b6f4a623c8c9c05ab90d675b2189ff023eb198"
+    },
+    {
+      "path": "tiktok_scraper/utils/browser_utils.py",
+      "mode": "100644",
+      "git_blob": "85ddd271f7b678fd5cdd3e8d8d38eb20fb91a679",
+      "bytes": 1692,
+      "sha256": "416ebcf91991ea3116fc538534c57d03ab4cf0d5917fa23ea4953d5f03463be0"
+    },
+    {
+      "path": "tiktok_scraper/utils/comment_count.py",
+      "mode": "100644",
+      "git_blob": "f5cd5c17c25b88acfd66dc0835a92f2eacb0137f",
+      "bytes": 21894,
+      "sha256": "f0adc854cfc62f634998e7dac68775ca49c060e34bcf961e8be78be3d0c7828f"
+    },
+    {
+      "path": "tiktok_scraper/utils/debug_utils.py",
+      "mode": "100644",
+      "git_blob": "e49d1666b72cf5286723143e77371b569ae4be77",
+      "bytes": 8044,
+      "sha256": "a39909cdfc5695565352590d06245cd76516d376e086d97d4a511eb584d12e76"
+    },
+    {
+      "path": "tiktok_scraper/utils/element_recorder.py",
+      "mode": "100644",
+      "git_blob": "3d056b114bfda92d62a4d6ca4f74637f382ffd32",
+      "bytes": 7965,
+      "sha256": "f4f46d3dced069c2475a34f4a2af87b2adcfee60dca2590d443b5f03192db76c"
+    },
+    {
+      "path": "tiktok_scraper/utils/file_utils.py",
+      "mode": "100644",
+      "git_blob": "1ab2db51db7674b731d13f577e90bcc4f40e9ce4",
+      "bytes": 11438,
+      "sha256": "ae39cd4acf32ef8dc744e45f15c6b3f99a38d9132d4592bfd902c9b0aebc1802"
+    },
+    {
+      "path": "tiktok_scraper/utils/navigation.py",
+      "mode": "100644",
+      "git_blob": "7d4631a2f3d337d7ac48c342882d2f9b5d2df679",
+      "bytes": 4421,
+      "sha256": "f1e2100909c57c57c19330b1b97941887dcabc35e697a4da4faed59f2b500426"
+    },
+    {
+      "path": "tiktok_scraper/utils/selectors.py",
+      "mode": "100644",
+      "git_blob": "f02a725c402454a64e09a37deacc46fc11d03bfb",
+      "bytes": 6178,
+      "sha256": "d078299e4ba70de52004ad29bf18aeb6ffcc28d8f099c14642a821657108297b"
+    },
+    {
+      "path": "tiktok_showcase_auto_prepare.py",
+      "mode": "100644",
+      "git_blob": "8aec1d9fbe973418b9320b57df88fb1ec8e00e7a",
+      "bytes": 10311,
+      "sha256": "ff84aa49434085fcf6105a7de0e85b96a807f071121a8f4d43a1a3af980beab4"
+    },
+    {
+      "path": "tiktok_showcase_media.py",
+      "mode": "100644",
+      "git_blob": "5f361fe8200771bc71d5486464353ee61c6b8708",
+      "bytes": 9878,
+      "sha256": "081038bb46db4c3fe415025402caf3ec5b753354ce36dc646213699525fc96d8"
+    },
+    {
+      "path": "tools/README.md",
+      "mode": "100644",
+      "git_blob": "b58cfbc20af758efcfd3b599eb349c842327f30e",
+      "bytes": 263,
+      "sha256": "747eccc415d9f35789b3755b81eadfeccd6608af718ad19efc277dfff6b9b16e"
+    },
+    {
+      "path": "tools/historical_exports/README.md",
+      "mode": "100644",
+      "git_blob": "ca7bd055d78431b4eb4322ae5622cd17d87bd54f",
+      "bytes": 205,
+      "sha256": "a3eb878ef141383686c1c2a231e521b05e4b86425d7066ad67325003c77bef0f"
+    },
+    {
+      "path": "tools/historical_exports/count_files.py",
+      "mode": "100644",
+      "git_blob": "543e3158e928667aebed6d15672faad6f1605df7",
+      "bytes": 12613,
+      "sha256": "411ebab902f56a0e1182fdfdd888f54707f96cafbbf90cc6dc6cbf0897f4e12d"
+    },
+    {
+      "path": "tools/historical_exports/export_bca_backfill.py",
+      "mode": "100644",
+      "git_blob": "acf7ff209eec28aeb5c0de31af892f5fd0d4e017",
+      "bytes": 724,
+      "sha256": "657c16cde6a52e7df72f8ab73222eabaee045bdc0b812130e912f88913063541"
+    },
+    {
+      "path": "tools/historical_exports/export_movie_users.py",
+      "mode": "100644",
+      "git_blob": "4bff73032bc0788dea5f99e79fbd2f3144387c4f",
+      "bytes": 4735,
+      "sha256": "4c1c65ea8ad7c4188ffc11387d49cb8e209c15e03a10be89be51814fdf6e4043"
+    },
+    {
+      "path": "tools/historical_exports/export_users.py",
+      "mode": "100644",
+      "git_blob": "7f74b9786666d51b1592c53d0c6f493e139c0c3f",
+      "bytes": 3453,
+      "sha256": "15a75bf0c349ffd07af978f5af6c5ad6f4d748b52104d7b981100e1d20f5730e"
+    },
+    {
+      "path": "tools/historical_exports/file_count.py",
+      "mode": "100644",
+      "git_blob": "bdb8816bad5b83cf4bb25eb1befd43f67d4b6c4d",
+      "bytes": 1198,
+      "sha256": "1a74c5545262d3c6752b6516df44b321b0b090ec23ae636605f25f8e08187d44"
+    },
+    {
+      "path": "tools/historical_exports/filter_noise.py",
+      "mode": "100644",
+      "git_blob": "734d6cc0789d2c32b20cf285408baba068f7d3cb",
+      "bytes": 2604,
+      "sha256": "bc9f03197a1eae7d902a5c0ebd3756f7cebb7671eb835921b965d14885c33819"
+    },
+    {
+      "path": "tools/historical_exports/ingest_all.py",
+      "mode": "100644",
+      "git_blob": "829d1b954f7867a713d3417c8a5809e1bd856fa0",
+      "bytes": 2301,
+      "sha256": "097b65e25e9f097ca4f00d70aa9df10aa33aa190c25033ae567665d760980c2b"
+    },
+    {
+      "path": "tools/historical_exports/scratch_export_csv.py",
+      "mode": "100644",
+      "git_blob": "8b2ab8539b33bf4f0ddc719191e89b3fab42b7e5",
+      "bytes": 2099,
+      "sha256": "e6130a8c474e1b4dd75a143e8a3c29532687f29b1caa5cc15c91fe28689461c7"
+    },
+    {
+      "path": "username_comment_trace.py",
+      "mode": "100644",
+      "git_blob": "64000a49903b6c14156ce286deb6d6b013b0cc6a",
+      "bytes": 2458,
+      "sha256": "66d75af4fec12ff46e6438c19b5cc4b9c660ecc4b0121904b61e5e5d828af5c2"
+    }
+  ],
+  "excluded_untracked_paths": [
+    "auth_block.txt",
+    "batch_pulse.py",
+    "batch_pulse2.py",
+    "batch_pulse_topic.py",
+    "batch_pulse_topic2.py",
+    "batch_pulse_topic3.py",
+    "batch_pulse_topic4.py",
+    "captions_dump.txt",
+    "check_cols.py",
+    "check_sqlite.py",
+    "debug_verify.txt",
+    "docs/contracts/AUDIO_ARCHIVE (1).md",
+    "docs/verification/ENGAGE_2026-09-07.md",
+    "docs/verification/ENGAGE_LIVE_GUITAR_KADEN_2026-09-08.md",
+    "dump_captions.py",
+    "extract_handles.py",
+    "extract_handles_json.py",
+    "extract_hashtags_db.py",
+    "extract_keywords.py",
+    "final_verify_out.txt",
+    "find_all_runs.py",
+    "find_runs.py",
+    "fix_master_db_path.py",
+    "fix_master_foreign_keys.py",
+    "fix_master_source_id.py",
+    "fix_master_sources.py",
+    "run_all_audits.py",
+    "run_new_audits.py",
+    "scan_progress.txt",
+    "scratch_search.py",
+    "scratch_verify.py",
+    "summarized_posts.txt",
+    "verify_runs_output.txt"
+  ],
+  "exclusion_policy": "docs/contracts/SOURCE_SCOPE.md",
+  "validation": {
+    "syntax_parsed_python_files": 255,
+    "unit_tests_from_prior_analysis": {
+      "passed": 486,
+      "seconds": 158.47,
+      "scope": "tests/unit",
+      "full_suite_verified": false
+    },
+    "source_secret_pattern_scan": "Reviewed 11 matches: documentation placeholders and synthetic test fixtures; no credential-bearing input was intentionally selected."
+  },
+  "limitations": [
+    "This source snapshot preserves current behavior, including issues reported in the folder analysis; no corrective implementation changes applied.",
+    "Runtime SQLite databases, credentials, browser state, media, raw comments and publication receipts are excluded.",
+    "The configured origin was verified public at backup time; local backup does not authorize public publication."
+  ]
+}

@@ -758,6 +758,18 @@ def finalize_content_record(
     if transcript_status not in {"", "ok", "unavailable", "disabled"}:
         quality_flags.append("transcript_collection_error")
 
+    social_music_evidence: dict[str, Any] = {}
+    if platform in {"tiktok", "instagram", "facebook", "x", "youtube"}:
+        from .social_music_projection import social_music_evidence_from_record
+
+        music_source_record = dict(output)
+        music_source_record["platform"] = platform
+        music_source_record["observed_at"] = observed_at
+        social_music_evidence = social_music_evidence_from_record(
+            music_source_record,
+            platform=platform,
+        )
+
     evidence = {
         "schema_version": RAW_SCHEMA_VERSION,
         "observed_at": observed_at,
@@ -795,6 +807,15 @@ def finalize_content_record(
             "music_id": _text(output.get("music_id")),
             "music_title": _text(output.get("music_title")),
             "music_author": _text(output.get("music_author")),
+            "music_album": _text(output.get("music_album")),
+            "music_audio_type": _text(
+                output.get("music_audio_type") or output.get("media_audio_type")
+            ),
+            "music_metadata_attempted": output.get("music_metadata_attempted"),
+            "music_metadata_status": _text(output.get("music_metadata_status")),
+            "music_metadata_source": _text(output.get("music_metadata_source")),
+            "music_metadata_authority": _text(output.get("music_metadata_authority")),
+            "music_metadata_access_scope": _text(output.get("music_metadata_access_scope")),
             "content_location_id": _text(output.get("content_location_id")),
             "content_location_name": _text(output.get("content_location_name")),
             "content_location_latitude": output.get("content_location_latitude"),
@@ -804,6 +825,7 @@ def finalize_content_record(
             "category": _text(output.get("category")),
             "is_live_content": output.get("is_live_content"),
         },
+        "social_music": social_music_evidence,
         "engagement_snapshot": engagement,
         "metric_availability": metric_availability,
         "source_provenance": source_provenance,
@@ -823,6 +845,7 @@ def finalize_content_record(
     output["field_availability"] = field_availability
     output["analysis_readiness"] = analysis_readiness
     output["quality_flags"] = quality_flags
+    output["social_music_evidence"] = social_music_evidence
     output["brief_evidence"] = evidence
     return output
 

@@ -11,7 +11,20 @@ venv/
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+*.p12
+*.pfx
 *storage_state*.json
+**/*cookie*.json
+**/*token*.json
+**/*credential*.json
+**/client_secret*.json
+**/playwright/.auth/
+**/browser_data/
+**/edge_user_data/
+**/User Data/
+**/Profile 7/
 tiktok_scraper/data/tiktok_cookies.json
 tiktok_scraper/data/tiktok_tokens.json
 metrics_tiktok_scraper/data/tiktok_cookies.json
@@ -31,10 +44,17 @@ FINAL_OUTPUT_SUNFLOWER/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+*.sqlite3
+*.sqlite-journal
+*.sqlite3-journal
 *.db
 *.db-shm
 *.db-wal
+*.db-journal
+*.aesgcm
+*.aesgcm.json
 *.log
+/*.err
 evidence_packet_*.json
 analysis_results.jsonl
 latest_queue.json
@@ -42,20 +62,38 @@ all_known_users.json
 operasi_pesta_copet_users.json
 test_payload_*.json
 test_payload_*.html
+/diff.txt
+/anchors.json
+/candidates.json
+/charli_pulse*.json
+/gkps_channels.json
+/my_mock.json
+/sample.json
+/*.csv
+/tests/*.csv
+/tests/*music_audit_results*.json
+/tests/*_audit_results*.json
+/tests/*_audit/
 
 # Workspace-local scratch, tool caches, and generated queues
 .wrangler/
-scratch/
 tmp/
+/tmp*/
 logs/
+/local_artifacts/*
+!/local_artifacts/README.md
+/legacy/compiler_variants/
+/legacy/misc_one_offs/
+/legacy/one_off_state_mutators/
+/legacy/scraper_experiments/
 /*.jsonl
 /tmp_*.json
 /*.html
 /*.pdf
 /*.png
 /*.sql
-/*.bak
-/*.original
+*.bak
+*.original
 *.pid
 db_check.txt
 fb_names_debug.txt
@@ -65,6 +103,33 @@ tiktok_dom_dump.html
 standalone_page.html
 standalone_headed*.png
 standalone_page.png
+
+# Transient media and SONIC/provider artifacts
+*.wav
+*.mp3
+*.m4a
+*.aac
+*.flac
+*.ogg
+*.mp4
+*.mov
+*.webm
+*.mkv
+*.mid
+*.midi
+*.musicxml
+*.mxl
+*.npy
+*.npz
+
+# Test and packaging output
+.coverage
+coverage.xml
+htmlcov/
+junit*.xml
+build/
+dist/
+*.egg-info/
 
 # Local editor and OS files
 .vscode/
