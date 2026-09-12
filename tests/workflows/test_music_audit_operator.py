@@ -29,7 +29,7 @@ sys.modules[SPEC.name] = operator
 SPEC.loader.exec_module(operator)
 
 
-def terminal_record(post_id: str) -> dict:
+def terminal_record(post_id: str, *, music_catalogs=()) -> dict:
     record = {
         "id": post_id,
         "url": f"https://www.tiktok.com/@maker/video/{post_id}",
@@ -64,8 +64,8 @@ def terminal_record(post_id: str) -> dict:
     )
     record["music_evidence"] = engage.build_music_evidence(
         record,
-        configured_catalogs=("musicbrainz",),
-        musicbrainz_result=musicbrainz,
+        configured_catalogs=music_catalogs,
+        musicbrainz_result=musicbrainz if "musicbrainz" in music_catalogs else None,
     )
     return record
 
@@ -101,17 +101,17 @@ class ReplacementCollector:
     ):
         assert tuple(existing_post_ids) == ()
         assert initial_evidence_ready_count == 0
-        assert tuple(music_catalogs) == ("musicbrainz",)
+        assert tuple(music_catalogs) in ((), ("musicbrainz",))
         records = []
         for post_id in ("101", "102", "103"):
-            record = terminal_record(post_id)
+            record = terminal_record(post_id, music_catalogs=music_catalogs)
             record["topic_relevance_required"] = True
             record["topic_relevance"] = {"decision": "review"}
             assert candidate_reserver is not None
             assert candidate_reserver(post_id, record)
             record_callback(record)
             records.append(record)
-        accepted = terminal_record("104")
+        accepted = terminal_record("104", music_catalogs=music_catalogs)
         accepted["topic_relevance_required"] = True
         accepted["topic_relevance"] = {"decision": "accept"}
         assert candidate_reserver("104", accepted)
@@ -147,8 +147,8 @@ class DirectCollector:
         assert tuple(refresh_candidates) == ()
         assert source_mode == "url"
         assert direct_post_url == "https://www.tiktok.com/@maker/video/123"
-        assert tuple(music_catalogs) == ("musicbrainz",)
-        record = terminal_record("123")
+        assert tuple(music_catalogs) in ((), ("musicbrainz",))
+        record = terminal_record("123", music_catalogs=music_catalogs)
         assert candidate_reserver is not None
         assert candidate_reserver("123", record)
         assert record_callback(record) is True
@@ -189,8 +189,8 @@ class CreatorCollector:
         assert tuple(creator_inventory) == ()
         assert creator_inventory_terminal is False
         assert tuple(creator_selected_post_ids) == ()
-        assert tuple(music_catalogs) == ("musicbrainz",)
-        record = terminal_record("201")
+        assert tuple(music_catalogs) in ((), ("musicbrainz",))
+        record = terminal_record("201", music_catalogs=music_catalogs)
         assert creator_inventory_callback is not None
         assert (
             creator_inventory_callback(
@@ -213,7 +213,7 @@ class CreatorCollector:
 
 
 @pytest.fixture
-def completed_operator_run(tmp_path):
+def completed_operator_run(tmp_path, request):
     paths = operator.OperatorPaths(
         workspace=tmp_path.resolve(),
         python=operator.REQUIRED_PYTHON.resolve(),
@@ -245,6 +245,13 @@ def completed_operator_run(tmp_path):
         args=args,
         paths=paths,
     )
+    assert handoff["intent"]["music_catalogs"] == list(engage.DEFAULT_MUSIC_CATALOGS) == []
+    assert "--music-catalog" not in operator.build_start_arguments(handoff)
+    if getattr(request, "param", ()):
+        # Construct a pre-retirement fixture before any durable run/ledger exists.
+        handoff["intent"]["music_catalogs"] = list(request.param)
+        handoff["intent_hash"] = operator.json_hash(handoff["intent"])
+        operator.write_handoff(handoff_path, handoff)
     assert handoff["topic_query_policy"] == "exact"
     assert handoff["intent"]["topic_query_policy"] == "exact"
     database = Path(handoff["database"])
@@ -256,7 +263,7 @@ def completed_operator_run(tmp_path):
     try:
         run_id = engage.create_run(
             conn,
-            music_catalogs=("musicbrainz",),
+            music_catalogs=tuple(handoff["intent"]["music_catalogs"]),
             project="operator_test",
             topic="music",
             requested_count=1,
@@ -347,7 +354,7 @@ def blocked_operator_run(tmp_path):
     try:
         run_id = engage.create_run(
             conn,
-            music_catalogs=("musicbrainz",),
+            music_catalogs=tuple(handoff["intent"]["music_catalogs"]),
             project="operator_blocked_test",
             topic="music",
             requested_count=1,
@@ -444,7 +451,7 @@ def completed_direct_operator_run(tmp_path):
     try:
         run_id = engage.create_run(
             conn,
-            music_catalogs=("musicbrainz",),
+            music_catalogs=tuple(handoff["intent"]["music_catalogs"]),
             project="operator_direct_test",
             topic="",
             requested_count=1,
@@ -533,7 +540,7 @@ def completed_creator_operator_run(tmp_path):
     try:
         run_id = engage.create_run(
             conn,
-            music_catalogs=("musicbrainz",),
+            music_catalogs=tuple(handoff["intent"]["music_catalogs"]),
             project="operator_creator_test",
             topic="creator:@maker",
             requested_count=1,
@@ -637,7 +644,7 @@ def refresh_selection_run(tmp_path):
     try:
         run_id = engage.create_run(
             conn,
-            music_catalogs=("musicbrainz",),
+            music_catalogs=tuple(handoff["intent"]["music_catalogs"]),
             project="operator_refresh_binding_test",
             topic="music",
             requested_count=1,
@@ -820,6 +827,55 @@ def test_completed_validation_accepts_replacement_candidate_history(
     ) in markdown
     assert review["ai_actions"] == []
     assert review["outbound_actions"] == []
+
+
+@pytest.mark.parametrize(
+    "completed_operator_run", [(), ("musicbrainz",)], indirect=True
+)
+def test_catalog_scope_survives_offline_validation_and_child_commands(
+    completed_operator_run,
+):
+    paths, handoff_path, handoff = completed_operator_run
+    frozen_catalogs = handoff["intent"]["music_catalogs"]
+    protected = [handoff_path, Path(handoff["export_file"]), Path(handoff["database"])]
+    before = {path: path.read_bytes() for path in protected}
+    loaded = operator.load_handoff(handoff_path, paths)
+    review = operator.validate_completed_artifacts(loaded, paths=paths)
+
+    assert review["task_outcome"] == "COMPLETE"
+    assert review["offline_validation"] is True
+    assert review["posts"][0]["music"]["catalogs"] == {
+        provider: "unsupported" for provider in frozen_catalogs
+    }
+    assert loaded["intent"]["music_catalogs"] == frozen_catalogs
+    assert loaded["intent_hash"] == handoff["intent_hash"]
+    argv = operator.build_start_arguments(loaded)
+    assert [argv[index + 1] for index, value in enumerate(argv) if value == "--music-catalog"] == frozen_catalogs
+    assert "--music-catalog" not in operator.build_resume_arguments(loaded)
+    assert {path: path.read_bytes() for path in protected} == before
+
+
+@pytest.mark.parametrize("invalid_scope", [None, "", {}])
+def test_empty_catalog_support_still_requires_explicit_list_scope(invalid_scope):
+    packet = terminal_record("123")
+    music = packet["music_evidence"]
+    music["configured_catalogs"] = invalid_scope
+    music["music_evidence_hash"] = operator.json_hash(
+        operator._without_hash(music, "music_evidence_hash")
+    )
+    with pytest.raises(operator.OperatorError, match="music catalog scope is missing"):
+        operator._validate_music(packet, engage)
+
+
+def test_empty_catalog_support_still_requires_terminal_apple_outcome():
+    packet = terminal_record("123")
+    music = packet["music_evidence"]
+    music["tt2dsp_resolution"]["status"] = "pending"
+    music["music_evidence_hash"] = operator.json_hash(
+        operator._without_hash(music, "music_evidence_hash")
+    )
+    with pytest.raises(operator.OperatorError, match="tt2dsp resolution outcome is not terminal"):
+        operator._validate_music(packet, engage)
 
 
 def test_legacy_project_layout_remains_fixed_for_existing_handoffs(tmp_path):

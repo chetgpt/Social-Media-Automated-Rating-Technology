@@ -2427,6 +2427,8 @@ def build_start_arguments(
         result.extend(("--max-pages", str(int(intent["max_pages"]))))
     if handoff.get("expected_account"):
         result.extend(("--expected-account", str(handoff["expected_account"])))
+    for catalog in intent.get("music_catalogs") or ():
+        result.extend(("--music-catalog", str(catalog)))
     refresh_stale_before = str(intent.get("refresh_stale_before") or "")
     if refresh_stale_before:
         result.extend(("--refresh-stale-before", refresh_stale_before))
@@ -2534,7 +2536,7 @@ def new_handoff(
         "max_comments": int(args.max_comments),
         "max_pages": int(args.max_pages or 0),
         "resolved_max_pages": int(args.resolved_max_pages),
-        "music_catalogs": ["musicbrainz"],
+        "music_catalogs": [],
         "refresh_stale_before": str(args.refresh_stale_before or ""),
         "refresh_post_ids": [str(value) for value in args.refresh_post_id or ()],
         "expected_account": str(args.expected_account or "").strip().lstrip("@"),
@@ -2738,7 +2740,7 @@ def _validate_music(packet: Mapping[str, Any], engage_module: Any) -> dict[str, 
         raise OperatorError("tt2dsp resolution outcome is not terminal")
     configured = music.get("configured_catalogs")
     catalogs = music.get("catalogs")
-    if not isinstance(configured, list) or not configured:
+    if not isinstance(configured, list):
         raise OperatorError("music catalog scope is missing")
     if not isinstance(catalogs, Mapping):
         raise OperatorError("music catalog outcomes are missing")
