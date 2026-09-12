@@ -449,6 +449,7 @@ def _fresh_child_command(
     social_browser_state: Path,
     browser_startup_timeout: float,
     expected_account: str,
+    music_catalogs: Sequence[str],
 ) -> list[str]:
     normalized = engage_tiktok.normalize_direct_post_target(canonical_url)
     if normalized["content_type"] != "video":
@@ -473,13 +474,13 @@ def _fresh_child_command(
         "1",
         "--collection-policy",
         "new_only",
-        "--music-catalog",
-        "musicbrainz",
         "--social-browser-state",
         str(social_browser_state),
         "--browser-startup-timeout",
         str(browser_startup_timeout),
     ]
+    for catalog in music_catalogs:
+        command.extend(["--music-catalog", catalog])
     if expected_account:
         command.extend(["--expected-account", expected_account])
     return command
@@ -745,7 +746,7 @@ def _listen_settings(
         "max_comments": _positive_int(
             100 if max_comments is None else max_comments, "max_comments"
         ),
-        "music_catalogs": ["musicbrainz"],
+        "music_catalogs": list(engage_tiktok.DEFAULT_MUSIC_CATALOGS),
         "social_browser_state": str(browser_state),
         "browser_startup_timeout": _timeout(
             browser_startup_timeout
@@ -991,6 +992,7 @@ def run_listen(
                         social_browser_state=browser_state,
                         browser_startup_timeout=timeout,
                         expected_account=active_expected,
+                        music_catalogs=settings["music_catalogs"],
                     )
                 exit_code, payload = _execute_child(command)
                 recovered = _lookup_child(

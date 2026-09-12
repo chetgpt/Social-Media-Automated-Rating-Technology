@@ -256,6 +256,7 @@ def completed_operator_run(tmp_path):
     try:
         run_id = engage.create_run(
             conn,
+            music_catalogs=("musicbrainz",),
             project="operator_test",
             topic="music",
             requested_count=1,
@@ -346,6 +347,7 @@ def blocked_operator_run(tmp_path):
     try:
         run_id = engage.create_run(
             conn,
+            music_catalogs=("musicbrainz",),
             project="operator_blocked_test",
             topic="music",
             requested_count=1,
@@ -442,6 +444,7 @@ def completed_direct_operator_run(tmp_path):
     try:
         run_id = engage.create_run(
             conn,
+            music_catalogs=("musicbrainz",),
             project="operator_direct_test",
             topic="",
             requested_count=1,
@@ -530,6 +533,7 @@ def completed_creator_operator_run(tmp_path):
     try:
         run_id = engage.create_run(
             conn,
+            music_catalogs=("musicbrainz",),
             project="operator_creator_test",
             topic="creator:@maker",
             requested_count=1,
@@ -633,6 +637,7 @@ def refresh_selection_run(tmp_path):
     try:
         run_id = engage.create_run(
             conn,
+            music_catalogs=("musicbrainz",),
             project="operator_refresh_binding_test",
             topic="music",
             requested_count=1,

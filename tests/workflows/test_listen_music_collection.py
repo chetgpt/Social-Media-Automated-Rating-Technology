@@ -191,7 +191,7 @@ def test_tiktok_dsp_linkage_is_partial_contained_track_status():
     assert "MUST_NOT_SURVIVE" not in json.dumps(music)
 
 
-def test_musicbrainz_uses_contained_track_instead_of_original_sound():
+def test_retirement_result_binds_contained_track_without_provider_request():
     captured = []
 
     class CapturingAdapter:
@@ -226,13 +226,13 @@ def test_musicbrainz_uses_contained_track_instead_of_original_sound():
     music = asyncio.run(
         collector._enrich_music(
             record,
-            DEFAULT_MUSIC_CATALOGS,
+            ("musicbrainz",),
             request_slot_reserver=lambda _provider, _interval: 0.0,
         )
     )
 
-    assert captured == [
-        {
+    assert captured == []
+    assert music["catalogs"]["musicbrainz"]["result"]["platform_audio"] == {
             "music_id": "recording-1",
             "title": "Contained Song",
             "author": "Contained Artist",
@@ -240,7 +240,6 @@ def test_musicbrainz_uses_contained_track_instead_of_original_sound():
             "duration_ms": 209680,
             "isrc": "",
         }
-    ]
     assert music["schema_version"] == "tiktok-music-evidence-v3"
     assert music["platform_contained_recording"]["status"] == "available"
     assert music["catalogs"]["musicbrainz"]["input_basis"] == (
@@ -248,7 +247,7 @@ def test_musicbrainz_uses_contained_track_instead_of_original_sound():
     )
 
 
-def test_tt2dsp_apple_resolution_feeds_musicbrainz_without_overwriting_tiktok():
+def test_apple_lookup_retains_pacing_and_provenance_after_musicbrainz_retirement():
     captured_audio = []
     reserved_providers = []
 
@@ -322,16 +321,16 @@ def test_tt2dsp_apple_resolution_feeds_musicbrainz_without_overwriting_tiktok():
     music = asyncio.run(
         collector._enrich_music(
             record,
-            DEFAULT_MUSIC_CATALOGS,
+            ("musicbrainz",),
             request_slot_reserver=lambda provider, _interval: (
                 reserved_providers.append(provider) or 0.0
             ),
         )
     )
 
-    assert reserved_providers == ["apple_itunes_lookup", "musicbrainz"]
-    assert captured_audio == [
-        {
+    assert reserved_providers == ["apple_itunes_lookup"]
+    assert captured_audio == []
+    assert music["catalogs"]["musicbrainz"]["result"]["platform_audio"] == {
             "music_id": "1107248959",
             "title": "Hero (feat. Christina Perri)",
             "author": "Cash Cash",
@@ -339,7 +338,6 @@ def test_tt2dsp_apple_resolution_feeds_musicbrainz_without_overwriting_tiktok():
             "duration_ms": 197840,
             "isrc": "",
         }
-    ]
     assert music["platform_contained_recording"]["status"] == "partial"
     assert music["tt2dsp_resolution"]["status"] == "resolved"
     assert music["catalogs"]["musicbrainz"]["input_basis"] == (
@@ -385,14 +383,14 @@ def test_unavailable_platform_music_uses_one_consistent_field_status():
     } == {"unavailable"}
 
 
-def test_provider_failure_is_terminal_and_does_not_block_evidence():
+def test_retirement_ignores_adapter_and_does_not_block_evidence():
     class BrokenAdapter:
         def enrich(self, audio):
             raise RuntimeError("provider unavailable")
 
     record = terminal_record()
     collector = TikTokBrowserCollector(musicbrainz_adapter=BrokenAdapter())
-    music = asyncio.run(collector._enrich_music(record, DEFAULT_MUSIC_CATALOGS))
+    music = asyncio.run(collector._enrich_music(record, ("musicbrainz",)))
     record["music_evidence"] = music
 
     packet, ready, issues = normalize_evidence(record, topic="known")
@@ -400,8 +398,8 @@ def test_provider_failure_is_terminal_and_does_not_block_evidence():
     assert ready is True
     assert issues == []
     result = packet["music_evidence"]["catalogs"]["musicbrainz"]["result"]
-    assert result["status"] == "provider_error"
-    assert result["decision"]["reason"] == "adapter_exception"
+    assert result["status"] == "unsupported"
+    assert result["decision"]["reason"] == "provider_retired"
 
 
 def test_indonesian_original_sound_skips_musicbrainz_request_slot():
@@ -421,17 +419,17 @@ def test_indonesian_original_sound_skips_musicbrainz_request_slot():
     music = asyncio.run(
         collector._enrich_music(
             record,
-            DEFAULT_MUSIC_CATALOGS,
+            ("musicbrainz",),
             request_slot_reserver=unexpected_request_slot,
         )
     )
 
     result = music["catalogs"]["musicbrainz"]["result"]
     assert result["status"] == "unsupported"
-    assert result["decision"]["reason"] == "generic_original_sound"
+    assert result["decision"]["reason"] == "provider_retired"
 
 
-def test_generic_original_sound_remains_unsupported_after_provider_circuit_opens():
+def test_retirement_ignores_prior_provider_circuit_and_cache_state():
     record = terminal_record()
     record.update(
         {
@@ -442,15 +440,24 @@ def test_generic_original_sound_remains_unsupported_after_provider_circuit_opens
     )
     collector = TikTokBrowserCollector()
     collector._musicbrainz_circuit_open = True
+    audio, basis = engage._catalog_audio_input(
+        engage.platform_music_observation(record),
+        engage.platform_contained_recording_observation(record),
+    )
+    cache_key = engage.json_hash({"input_basis": basis, "platform_audio": audio})
+    collector._music_cache[cache_key] = terminal_musicbrainz_result(
+        audio, status="unavailable", reason="historical_cached_failure",
+    )
 
     music = asyncio.run(
-        collector.enrich_music_record(record, DEFAULT_MUSIC_CATALOGS)
+        collector.enrich_music_record(record, ("musicbrainz",))
     )
 
     catalog = music["catalogs"]["musicbrainz"]
     assert catalog["circuit_open"] is False
+    assert catalog["cache_hit"] is False
     assert catalog["status"] == "unsupported"
-    assert catalog["result"]["decision"]["reason"] == "generic_original_sound"
+    assert catalog["result"]["decision"]["reason"] == "provider_retired"
 
 
 @pytest.mark.parametrize(
@@ -489,7 +496,7 @@ def test_direct_url_run_is_listen_only_and_persists_immutable_scope(tmp_path):
         assert row["direct_post_url"] == (
             "https://www.tiktok.com/@maker/video/123"
         )
-        assert json.loads(row["music_catalogs_json"]) == ["musicbrainz"]
+        assert json.loads(row["music_catalogs_json"]) == []
         with pytest.raises(ValueError, match="LISTEN-only"):
             create_run(
                 conn,
@@ -682,7 +689,7 @@ def test_collect_exact_passes_url_and_catalog_scope(tmp_path):
                 "direct_post_url": (
                     "https://www.tiktok.com/@maker/video/123"
                 ),
-                "music_catalogs": ("musicbrainz",),
+                "music_catalogs": (),
             }
         ]
         updated_before = conn.execute(
@@ -774,6 +781,7 @@ def test_checkpoint_requires_terminal_frozen_music_catalog_result(tmp_path):
             workflow="listen",
             source_mode="url",
             direct_post_url="https://www.tiktok.com/@maker/video/123",
+            music_catalogs=("musicbrainz",),
         )
         with pytest.raises(CollectionIncompleteError):
             asyncio.run(

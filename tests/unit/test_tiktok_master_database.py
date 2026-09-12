@@ -735,6 +735,7 @@ def test_music_backfill_is_append_only_and_preserves_master_evidence(tmp_path):
     registered = master.register_music_backfill_run(
         conn,
         run_id="music-backfill-1",
+        configured_catalogs=("musicbrainz",),
         project="legacy music",
         scope_mode="creator",
         scope_value="maker",
@@ -751,6 +752,7 @@ def test_music_backfill_is_append_only_and_preserves_master_evidence(tmp_path):
     assert master.register_music_backfill_run(
         conn,
         run_id="music-backfill-1",
+        configured_catalogs=("musicbrainz",),
         project="legacy music",
         scope_mode="creator",
         scope_value="maker",
@@ -853,6 +855,7 @@ def test_music_backfill_checkpoint_validates_only_its_bound_base_snapshot(
     master.register_music_backfill_run(
         conn,
         run_id="music-checkpoint-scaling",
+        configured_catalogs=("musicbrainz",),
         project="scaling",
         scope_mode="creator",
         scope_value="maker",
@@ -887,6 +890,29 @@ def test_music_backfill_checkpoint_validates_only_its_bound_base_snapshot(
     conn.close()
 
 
+@pytest.mark.parametrize("catalogs", [None, (), ("musicbrainz",)])
+def test_backfill_catalog_defaults_and_legacy_lists_round_trip(tmp_path, catalogs):
+    conn = master.connect_master(tmp_path / "catalog-defaults.sqlite")
+    kwargs = dict(
+        run_id="catalog-defaults", project="synthetic", scope_mode="topic",
+        scope_value="synthetic", target_schema_version="tiktok-music-evidence-v3",
+        retryable_statuses=("unavailable",), candidates=[],
+        created_at="2026-09-10T00:00:00+00:00",
+    )
+    if catalogs is not None:
+        kwargs["configured_catalogs"] = catalogs
+    try:
+        registered = master.register_music_backfill_run(conn, **kwargs)
+        assert registered["configured_catalogs"] == list(catalogs or ())
+        saved = master.get_music_backfill_run(conn, run_id=kwargs["run_id"])
+        repeated = master.register_music_backfill_run(conn, **kwargs)
+        assert repeated["created"] is False
+        assert repeated["run_hash"] == saved["run_hash"] == registered["run_hash"]
+        assert saved["configured_catalogs"] == list(catalogs or ())
+    finally:
+        conn.close()
+
+
 def test_music_backfill_rejects_binding_hash_and_stored_tampering(tmp_path):
     source = tmp_path / "music-tamper.sqlite"
     conn = create_source(source)
@@ -903,6 +929,7 @@ def test_music_backfill_rejects_binding_hash_and_stored_tampering(tmp_path):
     master.register_music_backfill_run(
         conn,
         run_id="music-tamper-run",
+        configured_catalogs=("musicbrainz",),
         project="tamper",
         scope_mode="post_ids",
         scope_value="101",
@@ -974,6 +1001,7 @@ def test_incomplete_music_backfill_can_resume_and_complete(tmp_path):
     master.register_music_backfill_run(
         conn,
         run_id="music-resume-run",
+        configured_catalogs=("musicbrainz",),
         project="resume",
         scope_mode="post_ids",
         scope_value="101",

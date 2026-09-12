@@ -156,7 +156,7 @@ def test_frozen_musicbrainz_backfill_resumes_only_pending_post_with_retired_outc
     music = observations[1]["music_evidence"]
     assert music["configured_catalogs"] == ["musicbrainz"]
     assert music["catalogs"]["musicbrainz"]["status"] == "unsupported"
-    assert music["catalogs"]["musicbrainz"]["error"]["code"] == "provider_retired"
+    assert music["catalogs"]["musicbrainz"]["result"]["error"]["code"] == "provider_retired"
     assert backfill._sanitize_music_evidence(music, expected_catalogs=("musicbrainz",)) == music
 
     # A recorded retirement is terminal at the existing target version, so

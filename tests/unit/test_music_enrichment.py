@@ -1,5 +1,4 @@
 import json
-from urllib.parse import parse_qs, urlparse
 
 import pytest
 
@@ -13,6 +12,10 @@ from tiktok_scraper.music_enrichment import (
     canonical_json,
     canonical_sha256,
     normalize_platform_audio,
+    enrich_musicbrainz,
+    is_generic_original_sound,
+    _base_result,
+    _candidate_projection,
     score_candidate,
     validate_enrichment_document,
     verify_canonical_hash,
@@ -163,106 +166,96 @@ def test_config_builds_identifying_user_agent(config):
     assert config.user_agent == "TikTokEngage/1.0 ( ops@example.test )"
 
 
-@pytest.mark.parametrize(
-    ("title", "is_original"),
-    [
-        ("original sound - chipotle", True),
-        ("suara asli - Omg.Banget", True),
-        ("localized native label unknown to this code", True),
-        ("suara asli - Omg.Banget", None),
-    ],
-)
-def test_generic_original_sound_is_unsupported_without_calling_provider(
-    config, title, is_original
-):
-    transport = FakeTransport(error=AssertionError("transport must not be called"))
-    result = MusicBrainzAdapter(config, transport=transport).enrich(
-        {
-            "music_id": "1",
-            "title": title,
-            "author": "Chipotle",
-            "is_original": is_original,
-            "duration": 12,
-        }
-    )
-
-    assert result["status"] == "unsupported"
-    assert result["decision"]["reason"] == "generic_original_sound"
+@pytest.mark.parametrize("entrypoint", ["adapter", "facade"])
+@pytest.mark.parametrize("audio", [
+    platform_audio(),
+    {"title": "Known"},
+    {},
+    {"title": "suara asli - maker", "author": "maker", "is_original": True},
+])
+def test_retired_entrypoints_never_consult_transport(config, entrypoint, audio):
+    transport = FakeTransport(error=AssertionError("retired provider was contacted"))
+    original = json.loads(json.dumps(audio))
+    if entrypoint == "adapter":
+        result = MusicBrainzAdapter(config, transport=transport).enrich(audio)
+    else:
+        result = enrich_musicbrainz(audio, config=config, transport=transport)
     assert transport.calls == []
-    assert verify_canonical_hash(result)
-
-
-def test_missing_title_or_artist_is_unsupported(config):
-    result = MusicBrainzAdapter(
-        config, transport=FakeTransport(error=AssertionError("no request"))
-    ).enrich({"title": "Known", "duration": 20})
-
+    assert audio == original
     assert result["status"] == "unsupported"
-    assert result["decision"]["missing_fields"] == ["author"]
+    assert result["decision"]["reason"] == "provider_retired"
+    assert result["error"]["code"] == "provider_retired"
+    assert result["candidates"] == []
+    assert result["selected_recording_mbid"] == ""
+    assert result["provider_total_count"] is None
+    assert result["provider_returned_count"] == 0
+    assert result["platform_audio"] == normalize_platform_audio(audio)
+    assert verify_canonical_hash(result)
+    assert validate_enrichment_document(result)
 
 
-def test_adapter_retains_structured_candidates_and_makes_deterministic_match(config):
-    payload = {
-        "count": 2,
-        "recordings": [
-            recording(
-                "6f0d85f5-dbe0-4c53-820c-dc23402af982",
-                isrcs=["USUG12601723"],
-            ),
-            recording(
-                "unrelated",
-                title="Different Song",
-                artist="Different Artist",
-                length=180_000,
-                score=91,
-            ),
-        ],
-    }
-    transport = FakeTransport(response(payload))
-    result = MusicBrainzAdapter(config, transport=transport).enrich(platform_audio())
+@pytest.mark.parametrize("title,is_original", [
+    ("original sound - chipotle", True),
+    ("suara asli - Omg.Banget", True),
+    ("localized native label unknown to this code", True),
+    ("suara asli - Omg.Banget", None),
+])
+def test_historical_generic_original_sound_detection(title, is_original):
+    assert is_generic_original_sound({"title": title, "is_original": is_original})
 
-    assert result["status"] == "matched"
-    assert result["selected_recording_mbid"] == (
-        "6f0d85f5-dbe0-4c53-820c-dc23402af982"
+
+def historical_candidate_result(config, recordings):
+    """Synthetic saved result, using only historical projection and scoring."""
+    audio = normalize_platform_audio(platform_audio())
+    candidates = [_candidate_projection(row, rank=rank)
+                  for rank, row in enumerate(recordings, start=1)]
+    for candidate in candidates:
+        candidate["match"] = score_candidate(audio, candidate)
+    ordered = sorted(candidates, key=lambda row: -row["match"]["score"])
+    top = ordered[0]
+    runner = ordered[1]["match"]["score"] if len(ordered) > 1 else None
+    margin = top["match"]["score"] - runner if runner is not None else top["match"]["score"]
+    matched = top["match"]["eligible"] and margin >= MATCH_POLICY["minimum_margin"]
+    result = _base_result(audio, config)
+    result.update(
+        status="matched" if matched else "ambiguous",
+        provider_total_count=len(candidates), provider_returned_count=len(candidates),
+        retained_candidate_count=len(candidates), candidates=candidates,
+        selected_candidate_rank=top["rank"] if matched else None,
+        selected_recording_mbid=top["recording_mbid"] if matched else "",
+        decision={"top_score": top["match"]["score"], "runner_up_score": runner,
+                  "score_margin": margin, "leading_candidate_rank": top["rank"],
+                  "reason": "matched_policy" if matched else "insufficient_score_margin"},
     )
-    assert result["decision"] == {
-        "top_score": 80,
-        "runner_up_score": 0,
-        "score_margin": 80,
-        "reason": "matched_policy",
-        "leading_candidate_rank": 1,
-    }
+    return bind_canonical_hash(result)
+
+
+def test_historical_structured_candidates_and_match_validate_without_rewriting(config):
+    result = historical_candidate_result(config, [
+        recording("6f0d85f5-dbe0-4c53-820c-dc23402af982", isrcs=["USUG12601723"]),
+        recording("unrelated", title="Different Song", artist="Different Artist",
+                  length=180_000, score=91),
+    ])
+    original = canonical_json(result)
+    assert result["status"] == "matched"
     candidate = result["candidates"][0]
-    assert candidate["recording_mbid"] == "6f0d85f5-dbe0-4c53-820c-dc23402af982"
+    assert candidate["match"]["score"] == 80
     assert candidate["isrcs"] == ["USUG12601723"]
     assert candidate["duration_ms"] == 209_680
     assert candidate["provider_score"] == 100
     assert candidate["releases"][0]["release_mbid"].startswith("release-")
     assert candidate["variant_metadata"]["first_release_date"] == "2026-06-12"
     assert candidate["variant_metadata"]["aliases"][0]["name"] == "Stupid Song"
-    serialized = canonical_json(result)
-    assert "must-not-survive" not in serialized
-    assert "signed.example" not in serialized
-    assert verify_canonical_hash(result)
+    assert "must-not-survive" not in original
+    assert "signed.example" not in original
     assert validate_enrichment_document(result)
-
-    tampered = json.loads(json.dumps(result))
+    assert verify_canonical_hash(result)
+    assert canonical_json(result) == original
+    tampered = json.loads(original)
     tampered["candidates"][0]["match"]["score"] = 99
     tampered = bind_canonical_hash(tampered)
     assert verify_canonical_hash(tampered)
     assert not validate_enrichment_document(tampered)
-
-    call = transport.calls[0]
-    assert call["headers"] == {
-        "Accept": "application/json",
-        "User-Agent": "TikTokEngage/1.0 ( ops@example.test )",
-    }
-    assert call["timeout"] == 7.5
-    query = parse_qs(urlparse(call["url"]).query)
-    assert query["limit"] == ["5"]
-    assert query["fmt"] == ["json"]
-    assert 'recording:"Stupid Song"' in query["query"][0]
-    assert 'artist:"Olivia Rodrigo"' in query["query"][0]
 
 
 def test_optional_isrc_contributes_twenty_points(config):
@@ -303,131 +296,43 @@ def test_title_and_artist_are_required_even_if_isrc_matches():
     assert score["eligible"] is False
 
 
-def test_two_equally_plausible_recording_variants_are_ambiguous(config):
-    transport = FakeTransport(
-        response(
-            {
-                "count": 2,
-                "recordings": [
-                    recording("standard", disambiguation="standard mix"),
-                    recording("atmos", disambiguation="Dolby Atmos mix"),
-                ],
-            }
-        )
-    )
-    result = MusicBrainzAdapter(config, transport=transport).enrich(platform_audio())
-
+def test_historical_equally_plausible_variants_remain_ambiguous(config):
+    result = historical_candidate_result(config, [
+        recording("standard", disambiguation="standard mix"),
+        recording("atmos", disambiguation="Dolby Atmos mix"),
+    ])
+    original = canonical_json(result)
     assert result["status"] == "ambiguous"
     assert result["selected_recording_mbid"] == ""
-    assert result["decision"]["reason"] == "insufficient_score_margin"
     assert result["decision"]["score_margin"] == 0
-    assert [item["recording_mbid"] for item in result["candidates"]] == [
-        "standard",
-        "atmos",
-    ]
+    assert [row["recording_mbid"] for row in result["candidates"]] == ["standard", "atmos"]
+    assert validate_enrichment_document(result)
+    assert canonical_json(result) == original
 
 
-def test_candidate_below_threshold_is_ambiguous_not_not_found(config):
-    transport = FakeTransport(
-        response(
-            {
-                "count": 1,
-                "recordings": [recording("candidate", length=None)],
-            }
-        )
-    )
-    result = MusicBrainzAdapter(config, transport=transport).enrich(platform_audio())
-
-    assert result["status"] == "ambiguous"
-    assert result["decision"]["top_score"] == 75
-    assert result["decision"]["reason"] == "no_candidate_met_match_policy"
+def test_historical_candidate_below_threshold_is_not_eligible():
+    candidate = _candidate_projection(recording("candidate", length=None), rank=1)
+    score = score_candidate(normalize_platform_audio(platform_audio()), candidate)
+    assert score["score"] == 75
+    assert score["eligible"] is False
 
 
-def test_empty_successful_search_is_not_found(config):
-    result = MusicBrainzAdapter(
-        config,
-        transport=FakeTransport(response({"count": 0, "recordings": []})),
-    ).enrich(platform_audio())
-
-    assert result["status"] == "not_found"
-    assert result["provider_total_count"] == 0
-    assert result["error"] is None
-
-
-def test_malformed_recordings_are_provider_error_not_no_match(config):
-    result = MusicBrainzAdapter(
-        config,
-        transport=FakeTransport(
-            response({"count": 1, "recordings": [{"id": "missing-title"}]})
-        ),
-    ).enrich(platform_audio())
-
-    assert result["status"] == "provider_error"
-    assert result["error"]["code"] == "invalid_candidate_schema"
-    assert result["invalid_candidate_count"] == 1
+@pytest.mark.parametrize("status", [
+    "not_found", "unsupported", "unavailable", "rate_limited", "provider_error",
+])
+def test_historical_terminal_results_validate_without_rewriting(config, status):
+    result = _base_result(normalize_platform_audio(platform_audio()), config)
+    result["status"] = status
+    result["decision"]["reason"] = "historical_fixture"
+    result = bind_canonical_hash(result)
+    original = canonical_json(result)
+    assert validate_enrichment_document(result)
+    assert verify_canonical_hash(result)
+    assert canonical_json(result) == original
 
 
-def test_adapter_bounds_candidates_even_if_transport_returns_more(config):
-    recordings = [
-        recording(f"candidate-{number}", title=f"Track {number}")
-        for number in range(8)
-    ]
-    result = MusicBrainzAdapter(
-        config,
-        transport=FakeTransport(response({"count": 30, "recordings": recordings})),
-    ).enrich(platform_audio())
-
-    assert result["provider_returned_count"] == 8
-    assert result["retained_candidate_count"] == 5
-    assert result["provider_results_truncated"] is True
-    assert len(result["candidates"]) == config.candidate_limit
-
-
-def test_rate_limit_is_not_converted_to_no_match(config):
-    result = MusicBrainzAdapter(
-        config,
-        transport=FakeTransport(
-            HTTPResponse(429, b"slow down", {"Retry-After": "3"})
-        ),
-    ).enrich(platform_audio())
-
-    assert result["status"] == "rate_limited"
-    assert result["error"]["retry_after_seconds"] == 3
-    assert result["status"] != "not_found"
-
-
-@pytest.mark.parametrize("status", [400, 500, 503])
-def test_provider_http_errors_are_not_converted_to_no_match(config, status):
-    result = MusicBrainzAdapter(
-        config, transport=FakeTransport(HTTPResponse(status, b"error"))
-    ).enrich(platform_audio())
-
-    assert result["status"] == "provider_error"
-    assert result["error"]["http_status"] == status
-
-
-@pytest.mark.parametrize(
-    ("body", "code"),
-    [(b"not-json", "invalid_json"), (b'{"recordings": {}}', "invalid_schema")],
-)
-def test_invalid_provider_payload_is_provider_error(config, body, code):
-    result = MusicBrainzAdapter(
-        config, transport=FakeTransport(HTTPResponse(200, body))
-    ).enrich(platform_audio())
-
-    assert result["status"] == "provider_error"
-    assert result["error"]["code"] == code
-
-
-@pytest.mark.parametrize("exception", [TimeoutError(), OSError("offline")])
-def test_transport_failures_are_unavailable_not_no_match(config, exception):
-    result = MusicBrainzAdapter(
-        config, transport=FakeTransport(error=exception)
-    ).enrich(platform_audio())
-
-    assert result["status"] == "unavailable"
-    assert result["error"]["code"] == "transport_unavailable"
-    assert result["status"] != "not_found"
+def test_historical_candidate_projection_rejects_malformed_recordings():
+    assert _candidate_projection({"id": "missing-title"}, rank=1) is None
 
 
 def test_canonical_json_and_hash_are_stable_and_tamper_evident():

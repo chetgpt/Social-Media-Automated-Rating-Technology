@@ -3000,8 +3000,8 @@ def _music_backfill_catalogs(values: Iterable[Any]) -> tuple[str, ...]:
             if str(value or "").strip()
         )
     )
-    if not normalized:
-        raise ValueError("at least one music backfill catalog is required")
+    # New runs have no configured catalog provider after MusicBrainz retirement.
+    # Explicit frozen legacy lists remain valid and retain their original hash.
     unsupported = sorted(set(normalized) - MUSIC_BACKFILL_SUPPORTED_CATALOGS)
     if unsupported:
         raise ValueError(
@@ -3438,7 +3438,7 @@ def register_music_backfill_run(
     target_schema_version: str,
     retryable_statuses: Sequence[str],
     candidates: Sequence[dict[str, Any]],
-    configured_catalogs: Sequence[str] = ("musicbrainz",),
+    configured_catalogs: Sequence[str] = (),
     force: bool = False,
     expected_account: str = "",
     observed_account: str = "",

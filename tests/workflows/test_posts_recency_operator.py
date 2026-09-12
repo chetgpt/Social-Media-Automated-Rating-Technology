@@ -140,6 +140,7 @@ def completed_window(tmp_path):
             max_comments=20, max_pages=args.resolved_max_pages, mode="shadow", workflow="listen",
             collection_policy="new_only", source_mode="topic", master_database=str(paths.master_database),
             publication_window=handoff["publication_window"],
+            music_catalogs=("musicbrainz",),
         )
         status = asyncio.run(engage.collect_exact(conn, run_id=run_id, preflight=ReadyPreflight(), collector=WindowCollector()))
         assert status["status"] == "collection_complete"

@@ -1,9 +1,10 @@
-"""Safe, deterministic MusicBrainz enrichment for TikTok audio metadata.
+"""Historical MusicBrainz evidence compatibility and local retirement outcomes.
 
 The collector-facing boundary in this module is intentionally small.  It
-accepts only platform-declared audio identifiers and descriptors, projects a
-bounded MusicBrainz response into a stable schema, and never handles media,
-cookies, access tokens, or lyrics.
+accepts only platform-declared audio identifiers and descriptors and returns
+a terminal retirement result without provider access. Pure projection and
+validation helpers preserve the historical schema. This module never handles
+media, cookies, access tokens, or lyrics.
 
 MusicBrainz search scores are retained as provider evidence but are not used
 as the identity decision.  Identity is decided by the deterministic matcher
@@ -824,8 +825,25 @@ def _finished(result: Mapping[str, Any]) -> dict[str, Any]:
     return bind_canonical_hash(result)
 
 
+def retired_musicbrainz_result(
+    platform_audio: Mapping[str, Any],
+    *,
+    config: MusicBrainzConfig,
+) -> dict[str, Any]:
+    """Keep the historical result schema while recording no provider activity."""
+
+    result = _base_result(normalize_platform_audio(platform_audio), config)
+    result["status"] = "unsupported"
+    result["decision"]["reason"] = "provider_retired"
+    result["error"] = {
+        "code": "provider_retired",
+        "message": "MusicBrainz is retired; no lookup was attempted",
+    }
+    return _finished(result)
+
+
 class MusicBrainzAdapter:
-    """Structured MusicBrainz adapter with an injectable HTTP transport."""
+    """Compatibility adapter for the retired MusicBrainz provider."""
 
     def __init__(
         self,
@@ -839,212 +857,9 @@ class MusicBrainzAdapter:
         )
 
     def enrich(self, platform_audio: Mapping[str, Any]) -> dict[str, Any]:
-        """Search, project, score, and hash one platform audio observation."""
+        """Return the terminal retirement outcome without contacting a provider."""
 
-        audio = normalize_platform_audio(platform_audio)
-        result = _base_result(audio, self.config)
-        if is_generic_original_sound(audio):
-            result.update(
-                status="unsupported",
-                decision={
-                    "top_score": None,
-                    "runner_up_score": None,
-                    "score_margin": None,
-                    "reason": "generic_original_sound",
-                },
-            )
-            return _finished(result)
-        missing_fields = [field for field in ("title", "author") if not audio[field]]
-        if missing_fields:
-            result.update(
-                status="unsupported",
-                decision={
-                    "top_score": None,
-                    "runner_up_score": None,
-                    "score_margin": None,
-                    "reason": "missing_required_title_or_artist",
-                    "missing_fields": missing_fields,
-                },
-            )
-            return _finished(result)
-
-        url = _build_search_url(self.config, audio)
-        try:
-            response = self.transport.get(
-                url,
-                headers={
-                    "Accept": "application/json",
-                    "User-Agent": self.config.user_agent,
-                },
-                timeout=self.config.timeout_seconds,
-            )
-        except ProviderPayloadError:
-            result.update(
-                status="provider_error",
-                error={
-                    "code": "response_too_large",
-                    "message": "MusicBrainz returned an oversized response",
-                },
-            )
-            return _finished(result)
-        except (TimeoutError, OSError, urllib_error.URLError):
-            result.update(
-                status="unavailable",
-                error={
-                    "code": "transport_unavailable",
-                    "message": "MusicBrainz could not be reached",
-                },
-            )
-            return _finished(result)
-
-        if response.status_code == 429:
-            result.update(
-                status="rate_limited",
-                error={
-                    "code": "rate_limited",
-                    "message": "MusicBrainz rate limit was reached",
-                    "retry_after_seconds": _retry_after_seconds(response.headers),
-                },
-            )
-            return _finished(result)
-        if not 200 <= response.status_code < 300:
-            result.update(
-                status="provider_error",
-                error={
-                    "code": "provider_http_error",
-                    "message": "MusicBrainz returned a non-success status",
-                    "http_status": response.status_code,
-                },
-            )
-            return _finished(result)
-        if len(response.body) > self.config.max_response_bytes:
-            result.update(
-                status="provider_error",
-                error={
-                    "code": "response_too_large",
-                    "message": "MusicBrainz returned an oversized response",
-                },
-            )
-            return _finished(result)
-
-        try:
-            payload = json.loads(response.body.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            result.update(
-                status="provider_error",
-                error={
-                    "code": "invalid_json",
-                    "message": "MusicBrainz returned invalid JSON",
-                },
-            )
-            return _finished(result)
-        if not isinstance(payload, Mapping) or not isinstance(
-            payload.get("recordings"), list
-        ):
-            result.update(
-                status="provider_error",
-                error={
-                    "code": "invalid_schema",
-                    "message": "MusicBrainz returned an unexpected response schema",
-                },
-            )
-            return _finished(result)
-
-        recordings = payload["recordings"]
-        provider_total = _safe_int(payload.get("count"))
-        bounded_recordings = recordings[: self.config.candidate_limit]
-        candidates = [
-            candidate
-            for rank, value in enumerate(bounded_recordings, start=1)
-            if (candidate := _candidate_projection(value, rank=rank)) is not None
-        ]
-        invalid_candidate_count = len(bounded_recordings) - len(candidates)
-        for candidate in candidates:
-            candidate["match"] = score_candidate(audio, candidate)
-
-        result.update(
-            provider_total_count=provider_total,
-            provider_returned_count=len(recordings),
-            retained_candidate_count=len(candidates),
-            invalid_candidate_count=invalid_candidate_count,
-            provider_results_truncated=(
-                len(recordings) > self.config.candidate_limit
-                or (
-                    provider_total is not None
-                    and provider_total > self.config.candidate_limit
-                )
-            ),
-            candidates=candidates,
-        )
-        if not candidates and recordings:
-            result.update(
-                status="provider_error",
-                error={
-                    "code": "invalid_candidate_schema",
-                    "message": "MusicBrainz returned no usable recording candidates",
-                },
-                decision={
-                    "top_score": None,
-                    "runner_up_score": None,
-                    "score_margin": None,
-                    "reason": "invalid_recording_candidates",
-                },
-            )
-            return _finished(result)
-        if not candidates:
-            result.update(
-                status="not_found",
-                decision={
-                    "top_score": None,
-                    "runner_up_score": None,
-                    "score_margin": None,
-                    "reason": "no_recording_candidates",
-                },
-            )
-            return _finished(result)
-
-        ordered = sorted(
-            candidates,
-            key=lambda candidate: (
-                -candidate["match"]["score"],
-                -(
-                    candidate["provider_score"]
-                    if candidate["provider_score"] is not None
-                    else -1
-                ),
-                candidate["rank"],
-                candidate["recording_mbid"],
-            ),
-        )
-        top = ordered[0]
-        runner_up_score = ordered[1]["match"]["score"] if len(ordered) > 1 else None
-        margin = (
-            top["match"]["score"] - runner_up_score
-            if runner_up_score is not None
-            else top["match"]["score"]
-        )
-        matched = bool(
-            top["match"]["eligible"]
-            and margin >= MATCH_POLICY["minimum_margin"]
-        )
-        reason = "matched_policy" if matched else (
-            "insufficient_score_margin"
-            if top["match"]["eligible"]
-            else "no_candidate_met_match_policy"
-        )
-        result.update(
-            status="matched" if matched else "ambiguous",
-            selected_candidate_rank=top["rank"] if matched else None,
-            selected_recording_mbid=top["recording_mbid"] if matched else "",
-            decision={
-                "top_score": top["match"]["score"],
-                "runner_up_score": runner_up_score,
-                "score_margin": margin,
-                "reason": reason,
-                "leading_candidate_rank": top["rank"],
-            },
-        )
-        return _finished(result)
+        return retired_musicbrainz_result(platform_audio, config=self.config)
 
 
 def enrich_musicbrainz(
@@ -1053,6 +868,6 @@ def enrich_musicbrainz(
     config: MusicBrainzConfig,
     transport: HTTPTransport | None = None,
 ) -> dict[str, Any]:
-    """Functional facade for one structured MusicBrainz enrichment."""
+    """Compatibility facade returning a local MusicBrainz retirement result."""
 
     return MusicBrainzAdapter(config, transport=transport).enrich(platform_audio)

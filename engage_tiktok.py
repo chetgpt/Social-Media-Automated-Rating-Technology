@@ -53,6 +53,7 @@ from tiktok_scraper.music_enrichment import (
     bind_canonical_hash as bind_music_enrichment_hash,
     is_generic_original_sound,
     normalize_platform_audio,
+    retired_musicbrainz_result,
     validate_enrichment_document,
     verify_canonical_hash as verify_music_enrichment_hash,
 )
@@ -140,8 +141,9 @@ COLLECTION_POLICIES = frozenset({"new_only", "refresh_known"})
 SOURCE_MODES = frozenset({"topic", "creator", "url"})
 CARDINALITY_MODES = frozenset({"fixed", "all"})
 TOPIC_QUERY_POLICIES = frozenset({"exact", "related_variants_v1"})
-DEFAULT_MUSIC_CATALOGS = ("musicbrainz",)
-SUPPORTED_MUSIC_CATALOGS = frozenset(DEFAULT_MUSIC_CATALOGS)
+DEFAULT_MUSIC_CATALOGS: tuple[str, ...] = ()
+# Historical frozen runs retain this provider in their evidence contract.
+SUPPORTED_MUSIC_CATALOGS = frozenset({"musicbrainz"})
 MUSICBRAINZ_MIN_REQUEST_INTERVAL_SECONDS = 1.05
 MUSICBRAINZ_CONFIG = MusicBrainzConfig(
     application_name="SocialMediaRatingTechnology",
@@ -2949,110 +2951,20 @@ class TikTokBrowserCollector:
                 configured_catalogs=catalogs,
                 tt2dsp_resolution=tt2dsp_resolution,
             )
-        audio, input_basis = _catalog_audio_input(
+        audio, _input_basis = _catalog_audio_input(
             platform_music,
             contained_recording,
             tt2dsp_resolution,
         )
-        cache_key = json_hash({"input_basis": input_basis, "platform_audio": audio})
-        cached = self._music_cache.get(cache_key)
-        if cached is not None:
-            return build_music_evidence(
-                record,
-                configured_catalogs=catalogs,
-                tt2dsp_resolution=tt2dsp_resolution,
-                musicbrainz_result=copy.deepcopy(cached),
-                cache_hit=True,
-            )
-
-        # Generic original-sound declarations and inputs without a usable
-        # title/artist are terminal local outcomes.  Resolve them before
-        # consulting the provider circuit so one earlier MusicBrainz failure
-        # cannot incorrectly turn hundreds of non-queryable sounds into
-        # ``unavailable`` results.
-        adapter = self.musicbrainz_adapter or MusicBrainzAdapter(MUSICBRAINZ_CONFIG)
-        needs_request = bool(
-            audio["title"] and audio["author"] and not is_generic_original_sound(audio)
-        )
-        if not needs_request:
-            try:
-                result = await asyncio.to_thread(adapter.enrich, audio)
-            except Exception:
-                result = terminal_musicbrainz_result(
-                    audio,
-                    status="provider_error",
-                    reason="adapter_exception",
-                )
-            self._music_cache[cache_key] = copy.deepcopy(result)
-            return build_music_evidence(
-                record,
-                configured_catalogs=catalogs,
-                tt2dsp_resolution=tt2dsp_resolution,
-                musicbrainz_result=result,
-            )
-
-        if self._musicbrainz_circuit_open:
-            result = terminal_musicbrainz_result(
-                audio,
-                status="unavailable",
-                reason="provider_circuit_open",
-            )
-            return build_music_evidence(
-                record,
-                configured_catalogs=catalogs,
-                tt2dsp_resolution=tt2dsp_resolution,
-                musicbrainz_result=result,
-                circuit_open=True,
-            )
-        if needs_request:
-            wait_seconds = (
-                request_slot_reserver(
-                    "musicbrainz",
-                    MUSICBRAINZ_MIN_REQUEST_INTERVAL_SECONDS,
-                )
-                if request_slot_reserver is not None
-                else MUSICBRAINZ_MIN_REQUEST_INTERVAL_SECONDS
-                - (time.monotonic() - self._music_last_request_at)
-            )
-            if wait_seconds > 0:
-                await asyncio.sleep(wait_seconds)
-            self._music_last_request_at = time.monotonic()
-        try:
-            result = await asyncio.to_thread(adapter.enrich, audio)
-        except Exception:
-            # Provider/library failures are terminal evidence outcomes, not a
-            # reason to discard otherwise complete TikTok evidence.
-            result = terminal_musicbrainz_result(
-                audio,
-                status="provider_error",
-                reason="adapter_exception",
-            )
-        self._music_cache[cache_key] = copy.deepcopy(result)
-        result_status = text(result.get("status")).casefold()
-        if result_status == "rate_limited" and provider_cooldown is not None:
-            error = result.get("error")
-            error = error if isinstance(error, Mapping) else {}
-            retry_after = error.get("retry_after_seconds")
-            try:
-                cooldown_seconds = float(retry_after)
-            except (TypeError, ValueError):
-                cooldown_seconds = 60.0
-            with contextlib.suppress(Exception):
-                provider_cooldown(
-                    "musicbrainz",
-                    max(1.05, min(86_400.0, cooldown_seconds)),
-                )
-        if result_status in {
-            "rate_limited",
-            "unavailable",
-            "provider_error",
-        }:
-            self._musicbrainz_circuit_open = True
+        # Preserve a historical run's frozen provider set, but never consult
+        # a MusicBrainz adapter, cache, circuit, or request scheduler again.
         return build_music_evidence(
             record,
             configured_catalogs=catalogs,
             tt2dsp_resolution=tt2dsp_resolution,
-            musicbrainz_result=result,
+            musicbrainz_result=retired_musicbrainz_result(
+                audio, config=MUSICBRAINZ_CONFIG,
+            ),
         )
 
     async def enrich_music_record(
