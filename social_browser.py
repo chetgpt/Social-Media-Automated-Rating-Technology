@@ -41,6 +41,8 @@ PLATFORM_URLS = {
     "facebook": "https://www.facebook.com/",
     "tiktok": "https://www.tiktok.com/",
     "x": "https://x.com/home",
+    "threads": "https://www.threads.com/",
+    "linkedin": "https://www.linkedin.com/feed/",
 }
 AUTH_COOKIE_RULES = {
     "youtube": {
@@ -62,6 +64,14 @@ AUTH_COOKIE_RULES = {
     "x": {
         "urls": ["https://x.com/", "https://twitter.com/"],
         "required_all": ["auth_token", "ct0"],
+    },
+    "threads": {
+        "urls": ["https://www.threads.com/", "https://www.threads.net/"],
+        "required_all": ["sessionid"],
+    },
+    "linkedin": {
+        "urls": ["https://www.linkedin.com/"],
+        "required_all": ["li_at"],
     },
 }
 
@@ -1465,7 +1475,7 @@ def print_status(payload: dict[str, Any], as_json: bool) -> None:
         f"[STATUS] Designated profile: {profile_label} "
         f"({profile.get('expected_profile_path', '')})"
     )
-    for platform in ("youtube", "instagram", "facebook", "tiktok", "x"):
+    for platform in AUTH_COOKIE_RULES:
         item = (payload.get("platforms") or {}).get(platform) or {}
         label = "logged in" if item.get("authenticated") else "login needed"
         names = ", ".join(item.get("auth_cookie_names_present") or []) or "none"
