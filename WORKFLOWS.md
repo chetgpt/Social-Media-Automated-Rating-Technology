@@ -1,5 +1,9 @@
 # POSTS DISCOVERY and TikTok Evidence Workflows
 
+For explicitly requested Threads or LinkedIn ENGAGE, use the separate
+[Threads-first ENGAGE guide](docs/contracts/THREADS_LINKEDIN_ENGAGE.md).
+The commands below remain the canonical TikTok workflows.
+
 `AGENTS.md` defines the binding workspace contract. This guide shows how to
 operate the three canonical durable modes—LISTEN, AUDIT, and ENGAGE—and the
 separate noncanonical, ephemeral PULSE quick-look mode. `MUSIC AUDIT` is the

@@ -3,6 +3,10 @@
 These documents define isolated or supporting capabilities. `AGENTS.md` at the
 workspace root remains the controlling authority when documents differ.
 
+- [`THREADS_LINKEDIN_ENGAGE.md`](THREADS_LINKEDIN_ENGAGE.md) defines Threads-first
+  official-API collection, built-in AI stages and human-approved replies, plus
+  separate LinkedIn organization ENGAGE.
+
 - [`ENGAGE_CREATOR_MENTIONS.md`](ENGAGE_CREATOR_MENTIONS.md) defines optional
   evidence-grounded creator connections within one ENGAGE topic run, with up to
   two reviewed native mentions in positive-support comments.

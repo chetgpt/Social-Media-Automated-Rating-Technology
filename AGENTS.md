@@ -139,6 +139,40 @@ outbound action. See `docs/contracts/MULTI_TOPIC_MUSIC_AUDIT.md`.
 Treat the shortcuts and gates below as persistent instructions in every task
 opened from this workspace.
 
+## Threads-first and LinkedIn ENGAGE expansion
+
+Explicit Threads requests route to `threads_workflow.py`; explicit LinkedIn
+full ENGAGE requests route to `linkedin_engage.py`. Both use `engage_social.py`
+and the isolated `social_engage/` package under
+`docs/contracts/THREADS_LINKEDIN_ENGAGE.md`. This user-authorized expansion is
+separate from canonical TikTok and the older collection-only LinkedIn runner.
+It adds official-API collection, built-in AI analysis/drafting, independent
+review, exact presentation, one-time explicit human approval and guarded text
+reply/comment publication. It never infers approval from an ENGAGE request.
+
+Threads supports own posts, exact public creator, exact topic, and numeric
+API post-ID scopes. LinkedIn supports administered organization Pages and
+their exact post URNs only. Require the intended account, source and positive
+finite count before live collection. API tokens come only from the process
+environment; never read browser credentials or substitute scraping for API
+permission. No browser preflight applies to these API-only commands. Offline
+AI/state commands do not access either platform.
+
+Default mode is shadow. A user's explicit request for LIVE can use
+`request-live` on a reviewed post, which preserves the original collection
+scope and requires fresh exact presentation/approval. This is intent, not
+authorization. Never fabricate AI stage results, independent reviewer IDs,
+presentation or `authorize --approved`. Show the complete exact output to the
+user before recording approval. An uncertain publication blocks retry.
+Explicit `refresh` preserves the frozen selection, appends a revision and
+invalidates downstream approvals; it cannot refresh a submitted/uncertain
+post or restore content deleted on request. State and evidence remain outside
+Git. LinkedIn ENGAGE packets and derivatives expire after 48 hours; Threads
+uses a 30-day local retention limit with earlier deletion on request/revocation.
+Music/transcript/acoustic and media-retention capabilities not supplied by
+these adapters remain explicitly unsupported; do not claim TikTok parity.
+Unqualified existing shortcuts remain TikTok-only.
+
 ## Single-operator approval preference
 
 The user has explicitly selected a single-operator approval flow. Do not ask

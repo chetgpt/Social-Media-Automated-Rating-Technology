@@ -1,5 +1,9 @@
 # LinkedIn Page Collection Workflow
 
+This document applies to the preserved `linkedin_workflow.py` collector.
+The separate user-requested [full ENGAGE expansion](THREADS_LINKEDIN_ENGAGE.md)
+uses `linkedin_engage.py`; it does not upgrade or repurpose these saved runs.
+
 `linkedin_workflow.py` is a separate official-API collector for evidence from
 authorized LinkedIn organization Pages. It does not extend the canonical
 TikTok shortcuts, TikTok master registry, Profile 7 browser workflow, or the
