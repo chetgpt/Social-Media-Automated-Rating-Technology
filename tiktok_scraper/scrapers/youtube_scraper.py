@@ -1722,6 +1722,34 @@ class YouTubeScraper(BaseScraper):
             comment_error = str(exc)
             self.logger.warning(f"Could not extract YouTube comments from {video_url}: {exc}")
 
+        # If recent sort returned 0 comments, fallback to top/default comments
+        if not comments and not comment_limit_reached:
+            try:
+                generator = downloader.get_comments_from_url(video_url)
+                count = 0
+                for comment in generator:
+                    comments.append({
+                        "author": comment.get("author", ""),
+                        "author_id": comment.get("channel", ""),
+                        "text": comment.get("text", ""),
+                        "likes_text": str(comment.get("votes", "0")),
+                        "time": comment.get("time", ""),
+                        "platform": "youtube",
+                        "video_id": video_data.get("video_id"),
+                        "comment_id": comment.get("cid", ""),
+                        "reply_count": comment.get("replies", 0),
+                        "is_reply": bool(comment.get("reply", False)),
+                    })
+                    count += 1
+                    if max_comments and max_comments > 0 and count >= max_comments:
+                        comment_limit_reached = True
+                        break
+                else:
+                    comment_iteration_completed = True
+            except Exception as exc2:
+                if not comment_error:
+                    comment_error = str(exc2)
+
         return {
             "video_id": video_data.get("video_id"),
             "url": video_url,

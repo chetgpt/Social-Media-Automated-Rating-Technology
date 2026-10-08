@@ -1,4 +1,12 @@
-# LinkedIn Page Collection Workflow
+# Legacy LinkedIn Page Collection Workflow — linkedin_workflow.py only
+
+**Scope of this document:** only the older `linkedin_workflow.py` official-API
+Page collector. New LinkedIn LISTEN, MUSIC AUDIT, AUDIT and ENGAGE SHADOW requests
+use [`linkedin_engage.py`](../../linkedin_engage.py), the logged-in Edge Profile 7,
+and the [LinkedIn skill](../../.agents/skills/linkedin-engage/SKILL.md). Its browser
+transport requires no OAuth app/token and can perform offline AI stages. Only
+its unfinished browser publisher is disabled. The restrictions below must not
+be applied to that separate expansion.
 
 `linkedin_workflow.py` is a separate official-API collector for evidence from
 authorized LinkedIn organization Pages. It does not extend the canonical
@@ -7,7 +15,7 @@ platform-neutral social-music importer.
 
 ## Closed capability boundary
 
-LinkedIn supports two durable state labels, both with the same current stopping
+This legacy collector supports two durable state labels, both with the same current stopping
 boundary:
 
 | Stored workflow | Current behavior |
@@ -16,7 +24,7 @@ boundary:
 | `engage` | collect and retain authorized organization evidence, then stop |
 
 Both report `publication_enabled=false` and `external_ai_enabled=false`.
-LinkedIn `engage` does not analyze, draft, review, approve, authorize, or
+Legacy `linkedin_workflow.py --workflow engage` does not analyze, draft, review, approve, authorize, or
 publish. The CLI has no export or publication command.
 
 Exactly one source is allowed per run:
@@ -35,12 +43,12 @@ Unsupported surfaces are deliberately absent: topic or hashtag discovery,
 arbitrary-member/profile/feed collection, person-authored posts, `ALL`, URL
 sources, browser scraping, cross-platform export, external or built-in AI,
 drafting, review, approval, authorization, and publication. Unqualified
-`LISTEN:` and `ENGAGE:` chat requests remain TikTok-only; there is no LinkedIn
-chat shortcut in this release.
+`LISTEN:` and `ENGAGE:` chat requests remain TikTok-only; this legacy collector adds no chat shortcut. Explicit LinkedIn requests route
+to the separate browser expansion unless the user names a saved legacy run.
 
 ## Authorization and isolation
 
-Use only LinkedIn's official API and obtain access through a token already
+For `linkedin_workflow.py` only, use LinkedIn's official API and obtain access through a token already
 authorized for the requested organization and API products. The runner reads
 that token only from the process environment variable
 `LINKEDIN_ACCESS_TOKEN`. Never pass it as a CLI argument or put it in a source

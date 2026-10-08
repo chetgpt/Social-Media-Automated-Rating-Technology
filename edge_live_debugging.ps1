@@ -32,6 +32,9 @@ public static class EdgeNativeWindow {
 
     [DllImport("user32.dll")]
     public static extern void SwitchToThisWindow(IntPtr hWnd, bool fUnknown);
+
+    [DllImport("user32.dll")]
+    public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
 }
 "@
 
@@ -192,6 +195,28 @@ function Navigate-ToRemoteDebugging {
     catch {
         # A newly created Edge top-level element can reject UIA focus briefly.
     }
+    try {
+        $editCond = New-Object System.Windows.Automation.PropertyCondition(
+            [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+            [System.Windows.Automation.ControlType]::Edit
+        )
+        $edits = $Window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $editCond)
+        foreach ($edit in $edits) {
+            try {
+                $val = $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
+                if ($null -ne $val) {
+                    $val.SetValue("edge://inspect/#remote-debugging")
+                    [EdgeNativeWindow]::PostMessage($handle, 0x0100, [IntPtr]0x0D, [IntPtr]0x001C0001)
+                    [EdgeNativeWindow]::PostMessage($handle, 0x0102, [IntPtr]0x0D, [IntPtr]0x001C0001)
+                    [EdgeNativeWindow]::PostMessage($handle, 0x0101, [IntPtr]0x0D, [IntPtr]0xC01C0001)
+                    Start-Sleep -Milliseconds 500
+                    return
+                }
+            }
+            catch {}
+        }
+    }
+    catch {}
     $shell = New-Object -ComObject WScript.Shell
     $activated = $shell.AppActivate($Window.Current.ProcessId)
     if (-not $activated) {
@@ -230,6 +255,10 @@ function Wait-ForRemoteDebuggingCheckbox {
     $deadline = [DateTime]::UtcNow.AddSeconds([Math]::Max(1, $TimeoutSeconds))
     do {
         try {
+            $currentWindow = Find-ProfileWindow -PreferredHandle $WindowHandle
+            if ($null -ne $currentWindow) {
+                $Window = $currentWindow
+            }
             $checkbox = Find-RemoteDebuggingCheckbox -Window $Window
             if ($null -ne $checkbox) {
                 return $checkbox
@@ -352,9 +381,17 @@ $before = $toggle.Current.ToggleState.ToString()
 $wantOn = $Command -eq "enable"
 if (($wantOn -and $before -ne "On") -or (-not $wantOn -and $before -eq "On")) {
     $toggle.Toggle()
-    Start-Sleep -Milliseconds 500
+    $toggleDeadline = [DateTime]::UtcNow.AddSeconds(3)
+    do {
+        Start-Sleep -Milliseconds 250
+        $after = $toggle.Current.ToggleState.ToString()
+        if (($wantOn -and $after -eq "On") -or (-not $wantOn -and $after -ne "On")) {
+            break
+        }
+    } while ([DateTime]::UtcNow -lt $toggleDeadline)
+} else {
+    $after = $before
 }
-$after = $toggle.Current.ToggleState.ToString()
 
 $result = @{
     success = ($wantOn -and $after -eq "On") -or (-not $wantOn -and $after -ne "On")

@@ -181,11 +181,18 @@ class TikTokAPIIntegration:
             Dictionary containing cookies
         """
         try:
-            # Get all cookies from the browser - use await properly
-            cookies = await page.context.cookies()
+            # Only extract cookies for tiktok.com to avoid giant headers and cross-domain pollution
+            try:
+                cookies = await page.context.cookies(["https://www.tiktok.com"])
+            except (TypeError, Exception):
+                cookies = await page.context.cookies()
 
-            # Convert cookies list to dictionary
-            cookie_dict = {cookie['name']: cookie['value'] for cookie in cookies}
+            # Convert cookies list to dictionary, filtering to tiktok.com if domain is present
+            cookie_dict = {
+                cookie['name']: cookie['value']
+                for cookie in cookies
+                if "tiktok.com" in cookie.get("domain", "") or not cookie.get("domain")
+            }
 
             if self.persist_session_secrets:
                 with open(self.cookies_file, 'w', encoding='utf-8') as f:

@@ -759,3 +759,19 @@ def test_production_entry_revalidates_profile7_and_never_closes_browser(tmp_path
         for value in instance.last_run_timing.values()
     )
     assert "secret" not in repr(instance.last_run_timing).casefold()
+
+
+def test_audio_conversion_provenance_is_closed_to_known_transcoders():
+    default = sonic._safe_provenance("operator")
+    archive = sonic._safe_provenance(
+        "operator",
+        audio_conversion=sonic.ARCHIVE_M4A_AUDIO_CONVERSION,
+    )
+    assert default["audio_conversion"] == sonic.DEFAULT_AUDIO_CONVERSION
+    assert archive["audio_conversion"] == sonic.ARCHIVE_M4A_AUDIO_CONVERSION
+
+    with pytest.raises(sonic.SonicTransportError, match="provenance_invalid"):
+        sonic._safe_provenance(
+            "operator",
+            audio_conversion="local_ffmpeg_unverified_custom_profile",
+        )

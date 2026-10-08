@@ -164,7 +164,7 @@ def test_structured_secret_values_are_discarded_before_scalar_projection():
             "music_metadata_authority": ["MUSIC_SECRET"],
             "music_metadata_access_scope": memoryview(b"MUSIC_SECRET"),
             "metadata_method": ["MUSIC_SECRET"],
-            "transcript": {"authorization": "Bearer TRANSCRIPT_SECRET"},
+            "transcript": {"authorization": "test_secret_redaction_marker"},
             "transcript_status": "ok",
             "transcript_source": {"token": "TRANSCRIPT_SECRET"},
             "transcript_language": ("TRANSCRIPT_SECRET",),

@@ -134,6 +134,7 @@ def _write_child_run(
     status: str,
     evidence_ready: int,
     observed_account: str = "",
+    music_catalogs: tuple[str, ...] = (),
 ) -> None:
     child_database.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(child_database)
@@ -151,6 +152,7 @@ def _write_child_run(
             direct_post_url=canonical_url,
             master_database=str(master_database.resolve()),
             run_id=run_id,
+            music_catalogs=music_catalogs,
         )
         connection.execute(
             """
@@ -330,6 +332,7 @@ def test_child_commands_are_argument_lists_with_globals_before_subcommands(
         social_browser_state=browser,
         browser_startup_timeout=45.5,
         expected_account="bound.account",
+        music_catalogs=(),
     )
     fresh_subcommand = fresh.index("music-audit")
     assert isinstance(fresh, list)
@@ -340,6 +343,7 @@ def test_child_commands_are_argument_lists_with_globals_before_subcommands(
     assert fresh[fresh.index("--url") + 1] == _video_url(1)
     assert fresh[fresh.index("--posts") + 1] == "1"
     assert fresh[fresh.index("--collection-policy") + 1] == "new_only"
+    assert "--music-catalog" not in fresh
 
     resume = runner._resume_child_command(
         child_run_id="child-run-1",
@@ -495,13 +499,31 @@ def test_fresh_child_success_is_recovered_from_sqlite_and_reconciles_without_dis
         )
 
 
+@pytest.mark.parametrize("music_catalogs", [(), ("musicbrainz",)])
 def test_exit_two_child_is_durable_incomplete_then_resumes_existing_run(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, music_catalogs: tuple[str, ...]
 ) -> None:
     database = tmp_path / "links.sqlite3"
     child = tmp_path / "child.sqlite3"
     master = tmp_path / "master.sqlite3"
     _make_complete_parent(database)
+    if music_catalogs:
+        # Model a parent frozen before retirement, with its child still pending.
+        with TopContentLinkState(database) as state:
+            project, settings = runner._listen_settings(
+                state_status=state.status("parent-run"),
+                run_id="parent-run",
+                project="resume_project",
+                child_database=child,
+                master_database=master,
+                max_comments=None,
+                social_browser_state=None,
+                browser_startup_timeout=None,
+                expected_account=None,
+            )
+            assert settings["music_catalogs"] == []
+            settings["music_catalogs"] = list(music_catalogs)
+            state.initialize_listen_jobs("parent-run", project, settings=settings)
     monkeypatch.setattr(
         runner,
         "_known_snapshot",
@@ -511,6 +533,11 @@ def test_exit_two_child_is_durable_incomplete_then_resumes_existing_run(
 
     def first_dispatch(command: list[str]) -> tuple[int, dict[str, Any]]:
         commands.append(command)
+        assert tuple(
+            command[index + 1]
+            for index, argument in enumerate(command)
+            if argument == "--music-catalog"
+        ) == music_catalogs
         _write_child_run(
             child,
             run_id="child-incomplete-1",
@@ -519,6 +546,7 @@ def test_exit_two_child_is_durable_incomplete_then_resumes_existing_run(
             master_database=master,
             status="collection_incomplete",
             evidence_ready=0,
+            music_catalogs=music_catalogs,
         )
         return 2, {"status": "collection_incomplete"}
 
@@ -538,6 +566,7 @@ def test_exit_two_child_is_durable_incomplete_then_resumes_existing_run(
         commands.append(command)
         assert "resume-collect" in command
         assert "music-audit" not in command
+        assert "--music-catalog" not in command
         assert _command_value(command, "--run-id") == "child-incomplete-1"
         connection = sqlite3.connect(child)
         try:
@@ -564,6 +593,9 @@ def test_exit_two_child_is_durable_incomplete_then_resumes_existing_run(
     assert second["listen_status"] == "listen_complete"
     assert second["jobs"][0]["status"] == "complete"
     assert len(commands) == 2
+    assert second["settings_hash"] == first["settings_hash"]
+    with TopContentLinkState(database) as state:
+        assert state.status("parent-run")["listen_jobs"]["settings"]["music_catalogs"] == list(music_catalogs)
 
 
 def test_multiple_matching_child_rows_fail_closed(

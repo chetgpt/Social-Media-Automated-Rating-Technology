@@ -578,7 +578,10 @@ class _DelayedPanelPage:
             self.phase = 3
 
 
-def test_open_comments_panel_waits_for_delayed_transient_control():
+def test_open_comments_panel_waits_for_delayed_transient_control(monkeypatch):
+    async def no_challenge(*_args, **_kwargs):
+        return None
+    monkeypatch.setattr(recovery.publication_adapter, "ensure_no_challenge", no_challenge)
     page = _DelayedPanelPage()
     result = asyncio.run(
         recovery.publication_adapter.open_comments_panel(

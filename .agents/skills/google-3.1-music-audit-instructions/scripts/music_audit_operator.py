@@ -693,6 +693,149 @@ def _require_equal_path(actual: Any, expected: Path, field: str) -> None:
         raise OperatorError(f"handoff {field} does not match the canonical path")
 
 
+def _publication_module() -> Any:
+    workspace = str(Path(__file__).resolve().parents[4])
+    if workspace not in sys.path:
+        sys.path.insert(0, workspace)
+    from tiktok_scraper import publication_window
+
+    return publication_window
+
+
+def _normalize_publication_window(
+    after: Any = "", before: Any = ""
+) -> dict[str, Any]:
+    try:
+        return _publication_module().normalize_publication_window(after, before)
+    except (TypeError, ValueError) as exc:
+        raise OperatorError(f"invalid publication window: {exc}") from exc
+
+
+def _bound_publication_window(handoff: Mapping[str, Any]) -> dict[str, Any]:
+    """Opt-in only: an absent field preserves every legacy intent/hash shape."""
+    intent = handoff.get("intent")
+    if not isinstance(intent, Mapping):
+        raise OperatorError("MUSIC AUDIT handoff is missing immutable intent")
+    if ("publication_window" in intent) != ("publication_window" in handoff):
+        raise OperatorError("handoff publication window presence drifted from intent")
+    if "publication_window" not in intent:
+        return {}
+    window = intent["publication_window"]
+    if not isinstance(window, Mapping) or not window:
+        raise OperatorError("immutable publication window must be nonempty")
+    canonical = _normalize_publication_window(window.get("start"), window.get("end"))
+    if window != canonical or handoff["publication_window"] != canonical:
+        raise OperatorError("handoff publication window drifted from immutable intent")
+    if (
+        intent.get("source_mode") != "topic"
+        or intent.get("collection_policy") != "new_only"
+        or intent.get("all_posts") is not False
+        or int(intent.get("requested_count") or 0) <= 0
+    ):
+        raise OperatorError("publication window requires finite new_only topic MUSIC AUDIT")
+    return canonical
+
+
+def _run_publication_window(run: Mapping[str, Any]) -> dict[str, Any]:
+    raw = run.get("publication_window_json", "{}")
+    try:
+        window = json.loads(str(raw or "{}"))
+    except (TypeError, ValueError) as exc:
+        raise OperatorError("durable publication window JSON is invalid") from exc
+    if not isinstance(window, Mapping):
+        raise OperatorError("durable publication window must be an object")
+    if not window:
+        return {}
+    canonical = _normalize_publication_window(window.get("start"), window.get("end"))
+    if window != canonical:
+        raise OperatorError("durable publication window is not canonical")
+    return canonical
+
+
+def _require_publication_eligible(
+    packet: Mapping[str, Any], window: Mapping[str, Any], *, origin: str
+) -> str:
+    decision = _publication_module().publication_decision(packet, window)
+    if decision.get("eligible") is not True:
+        raise OperatorError(
+            f"{origin} is outside the publication window: {decision.get('reason', 'unknown')}"
+        )
+    return str(decision["published_at"])
+
+
+def _publication_status_fields(
+    conn: sqlite3.Connection, run: Mapping[str, Any]
+) -> dict[str, Any]:
+    window = _run_publication_window(run)
+    if not window:
+        return {}
+    try:
+        rows = conn.execute(
+            "SELECT reason, COUNT(DISTINCT post_id) AS total "
+            "FROM engage_tiktok_publication_exclusions WHERE run_id=? GROUP BY reason",
+            (run["run_id"],),
+        ).fetchall()
+    except sqlite3.DatabaseError as exc:
+        raise OperatorError("durable publication exclusion ledger is unavailable") from exc
+    return {
+        "publication_window": window,
+        "publication_window_exclusions": {str(row[0]): int(row[1]) for row in rows},
+    }
+
+
+def _verify_publication_creation(
+    conn: sqlite3.Connection, run: Mapping[str, Any]
+) -> None:
+    window = _run_publication_window(run)
+    row = conn.execute(
+        "SELECT payload_json FROM engage_tiktok_events "
+        "WHERE run_id=? AND stage='run' AND event='created' ORDER BY event_id LIMIT 1",
+        (run["run_id"],),
+    ).fetchone()
+    try:
+        original = json.loads(row[0]).get("publication_window", {}) if row else {}
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise OperatorError("immutable publication window creation receipt is invalid") from exc
+    if original != window:
+        raise OperatorError("publication window differs from immutable run creation")
+
+
+def _verified_topic_query_policy(
+    conn: sqlite3.Connection, run: Mapping[str, Any]
+) -> str:
+    """Return the durable policy only when it matches its creation receipt."""
+
+    source_mode = str(run.get("source_mode") or "topic").strip().casefold()
+    if "topic_query_policy" in run:
+        policy = str(run.get("topic_query_policy") or "").strip().casefold()
+    else:
+        # A handoff/database created before the policy column existed must be
+        # inspectable before engage_tiktok.py gets a chance to migrate it.
+        policy = "related_variants_v1" if source_mode == "topic" else "exact"
+    if policy not in {"exact", "related_variants_v1"}:
+        raise OperatorError("durable topic-query policy is invalid")
+    if source_mode != "topic" and policy != "exact":
+        raise OperatorError("non-topic source has a related-query policy")
+    row = conn.execute(
+        "SELECT payload_json FROM engage_tiktok_events "
+        "WHERE run_id=? AND stage='run' AND event='created' "
+        "ORDER BY event_id LIMIT 1",
+        (run["run_id"],),
+    ).fetchone()
+    try:
+        payload = json.loads(row[0]) if row else {}
+    except (ValueError, TypeError) as exc:
+        raise OperatorError("immutable topic-query creation receipt is invalid") from exc
+    if not isinstance(payload, Mapping):
+        raise OperatorError("immutable topic-query creation receipt is invalid")
+    created_policy = str(payload.get("topic_query_policy") or "").strip().casefold()
+    if not created_policy:
+        created_policy = "related_variants_v1" if source_mode == "topic" else "exact"
+    if created_policy != policy:
+        raise OperatorError("topic-query policy differs from immutable run creation")
+    return policy
+
+
 def validate_handoff(
     handoff: Mapping[str, Any],
     *,
@@ -788,6 +931,7 @@ def validate_handoff(
         "requested_count": handoff.get("requested_count"),
         "all_posts": handoff.get("all_posts"),
         "collection_policy": handoff.get("collection_policy"),
+        "topic_query_policy": handoff.get("topic_query_policy"),
         "max_comments": handoff.get("max_comments"),
         "browser_startup_timeout": handoff.get("browser_startup_timeout"),
         "expected_account": handoff.get("expected_account"),
@@ -797,6 +941,7 @@ def validate_handoff(
     for field, actual in intent_bindings.items():
         if intent.get(field) != actual:
             raise OperatorError(f"handoff drifted from immutable intent: {field}")
+    _bound_publication_window(handoff)
     if int(handoff.get("restart_count") or 0) not in {0, 1}:
         raise OperatorError("handoff exceeds the single bounded restart allowance")
     if int(handoff.get("recovery_epoch") or 0) not in {0, 1}:
@@ -1114,11 +1259,14 @@ def executor_compliance_summary(
     if (
         isinstance(intent, Mapping)
         and intent.get("all_posts") is True
-        and int(intent.get("max_pages") or 0) > 0
+        and any(
+            int(intent.get(field) or 0) > 0
+            for field in ("max_pages", "resolved_max_pages")
+        )
     ):
         deviations.append(
-            "Creator ALL used an executor-selected finite page bound; ALL "
-            "requires an uncapped verified terminal creator inventory."
+            "ALL used an executor-selected finite page bound; ALL requires "
+            "an uncapped verified terminal source frontier."
         )
     if any(entry.get("action") == "cancel-restart-handoff" for entry in entries):
         deviations.append(
@@ -1569,22 +1717,25 @@ def durable_local_run_state(handoff: Mapping[str, Any]) -> dict[str, Any]:
     try:
         row = conn.execute(
             """
-            SELECT run_id, project, workflow, source_mode, collection_policy,
-                   status, requested_count, requested, unique_collected,
-                   evidence_ready, analyzed, drafted, reviewed, stored,
-                   authorized, published, skipped, failed, expected_account,
-                   observed_account, cardinality_mode, max_pages,
-                   profile_inventory_terminal, profile_inventory_count,
-                   browser_preflight_json, error
+            SELECT *
             FROM engage_tiktok_runs WHERE run_id=?
             """,
             (run_id,),
         ).fetchone()
+        if row is None:
+            raise OperatorError("durable local workflow run is missing")
+        run = _row_dict(row)
+        if _run_publication_window(run) != _bound_publication_window(handoff):
+            raise OperatorError("durable publication window drifted from immutable intent")
+        _verify_publication_creation(conn, run)
+        run["topic_query_policy"] = _verified_topic_query_policy(conn, run)
+        run.update(_publication_status_fields(conn, run))
+        topic_inventory = _topic_inventory_coverage(conn, run)
+        if topic_inventory:
+            run["topic_inventory"] = topic_inventory
     finally:
         conn.close()
-    if row is None:
-        raise OperatorError("durable local workflow run is missing")
-    return _row_dict(row)
+    return run
 
 
 def durable_local_run_status(handoff: Mapping[str, Any]) -> str:
@@ -1655,6 +1806,9 @@ def durable_progress_snapshot(
             "evidence_ready": 0,
             "unique_collected": 0,
             "failed": 0,
+            "topic_query_policy": str(
+                handoff.get("topic_query_policy") or "unbound"
+            ),
             "latest_event": {},
         }
     run = durable_local_run_state(handoff)
@@ -1674,15 +1828,20 @@ def durable_progress_snapshot(
         phase = (
             "collecting_evidence" if durable_status == "collecting" else durable_status
         )
-    return {
+    result = {
         "phase": phase,
         "durable_status": durable_status,
         "requested": int(run.get("requested") or run.get("requested_count") or 0),
         "evidence_ready": int(run.get("evidence_ready") or 0),
         "unique_collected": int(run.get("unique_collected") or 0),
         "failed": int(run.get("failed") or 0),
+        "topic_query_policy": str(run.get("topic_query_policy") or ""),
         "latest_event": latest,
     }
+    for key in ("publication_window", "publication_window_exclusions", "topic_inventory"):
+        if key in run:
+            result[key] = run[key]
+    return result
 
 
 def _creator_handle_from_target(value: str) -> str:
@@ -1710,11 +1869,24 @@ def validate_run_intent(
         row = conn.execute(
             "SELECT * FROM engage_tiktok_runs WHERE run_id=?", (run_id,)
         ).fetchone()
+        if row is not None:
+            verified_run = _row_dict(row)
+            _verify_publication_creation(conn, verified_run)
+            verified_run["topic_query_policy"] = _verified_topic_query_policy(
+                conn, verified_run
+            )
+            topic_inventory = _topic_inventory_coverage(
+                conn, verified_run, engage_module=_load_engage_module(paths)
+            )
+            if topic_inventory:
+                verified_run["topic_inventory"] = topic_inventory
     finally:
         conn.close()
     if row is None:
         raise OperatorError("immutable MUSIC AUDIT run is missing")
-    run = _row_dict(row)
+    run = verified_run
+    if _run_publication_window(run) != _bound_publication_window(handoff):
+        raise OperatorError("durable publication window drifted from immutable intent")
     exact = {
         "run_id": run_id,
         "project": intent["project"],
@@ -1725,6 +1897,8 @@ def validate_run_intent(
         "max_comments": int(intent["max_comments"]),
         "max_pages": int(intent["resolved_max_pages"]),
     }
+    if intent.get("topic_query_policy"):
+        exact["topic_query_policy"] = str(intent["topic_query_policy"])
     for field, expected in exact.items():
         actual = run.get(field)
         if field in {"max_comments", "max_pages"}:
@@ -1808,11 +1982,13 @@ def status_summary(status: Mapping[str, Any]) -> dict[str, Any]:
         "project",
         "workflow",
         "source_mode",
+        "topic_query_policy",
         "collection_policy",
         "cardinality_mode",
         "max_pages",
         "profile_inventory_terminal",
         "profile_inventory_count",
+        "topic_inventory",
         "status",
         "requested_count",
         "requested",
@@ -1828,6 +2004,8 @@ def status_summary(status: Mapping[str, Any]) -> dict[str, Any]:
         "failed",
         "expected_account",
         "observed_account",
+        "publication_window",
+        "publication_window_exclusions",
     )
     return {key: status.get(key) for key in keys if key in status}
 
@@ -2078,14 +2256,14 @@ def validate_start_scope(args: argparse.Namespace) -> tuple[str, str, int, bool]
     all_posts = bool(args.all_posts)
     posts = int(args.posts or 0)
     if all_posts:
-        if source_mode != "creator" or args.collection_policy != "new_only":
-            raise OperatorError("--all-posts requires a new_only creator source")
+        if source_mode not in {"topic", "creator"} or args.collection_policy != "new_only":
+            raise OperatorError("--all-posts requires a new_only topic or creator source")
         if posts:
             raise OperatorError("do not combine --all-posts and --posts")
         if int(args.max_pages or 0) > 0:
             raise OperatorError(
                 "--all-posts cannot be combined with --max-pages; ALL requires "
-                "an uncapped verified terminal creator frontier"
+                "an uncapped verified terminal source frontier"
             )
     elif posts <= 0:
         raise OperatorError("--posts must be a positive integer")
@@ -2099,6 +2277,13 @@ def validate_start_scope(args: argparse.Namespace) -> tuple[str, str, int, bool]
         raise OperatorError("refresh selectors are invalid under new_only")
     if args.collection_policy == "refresh_known" and all_posts:
         raise OperatorError("refresh_known does not accept --all-posts")
+    window = _normalize_publication_window(
+        getattr(args, "published_after", ""), getattr(args, "published_before", "")
+    )
+    if window and (
+        source_mode != "topic" or args.collection_policy != "new_only" or all_posts
+    ):
+        raise OperatorError("publication window requires finite new_only topic MUSIC AUDIT")
     return source_mode, source_target, posts, all_posts
 
 
@@ -2144,8 +2329,13 @@ def freeze_start_options(
             ) from exc
     args.refresh_post_id = refresh_ids
     args.refresh_stale_before = refresh_stale_before
+    args.publication_window = _normalize_publication_window(
+        getattr(args, "published_after", ""), getattr(args, "published_before", "")
+    )
     supplied_max_pages = int(args.max_pages or 0)
-    if supplied_max_pages:
+    if getattr(args, "all_posts", False):
+        resolved_max_pages = 0
+    elif supplied_max_pages:
         resolved_max_pages = supplied_max_pages
     elif source_mode == "topic":
         resolved_max_pages = max(3, math.ceil(requested_count / 12) * 4)
@@ -2200,6 +2390,10 @@ def refuse_automatic_duplicate_start(
             continue
         if any(intent.get(key) != value for key, value in expected.items()):
             continue
+        if _bound_publication_window(existing) != getattr(
+            args, "publication_window", {}
+        ):
+            continue
         complete = existing.get("state") == "complete"
         if not complete:
             raise OperatorError(
@@ -2214,9 +2408,12 @@ def build_start_arguments(
     intent = handoff.get("intent")
     if not isinstance(intent, Mapping):
         raise OperatorError("MUSIC AUDIT handoff is missing immutable intent")
-    if handoff.get("all_posts") is True and int(intent.get("max_pages") or 0) > 0:
+    if handoff.get("all_posts") is True and any(
+        int(intent.get(field) or 0) > 0
+        for field in ("max_pages", "resolved_max_pages")
+    ):
         raise OperatorError(
-            "guarded creator ALL handoff contains a prohibited finite page bound"
+            "guarded ALL handoff contains a prohibited finite page bound"
         )
     result = [
         "--database",
@@ -2247,6 +2444,8 @@ def build_start_arguments(
         result.extend(("--max-pages", str(int(intent["max_pages"]))))
     if handoff.get("expected_account"):
         result.extend(("--expected-account", str(handoff["expected_account"])))
+    for catalog in intent.get("music_catalogs") or ():
+        result.extend(("--music-catalog", str(catalog)))
     refresh_stale_before = str(intent.get("refresh_stale_before") or "")
     if refresh_stale_before:
         result.extend(("--refresh-stale-before", refresh_stale_before))
@@ -2259,11 +2458,16 @@ def build_start_arguments(
         if not str(post_id).isdigit():
             raise OperatorError("--refresh-post-id must be a numeric TikTok ID")
         result.extend(("--refresh-post-id", str(post_id)))
+    window = _bound_publication_window(handoff)
+    if window:
+        result.extend(
+            ("--published-after", window["start"], "--published-before", window["end"])
+        )
     return result
 
 
 def build_resume_arguments(handoff: Mapping[str, Any]) -> list[str]:
-    return [
+    result = [
         "--database",
         str(handoff["database"]),
         "--master-database",
@@ -2274,6 +2478,12 @@ def build_resume_arguments(handoff: Mapping[str, Any]) -> list[str]:
         "--browser-startup-timeout",
         str(handoff["browser_startup_timeout"]),
     ]
+    window = _bound_publication_window(handoff)
+    if window:
+        result.extend(
+            ("--published-after", window["start"], "--published-before", window["end"])
+        )
+    return result
 
 
 def new_handoff(
@@ -2339,10 +2549,11 @@ def new_handoff(
         "requested_count": requested_count,
         "all_posts": all_posts,
         "collection_policy": args.collection_policy,
+        "topic_query_policy": "exact",
         "max_comments": int(args.max_comments),
         "max_pages": int(args.max_pages or 0),
         "resolved_max_pages": int(args.resolved_max_pages),
-        "music_catalogs": ["musicbrainz"],
+        "music_catalogs": [],
         "refresh_stale_before": str(args.refresh_stale_before or ""),
         "refresh_post_ids": [str(value) for value in args.refresh_post_id or ()],
         "expected_account": str(args.expected_account or "").strip().lstrip("@"),
@@ -2350,6 +2561,11 @@ def new_handoff(
         "database": str(database),
         "master_database": str(paths.master_database),
     }
+    window = _normalize_publication_window(
+        getattr(args, "published_after", ""), getattr(args, "published_before", "")
+    )
+    if window:
+        intent["publication_window"] = window
     handoff: dict[str, Any] = {
         "schema_version": HANDOFF_SCHEMA,
         "workspace": str(paths.workspace),
@@ -2379,6 +2595,7 @@ def new_handoff(
         "requested_count": requested_count,
         "all_posts": all_posts,
         "collection_policy": args.collection_policy,
+        "topic_query_policy": "exact",
         "max_comments": int(args.max_comments),
         "browser_startup_timeout": float(args.browser_startup_timeout),
         "expected_account": str(args.expected_account or "").strip().lstrip("@"),
@@ -2403,6 +2620,9 @@ def new_handoff(
         "updated_at": created,
         "handoff_hash": "",
     }
+    if window:
+        handoff["publication_window"] = window
+    _bound_publication_window(handoff)
     write_handoff(handoff_file, handoff)
     return handoff_file, handoff
 
@@ -2519,6 +2739,10 @@ def _validate_music(packet: Mapping[str, Any], engage_module: Any) -> dict[str, 
         or str(platform.get("status") or "") not in MUSIC_PLATFORM_TERMINAL
     ):
         raise OperatorError("TikTok platform music outcome is not terminal")
+    music_page = engage_module.build_tiktok_music_page_locator(
+        platform.get("music_id"),
+        platform.get("title"),
+    )
     contained = music.get("platform_contained_recording")
     if (
         not isinstance(contained, Mapping)
@@ -2533,7 +2757,7 @@ def _validate_music(packet: Mapping[str, Any], engage_module: Any) -> dict[str, 
         raise OperatorError("tt2dsp resolution outcome is not terminal")
     configured = music.get("configured_catalogs")
     catalogs = music.get("catalogs")
-    if not isinstance(configured, list) or not configured:
+    if not isinstance(configured, list):
         raise OperatorError("music catalog scope is missing")
     if not isinstance(catalogs, Mapping):
         raise OperatorError("music catalog outcomes are missing")
@@ -2596,6 +2820,7 @@ def _validate_music(packet: Mapping[str, Any], engage_module: Any) -> dict[str, 
         )
     return {
         "platform_music": str(platform.get("status") or ""),
+        "music_page": music_page,
         "contained_recording": str(contained.get("status") or ""),
         "tt2dsp_resolution": str(tt2dsp.get("status") or ""),
         "catalogs": catalog_summary,
@@ -2661,7 +2886,7 @@ def _validate_export_row(
         raise OperatorError("evidence provenance is missing")
     _walk_forbidden(row)
     music_summary = _validate_music(packet, engage_module)
-    return {
+    result = {
         "post_id": post_id,
         "creator": creator,
         "url": url,
@@ -2684,6 +2909,12 @@ def _validate_export_row(
         "evidence_hash": evidence_hash,
         "evidence_projection_hash": packet_hash,
     }
+    window = _run_publication_window(run)
+    if window:
+        result["published_at"] = _require_publication_eligible(
+            packet, window, origin=f"exported post {post_id}"
+        )
+    return result
 
 
 def _load_engage_module(paths: OperatorPaths) -> Any:
@@ -2695,6 +2926,31 @@ def _load_engage_module(paths: OperatorPaths) -> Any:
     except Exception as exc:
         raise OperatorError("cannot load canonical evidence validators") from exc
     return engage_tiktok
+
+
+def _topic_inventory_coverage(
+    local: sqlite3.Connection,
+    run: Mapping[str, Any],
+    *,
+    engage_module: Any = None,
+    require_completion: bool = False,
+) -> dict[str, Any]:
+    """Use the engine's proof gates, including for an empty ALL selection."""
+
+    if (
+        str(run.get("source_mode") or "") != "topic"
+        or str(run.get("cardinality_mode") or "") != "all"
+    ):
+        return {}
+    engage_module = engage_module or _load_engage_module(canonical_paths())
+    try:
+        if require_completion or str(run.get("status") or "") == "collection_complete":
+            engage_module._assert_topic_inventory_completion(local, run)
+        elif not engage_module._topic_inventory_unresolved(run):
+            engage_module._assert_topic_inventory_state(run)
+        return dict(engage_module.topic_inventory_coverage(run))
+    except (engage_module.EngageError, ValueError, TypeError, KeyError) as exc:
+        raise OperatorError(f"topic ALL inventory validation failed: {exc}") from exc
 
 
 def _json_array(value: Any, field: str) -> list[Any]:
@@ -2957,6 +3213,13 @@ def validate_completed_artifacts(
         if run_row is None:
             raise OperatorError("local workflow run is missing")
         run = _row_dict(run_row)
+        run.update(_publication_status_fields(local, run))
+        topic_inventory = _topic_inventory_coverage(
+            local, run, engage_module=engage_module, require_completion=True
+        )
+        if topic_inventory:
+            run["topic_inventory"] = topic_inventory
+        publication_window = _run_publication_window(run)
         if (
             run["workflow"] != "listen"
             or run["mode"] != "shadow"
@@ -3033,6 +3296,10 @@ def validate_completed_artifacts(
                 or str(packet.get("post_id") or "") != post_id
             ):
                 raise OperatorError(f"local raw evidence binding failed: {post_id}")
+            if publication_window:
+                _require_publication_eligible(
+                    packet, publication_window, origin=f"local post {post_id}"
+                )
             local_by_post[post_id] = {
                 "evidence_hash": evidence_hash,
                 "evidence_json": packet,
@@ -3184,8 +3451,22 @@ def validate_completed_artifacts(
         export_by_post[post_id] = row
         per_posts.append(summary)
 
+    if publication_window:
+        published = [_parse_iso(str(post["published_at"])) for post in per_posts]
+        if published != sorted(published, reverse=True):
+            raise OperatorError("publication-window export is not newest first")
+
     master = readonly_connect(master_database)
     try:
+        workspace = str(Path(__file__).resolve().parents[4])
+        if workspace not in sys.path:
+            sys.path.insert(0, workspace)
+        from tiktok_scraper.source_identity import SourceIdentityError, resolve_registered_source
+
+        try:
+            source = resolve_registered_source(master, "main", database)
+        except SourceIdentityError as exc:
+            raise OperatorError(str(exc)) from exc
         master_rows = master.execute(
             """
             SELECT r.*, s.database_path
@@ -3198,7 +3479,7 @@ def validate_completed_artifacts(
         matching = [
             row
             for row in master_rows
-            if Path(str(row["database_path"])).resolve() == database
+            if source is not None and row["source_id"] == source["source_id"]
         ]
         if len(matching) != 1:
             raise OperatorError("master registry run binding is missing or ambiguous")
@@ -3358,6 +3639,7 @@ def validate_completed_artifacts(
             "failed_candidate_history_may_be_nonzero": True,
         },
         "creator_inventory": creator_inventory,
+        "topic_inventory": topic_inventory,
         "deviations": deviations,
         "browser_preflight": {
             "reachable": browser.get("reachable"),
@@ -3392,6 +3674,42 @@ def validate_completed_artifacts(
         "outbound_actions": [],
         "final_stopping_reason": "collection_complete_and_export_validated",
     }
+
+
+def _publication_review_lines(review: Mapping[str, Any]) -> list[str]:
+    window = (review.get("intent") or {}).get("publication_window")
+    if not window:
+        return []
+    exclusions = (review.get("status") or {}).get("publication_window_exclusions", {})
+    return [
+        "## Publication window",
+        "",
+        f"- Inclusive start: `{window['start']}`",
+        f"- Exclusive end: `{window['end']}`",
+        "- Evidence order: `published_desc` (among collected eligible posts)",
+        f"- Unique post exclusions by reason: `{canonical_json(exclusions)}`",
+        "- Search coverage: `not_all_matching_TikTok_posts`",
+        "",
+    ]
+
+
+def _topic_inventory_review_lines(review: Mapping[str, Any]) -> list[str]:
+    coverage = review.get("topic_inventory") or (review.get("status") or {}).get(
+        "topic_inventory"
+    )
+    if not isinstance(coverage, Mapping) or not coverage:
+        return []
+    return [
+        "## Topic inventory coverage",
+        "",
+        "- Cardinality: `all`; discovery page bound: `uncapped`",
+        f"- Terminal search frontier verified: `{coverage['terminal_verified']}`",
+        f"- Observed search candidates: `{coverage['inventory_count']}`",
+        f"- Selected new / excluded by new_only: `{coverage['selected_count']}/{coverage['new_only_excluded_count']}`",
+        f"- Relevance exclusions / eligible target: `{coverage['relevance_excluded_count']}/{coverage['eligible_target']}`",
+        f"- Coverage: {coverage['search_scope']}",
+        "",
+    ]
 
 
 def review_markdown(review: Mapping[str, Any]) -> str:
@@ -3432,7 +3750,12 @@ def review_markdown(review: Mapping[str, Any]) -> str:
             f"- Review log: `{output_layout.get('review_log', 'unknown')}`",
             "",
         ]
-        if review["intent"].get("all_posts") is True:
+        lines.extend(_publication_review_lines(review))
+        lines.extend(_topic_inventory_review_lines(review))
+        if (
+            review["intent"].get("all_posts") is True
+            and review["source_mode"] == "creator"
+        ):
             page_bound = int(
                 status.get(
                     "max_pages",
@@ -3478,6 +3801,8 @@ def review_markdown(review: Mapping[str, Any]) -> str:
         f"- Failed candidate history: `{status['failed']}`",
         "",
     ]
+    lines.extend(_publication_review_lines(review))
+    lines.extend(_topic_inventory_review_lines(review))
     creator_inventory = review.get("creator_inventory")
     if isinstance(creator_inventory, Mapping) and creator_inventory:
         page_bound = int(creator_inventory.get("page_bound") or 0)
@@ -3512,6 +3837,18 @@ def review_markdown(review: Mapping[str, Any]) -> str:
         catalogs = ", ".join(
             f"{name}={value}" for name, value in post["music"]["catalogs"].items()
         )
+        music_page = post["music"].get("music_page") or {}
+        music_page_url = str(music_page.get("url") or "")
+        music_page_line = (
+            f"- TikTok sound page: [{music_page_url}]({music_page_url}); "
+            f"locator=`{music_page.get('status')}`; "
+            f"online_verification=`{music_page.get('online_verification')}`"
+            if music_page_url
+            else (
+                "- TikTok sound page: `not_available`; "
+                "online_verification=`not_attempted`"
+            )
+        )
         lines.extend(
             [
                 f"### {post['post_id']} — @{post['creator']}",
@@ -3521,6 +3858,7 @@ def review_markdown(review: Mapping[str, Any]) -> str:
                 f"- Comments/replies: `{post['comments']['comment_and_reply_count']}` represented; complete=`{post['comments']['complete']}`; limit_reached=`{post['comments']['limit_reached']}`",
                 f"- Transcript: `{post['transcript']['status']}`; language=`{post['transcript']['language']}`; segments=`{post['transcript']['segment_count']}`",
                 f"- TikTok music: `{post['music']['platform_music']}`",
+                music_page_line,
                 f"- Contained recording: `{post['music']['contained_recording']}`",
                 f"- tt2dsp: `{post['music']['tt2dsp_resolution']}`",
                 f"- Catalogs: `{catalogs}`",
@@ -3528,6 +3866,8 @@ def review_markdown(review: Mapping[str, Any]) -> str:
                 "",
             ]
         )
+        if post.get("published_at"):
+            lines.extend([f"- Published at: `{post['published_at']}`", ""])
     deviations = list(review.get("deviations") or [])
     if deviations:
         lines.extend(["## Execution deviations", ""])
@@ -3609,6 +3949,7 @@ def write_blocked_review(
             ),
         ),
         "status": handoff.get("last_status") or {},
+        "topic_inventory": (handoff.get("last_status") or {}).get("topic_inventory") or {},
         "blocker": sanitize_error(blocker) or "durable_collection_blocker",
         "next_action": next_action,
         "deviations": [sanitize_error(value) for value in merged_deviations],
@@ -3674,6 +4015,9 @@ def finalize(
     requested = int(status.get("requested_count") or 0)
     if int(status.get("evidence_ready") or 0) != requested:
         raise OperatorError("export is locked until the exact-count gate passes")
+    # Re-read the durable proof before creating an export: counters alone cannot
+    # establish that an uncapped topic frontier was completely traversed.
+    validate_run_intent(handoff, paths=paths)
     export_file = Path(str(handoff["export_file"])).resolve()
     if not export_file.exists():
         arguments = [
@@ -4034,11 +4378,31 @@ def _prepare_restart_locked(
     logically_complete = ready == requested and (
         (
             cardinality == "all"
-            and int(durable_state["profile_inventory_terminal"] or 0) == 1
+            and (
+                (
+                    durable_state["source_mode"] == "creator"
+                    and int(durable_state["profile_inventory_terminal"] or 0) == 1
+                )
+                or (
+                    durable_state["source_mode"] == "topic"
+                    and (durable_state.get("topic_inventory") or {}).get("terminal_verified") is True
+                )
+            )
         )
         or (cardinality != "all" and requested > 0)
     )
     if logically_complete:
+        if durable_state["source_mode"] == "topic" and cardinality == "all":
+            local = readonly_connect(Path(str(handoff["database"])))
+            try:
+                _topic_inventory_coverage(
+                    local,
+                    durable_state,
+                    engage_module=_load_engage_module(paths),
+                    require_completion=True,
+                )
+            finally:
+                local.close()
         raise OperatorError("a logically complete MUSIC AUDIT does not need a restart")
     if durable_status not in {"browser_blocked", "collection_failed"}:
         raise OperatorError(
@@ -4543,6 +4907,17 @@ def poll_command(args: argparse.Namespace, paths: OperatorPaths) -> int:
     if active:
         operator_status = "RUNNING"
         next_action = "keep_waiting_do_not_restart"
+    elif progress.get("error") and (
+        "publication_window" in handoff
+        or "publication window" in str(progress["error"])
+    ):
+        operator_status = "BLOCKED"
+        next_action = "inspect_publication_window_binding"
+    elif progress.get("error") and (
+        handoff.get("source_mode") == "topic" and handoff.get("all_posts") is True
+    ):
+        operator_status = "BLOCKED"
+        next_action = "inspect_topic_inventory_binding"
     elif handoff.get("state") == "complete":
         operator_status = "COMPLETE"
         next_action = "validate_or_stop"
@@ -4609,6 +4984,11 @@ def poll_command(args: argparse.Namespace, paths: OperatorPaths) -> int:
         "evidence_ready": int(progress.get("evidence_ready") or 0),
         "unique_collected": int(progress.get("unique_collected") or 0),
         "failed": int(progress.get("failed") or 0),
+        "topic_query_policy": str(
+            progress.get("topic_query_policy")
+            or handoff.get("topic_query_policy")
+            or "unbound"
+        ),
         "latest_event": {
             key: latest.get(key)
             for key in ("event_id", "stage", "event", "created_at")
@@ -4633,6 +5013,14 @@ def poll_command(args: argparse.Namespace, paths: OperatorPaths) -> int:
     }
     if progress.get("error"):
         response["progress_error"] = progress["error"]
+    if progress.get("topic_inventory"):
+        response["topic_inventory"] = progress["topic_inventory"]
+    window = _bound_publication_window(handoff)
+    if window:
+        response["publication_window"] = window
+        response["publication_window_exclusions"] = progress.get(
+            "publication_window_exclusions", {}
+        )
     print(json.dumps(response, ensure_ascii=True, indent=2))
     return 0
 
@@ -4730,6 +5118,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     start.add_argument("--refresh-stale-before", default="")
     start.add_argument("--refresh-post-id", action="append", default=[])
+    start.add_argument(
+        "--published-after", default="",
+        help="inclusive publication start; requires --published-before, finite new_only topic",
+    )
+    start.add_argument(
+        "--published-before", default="",
+        help="exclusive publication end; requires --published-after, finite new_only topic",
+    )
     start.add_argument("--expected-account", default="")
     start.add_argument("--browser-startup-timeout", type=float, default=120.0)
     start.set_defaults(handler=start_command)

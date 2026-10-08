@@ -31,6 +31,8 @@ parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 
+from engage_browser_guard import BrowserOperationTimeout, HumanVerificationRequired, bounded_operation, ensure_no_challenge
+
 try:
     from tiktok_api import TikTokAPI
 except ImportError:
@@ -61,6 +63,14 @@ TIKTOK_SEARCH_API_PATHS = (
     "/api/search/general/full/",
 )
 
+# Topic search is a bounded discovery probe, not a terminal creator inventory.
+# Keep its existing short no-progress budget while allowing one page-owned retry
+# when TikTok emitted only an invalid response for the exact requested query.
+TIKTOK_SEARCH_INITIAL_WAIT_SECONDS = 15.0
+TIKTOK_SEARCH_STALL_WAIT_SECONDS = 2.5
+TIKTOK_SEARCH_STALL_ROUNDS = 6
+TIKTOK_SEARCH_INVALID_RESPONSE_RETRIES = 1
+
 TIKTOK_CREATOR_POST_API_PATHS = (
     "/api/post/item_list/",
 )
@@ -76,6 +86,11 @@ def sanitize_search_keyword(value: Any) -> str:
     keyword = keyword.replace('"', " ").replace("“", " ").replace("”", " ")
     keyword = keyword.replace("'", " ").replace("‘", " ").replace("’", " ")
     return re.sub(r"\s+", " ", keyword).strip()
+
+
+def normalize_exact_search_keyword(value: Any) -> str:
+    """Normalize whitespace without changing the user's exact query text."""
+    return re.sub(r"\s+", " ", str(value or "")).strip()
 
 
 def normalize_tiktok_creator_target(value: Any) -> Tuple[str, str]:
@@ -242,11 +257,18 @@ class TikTokAPIIntegration:
             Dictionary containing cookies
         """
         try:
-            # Get all cookies from the browser - use await properly
-            cookies = await page.context.cookies()
+            # Only extract cookies for tiktok.com to avoid giant headers and cross-domain pollution
+            try:
+                cookies = await page.context.cookies(["https://www.tiktok.com"])
+            except (TypeError, Exception):
+                cookies = await page.context.cookies()
 
-            # Convert cookies list to dictionary
-            cookie_dict = {cookie['name']: cookie['value'] for cookie in cookies}
+            # Convert cookies list to dictionary, filtering to tiktok.com if domain is present
+            cookie_dict = {
+                cookie['name']: cookie['value']
+                for cookie in cookies
+                if "tiktok.com" in cookie.get("domain", "") or not cookie.get("domain")
+            }
 
             if self.persist_session_secrets:
                 with open(self.cookies_file, 'w', encoding='utf-8') as f:
@@ -1245,6 +1267,8 @@ class TikTokAPIIntegration:
                 if not accepted_pages:
                     broken_reason = "missing_initial_request_cursor"
                 continue
+            if chain_rows and request_cursor == chain_rows[-1]["request_cursor"]:
+                continue
             if request_cursor in visited:
                 broken_reason = "cursor_cycle"
                 break
@@ -1574,9 +1598,21 @@ class TikTokAPIIntegration:
                 navigation_error = f"{type(exc).__name__}: {exc}"
 
             try:
-                await asyncio.wait_for(post_event.wait(), timeout=15)
+                await asyncio.wait_for(post_event.wait(), timeout=3.0)
             except asyncio.TimeoutError:
-                pass
+                try:
+                    mouse = getattr(page, "mouse", None)
+                    if mouse is not None and hasattr(mouse, "click"):
+                        await mouse.click(500, 300)
+                    keyboard = getattr(page, "keyboard", None)
+                    if keyboard is not None and hasattr(keyboard, "press"):
+                        await keyboard.press("PageDown")
+                except Exception:
+                    pass
+                try:
+                    await asyncio.wait_for(post_event.wait(), timeout=12.0)
+                except asyncio.TimeoutError:
+                    pass
 
             while True:
                 cursor_chain = self._creator_profile_cursor_chain(
@@ -1618,8 +1654,24 @@ class TikTokAPIIntegration:
                 before = len(post_pages)
                 post_event.clear()
                 try:
-                    await page.mouse.wheel(0, 2600)
-                    await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                    mouse = getattr(page, "mouse", None)
+                    if mouse is not None:
+                        if hasattr(mouse, "move"):
+                            await mouse.move(500, 400)
+                        if hasattr(mouse, "wheel"):
+                            await mouse.wheel(0, 2600)
+                    keyboard = getattr(page, "keyboard", None)
+                    if keyboard is not None and hasattr(keyboard, "press"):
+                        await keyboard.press("PageDown")
+                    if hasattr(page, "evaluate"):
+                        await page.evaluate("""() => {
+                            const links = document.querySelectorAll('a[href*="/video/"]');
+                            if (links.length > 0) {
+                                links[links.length - 1].scrollIntoView({ behavior: 'smooth', block: 'end' });
+                            } else {
+                                window.scrollTo(0, Math.max(document.body.scrollHeight, document.documentElement.scrollHeight));
+                            }
+                        }""")
                 except Exception:
                     pass
                 try:
@@ -2084,6 +2136,201 @@ class TikTokAPIIntegration:
             await asyncio.gather(*(fetch(video) for video in remaining))
         return stats
 
+    async def _refresh_item_from_browser(self, page, target_url: str, expected_id: str, timeout_ms: int):
+        """Read one exact post when a successful HTTP response is only a shell.
+
+        Uses an ordinary temporary tab in the already verified context. Never
+        searches, interacts with a challenge, reuses stored evidence or closes Edge.
+        """
+        from playwright.async_api import Error as PlaywrightError
+
+        context = getattr(page, "context", None)
+        if context is None:
+            logger.warning("Exact metadata refresh %s: browser_context_unavailable", expected_id)
+            return None
+        timeout_seconds = max(0.001, timeout_ms / 1000)
+        tab = await bounded_operation(context.new_page(), timeout=min(10, timeout_seconds),
+                                      phase="exact_metadata_tab")
+        expected = urllib.parse.urlsplit(target_url)
+        owner_match = re.fullmatch(r"/@([^/]+)/(?:video|photo)/[0-9]+/?", expected.path)
+        expected_owner = owner_match.group(1).casefold() if owner_match else ""
+        observed_item = None
+        item_observed = asyncio.Event()
+        response_tasks: Set[asyncio.Task] = set()
+        media_tasks: Set[asyncio.Task] = set()
+        media_session = None
+        media_failed = False
+        preserve_challenge = False
+        listener_attached = False
+
+        def exact_page():
+            current = urllib.parse.urlsplit(tab.url)
+            return current.hostname in {"www.tiktok.com", "tiktok.com"} and current.path == expected.path
+
+        async def block_media(event):
+            nonlocal media_failed
+            try:
+                await bounded_operation(media_session.send("Fetch.failRequest", {
+                    "requestId": event["requestId"], "errorReason": "Aborted",
+                }), timeout=min(3, timeout_seconds), phase="exact_metadata_media_block")
+            except Exception:
+                media_failed = True
+                item_observed.set()
+
+        def schedule_media_block(event):
+            task = asyncio.create_task(block_media(event))
+            media_tasks.add(task)
+            task.add_done_callback(media_tasks.discard)
+
+        async def capture_item_response(response):
+            nonlocal observed_item
+            try:
+                response_url = urllib.parse.urlsplit(str(response.url))
+                if (
+                    response_url.hostname not in {"www.tiktok.com", "tiktok.com"}
+                    or response_url.path != "/api/item/detail/"
+                    or response.status != 200
+                ):
+                    return
+                payload = await bounded_operation(response.json(), timeout=timeout_seconds,
+                                                  phase="exact_metadata_item_json")
+                if not isinstance(payload, dict) or payload.get("status_code") not in (0, "0"):
+                    return
+                item_info = payload.get("itemInfo")
+                item = item_info.get("itemStruct") if isinstance(item_info, dict) else None
+                if not isinstance(item, dict):
+                    return
+                post_id = str(item.get("id") or item.get("aweme_id") or item.get("item_id") or "")
+                author = item.get("author")
+                owner = str(author.get("uniqueId") or author.get("unique_id") or "") if isinstance(author, dict) else ""
+                if post_id == str(expected_id) and expected_owner and owner.casefold() == expected_owner:
+                    observed_item = item
+                    item_observed.set()
+            except Exception:
+                # An unreadable observed response is not evidence. Never replay
+                # its signed request or log its raw payload/URL.
+                return
+
+        def schedule_item_response(response):
+            response_url = urllib.parse.urlsplit(str(getattr(response, "url", "")))
+            if response_url.hostname in {"www.tiktok.com", "tiktok.com"} and response_url.path == "/api/item/detail/":
+                task = asyncio.create_task(capture_item_response(response))
+                response_tasks.add(task)
+                task.add_done_callback(response_tasks.discard)
+
+        try:
+            # Playwright route("**/*") disables the page cache and pauses every
+            # request. Restrict interception in Chromium itself to media so the
+            # page's metadata requests can load normally.
+            media_session = await bounded_operation(context.new_cdp_session(tab),
+                timeout=min(10, timeout_seconds), phase="exact_metadata_media_session")
+            media_session.on("Fetch.requestPaused", schedule_media_block)
+            await bounded_operation(media_session.send("Fetch.enable", {
+                "patterns": [{"resourceType": "Media", "requestStage": "Request"}],
+            }), timeout=min(10, timeout_seconds), phase="exact_metadata_media_filter")
+            # Observe only requests issued by this exact post's own tab. Photo
+            # pages may keep HTML rehydration scripts empty after loading.
+            tab.on("response", schedule_item_response)
+            listener_attached = True
+            # The document's domcontentloaded event may be delayed even though
+            # its exact item-detail response has already arrived. Start the
+            # bounded response/HTML observation at commit so that response can
+            # be consumed within this attempt instead of timing out in goto().
+            response = await bounded_operation(
+                tab.goto(target_url, wait_until="commit", timeout=timeout_ms),
+                timeout=timeout_seconds, phase="exact_metadata_navigation")
+            if response is not None and not response.ok:
+                logger.warning("Exact metadata refresh %s: browser_http_%s", expected_id, response.status)
+                return None
+            deadline = time.monotonic() + timeout_seconds
+            # Reserve a finite final observation budget. A busy TikTok page can
+            # take longer than the guard's default three seconds to inspect.
+            data_deadline = deadline - min(10, timeout_seconds / 2)
+            document_read = False
+            item = None
+            is_photo = "/photo/" in expected.path
+            if not exact_page():
+                logger.warning("Exact metadata refresh %s: target_redirected", expected_id)
+                return None
+            if is_photo:
+                # Photo HTML can remain an empty shell; serializing that busy
+                # document also stalls. Consume its exact observed API response
+                # directly, without requiring content() to complete first.
+                if observed_item is None:
+                    try:
+                        await bounded_operation(item_observed.wait(),
+                            timeout=max(0, data_deadline - time.monotonic()),
+                            phase="exact_metadata_item_response")
+                    except BrowserOperationTimeout:
+                        pass  # Still inspect the page for an actual challenge.
+            else:
+                while observed_item is None and time.monotonic() < data_deadline:
+                    if not exact_page():
+                        logger.warning("Exact metadata refresh %s: target_redirected", expected_id)
+                        return None
+                    try:
+                        current_html = await bounded_operation(tab.content(),
+                            timeout=max(0, data_deadline - time.monotonic()),
+                            phase="exact_metadata_document")
+                        document_read = True
+                        item = extract_tiktok_item_from_html(current_html, expected_id)
+                        if isinstance(item, dict):
+                            break
+                    except BrowserOperationTimeout:
+                        break
+                    except PlaywrightError as exc:
+                        if not any(phrase in str(exc) for phrase in (
+                            "page is navigating", "Execution context was destroyed",
+                        )):
+                            raise
+                    await asyncio.sleep(min(0.25, max(0, data_deadline - time.monotonic())))
+            if not exact_page():
+                logger.warning("Exact metadata refresh %s: target_redirected", expected_id)
+                return None
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise BrowserOperationTimeout("exact_metadata_refresh", timeout_seconds)
+            await ensure_no_challenge(tab, phase="exact_metadata_refresh", timeout=min(10, remaining))
+            if not exact_page():
+                logger.warning("Exact metadata refresh %s: target_redirected", expected_id)
+                return None
+            if media_failed:
+                raise RuntimeError("exact_metadata_media_block_failed")
+            item = observed_item or item
+            if isinstance(item, dict):
+                return item
+            logger.warning("Exact metadata refresh %s: %s", expected_id,
+                           "browser_item_unavailable" if document_read or is_photo else "browser_document_unsettled")
+            return None
+        except HumanVerificationRequired:
+            preserve_challenge = True
+            raise
+        finally:
+            if listener_attached:
+                tab.remove_listener("response", schedule_item_response)
+            pending = list(response_tasks | media_tasks)
+            for task in pending:
+                task.cancel()
+            if pending:
+                try:
+                    await bounded_operation(asyncio.gather(*pending, return_exceptions=True),
+                        timeout=1, phase="exact_metadata_response_cleanup")
+                except Exception:
+                    pass
+            if not preserve_challenge:
+                try:
+                    await bounded_operation(tab.close(), timeout=3, phase="exact_metadata_tab_close")
+                except Exception:
+                    logger.warning("Exact metadata refresh %s: browser_tab_cleanup_incomplete", expected_id)
+            if media_session is not None:
+                media_session.remove_listener("Fetch.requestPaused", schedule_media_block)
+                for method in ("Fetch.disable", None):
+                    try:
+                        operation = media_session.send(method) if method else media_session.detach()
+                        await bounded_operation(operation, timeout=1, phase="exact_metadata_media_cleanup")
+                    except Exception:
+                        pass
+
     async def refresh_video_candidates_from_html(
         self,
         page,
@@ -2160,14 +2407,14 @@ class TikTokAPIIntegration:
                     float(
                         os.environ.get(
                             "TIKTOK_METADATA_TIMEOUT_SECONDS",
-                            "8",
+                            "30",
                         )
                     )
                     * 1000
                 ),
             )
         except ValueError:
-            timeout_ms = 8000
+            timeout_ms = 30000
         try:
             concurrency = max(
                 1,
@@ -2176,6 +2423,27 @@ class TikTokAPIIntegration:
         except ValueError:
             concurrency = 4
         semaphore = asyncio.Semaphore(concurrency)
+        request_headers: Dict[str, str] = {
+            "Referer": "https://www.tiktok.com/",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "sec-ch-ua": '"Microsoft Edge";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"Windows"',
+            "sec-fetch-dest": "document",
+            "sec-fetch-mode": "navigate",
+            "sec-fetch-site": "none",
+            "sec-fetch-user": "?1",
+            "upgrade-insecure-requests": "1",
+        }
+        try:
+            evaluate_fn = getattr(page, "evaluate", None)
+            if callable(evaluate_fn):
+                ua = await evaluate_fn("navigator.userAgent")
+                if isinstance(ua, str) and ua.strip():
+                    request_headers["User-Agent"] = ua.strip()
+        except Exception:
+            pass
 
         async def fetch(video: Dict[str, Any]) -> bool:
             expected_id = str(video.get("id") or "").strip()
@@ -2186,27 +2454,43 @@ class TikTokAPIIntegration:
             original_slide_count = int(video.get("visual_slide_count") or 0)
             async with semaphore:
                 stats["attempted"] += 1
+                refresh_phase = "direct_request"
                 try:
                     response = await page.request.get(
                         target_url,
+                        headers=request_headers,
                         timeout=timeout_ms,
                     )
                     if not response.ok:
                         stats["failed"] += 1
+                        logger.warning("Exact metadata refresh %s: direct_http_%s", expected_id, getattr(response, "status", "unknown"))
                         return False
                     item = extract_tiktok_item_from_html(
                         await response.text(),
                         expected_id,
                     )
+                    browser_fallback = False
+                    if not isinstance(item, dict):
+                        refresh_phase = "browser_navigation"
+                        item = await self._refresh_item_from_browser(page, target_url, expected_id, timeout_ms)
+                        browser_fallback = isinstance(item, dict)
                     if not isinstance(item, dict):
                         stats["failed"] += 1
+                        logger.warning("Exact metadata refresh %s: exact_item_unavailable", expected_id)
                         return False
                     refreshed = self._extract_video_from_search_item(item)
+                    refresh_phase = "item_normalization"
                     if (
                         not isinstance(refreshed, dict)
                         or str(refreshed.get("id") or "") != expected_id
                     ):
                         stats["failed"] += 1
+                        return False
+
+                    expected_owner = re.fullmatch(r"/@([^/]+)/(?:video|photo)/[0-9]+/?", urllib.parse.urlsplit(target_url).path)
+                    if expected_owner is None or str(refreshed.get("username") or "").casefold() != expected_owner.group(1).casefold():
+                        stats["failed"] += 1
+                        logger.warning("Exact metadata refresh %s: owner_mismatch", expected_id)
                         return False
 
                     source_is_photo = (
@@ -2267,20 +2551,31 @@ class TikTokAPIIntegration:
                     }
                     video.update(refreshed)
                     video.update(preserved)
-                    video["metadata_method"] = "tiktok_web_rehydration"
-                    video["metadata_hydration_method"] = (
-                        "tiktok_web_rehydration"
-                    )
+                    method = "tiktok_browser_post_metadata" if browser_fallback else "tiktok_web_rehydration"
+                    video["metadata_method"] = method
+                    video["metadata_hydration_method"] = method
                     video["metadata_refresh_ok"] = True
                     stats["hydrated"] += 1
                     return True
+                except HumanVerificationRequired:
+                    raise
                 except Exception as exc:
                     stats["failed"] += 1
-                    logger.debug(
-                        "TikTok direct HTML metadata refresh failed for %s: %s",
-                        target_url,
-                        exc,
-                    )
+                    # Transport strings may include signed URLs or headers.
+                    network_code = re.search(r"net::ERR_[A-Z_]+", str(exc))
+                    known_reasons = {
+                        "interrupted by another navigation": "navigation_interrupted",
+                        "page is navigating": "page_navigating",
+                        "Execution context was destroyed": "execution_context_changed",
+                        "Target page, context or browser has been closed": "target_closed",
+                        "Invalid URL": "invalid_url",
+                    }
+                    if isinstance(exc, BrowserOperationTimeout):
+                        reason = f"{exc.code}/{exc.phase}"
+                    else:
+                        reason = next((code for phrase, code in known_reasons.items() if phrase in str(exc)), type(exc).__name__)
+                    logger.warning("Exact metadata refresh %s: %s/%s", expected_id, refresh_phase,
+                                   network_code.group(0) if network_code else reason)
                     return False
 
         await asyncio.gather(*(fetch(video) for video in candidates))
@@ -2322,6 +2617,391 @@ class TikTokAPIIntegration:
             rows = rows.get("item_list") or rows.get("itemList") or rows.get("data") or []
         return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
 
+    @classmethod
+    def _search_request_metadata(cls, url: Any) -> Dict[str, Any]:
+        """Retain exact-query pagination fields while dropping signed secrets."""
+        raw_url = str(url or "")
+        try:
+            parsed = urllib.parse.urlsplit(raw_url)
+            parsed_port = parsed.port
+            parsed_query = urllib.parse.parse_qs(
+                parsed.query,
+                keep_blank_values=True,
+            )
+        except Exception:
+            return {"url": "", "query": {}}
+        host = (parsed.hostname or "").rstrip(".").casefold()
+        if (
+            parsed.scheme.casefold() != "https"
+            or host not in {"tiktok.com", "www.tiktok.com"}
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed_port is not None
+            or parsed.path not in TIKTOK_SEARCH_API_PATHS
+        ):
+            return {"url": "", "query": {}}
+        lower_query = {
+            str(key).casefold(): values
+            for key, values in parsed_query.items()
+        }
+
+        def first(*names: str) -> str:
+            for name in names:
+                values = lower_query.get(name.casefold()) or []
+                if values:
+                    return str(values[0] or "").strip()
+            return ""
+
+        query = {
+            "keyword": normalize_exact_search_keyword(
+                first("keyword", "query", "q")
+            ),
+            "cursor": str(first("cursor")).strip(),
+            "offset": str(first("offset")).strip(),
+            "count": str(first("count")).strip(),
+            "search_id": str(
+                first("search_id", "searchId", "search_request_id")
+            ).strip(),
+        }
+        query = {key: value for key, value in query.items() if value != ""}
+        safe_pairs: List[Tuple[str, str]] = []
+        for key, output_key in (
+            ("keyword", "keyword"),
+            ("cursor", "cursor"),
+            ("offset", "offset"),
+            ("count", "count"),
+            ("search_id", "search_id"),
+        ):
+            if query.get(key):
+                safe_pairs.append((output_key, query[key]))
+        safe_url = urllib.parse.urlunsplit(
+            (
+                "https",
+                "www.tiktok.com",
+                parsed.path,
+                urllib.parse.urlencode(safe_pairs),
+                "",
+            )
+        )
+        return {"url": safe_url, "query": query}
+
+    @classmethod
+    def _search_request_matches_keyword(cls, url: Any, keyword: Any) -> bool:
+        try:
+            parsed = urllib.parse.urlsplit(str(url or ""))
+        except Exception:
+            return False
+        if (
+            (parsed.hostname or "").rstrip(".").casefold()
+            not in {"tiktok.com", "www.tiktok.com"}
+            or not any(marker in parsed.path for marker in TIKTOK_SEARCH_API_PATHS)
+        ):
+            return False
+        request_keyword = cls._search_request_metadata(url)["query"].get(
+            "keyword",
+            "",
+        )
+        expected = normalize_exact_search_keyword(keyword)
+        return bool(request_keyword) and request_keyword.casefold() == expected.casefold()
+
+    def _search_payload_usable(self, payload: Any, http_status: Any) -> bool:
+        """Accept a successful page or a 200 response that still contains posts."""
+        if not isinstance(payload, dict):
+            return False
+        try:
+            if int(http_status) != 200:
+                return False
+        except (TypeError, ValueError):
+            return False
+        status = payload.get("status_code", payload.get("statusCode", 0))
+        if status in (None, "", 0, "0"):
+            return True
+        return any(
+            self._extract_video_from_search_item(row)
+            for row in self._search_rows(payload)
+        )
+
+    @staticmethod
+    def _search_content_type(value: Any) -> Optional[str]:
+        """Keep a known media type, never arbitrary header text or parameters."""
+        media_type = str(value or "").split(";", 1)[0].strip().casefold()
+        if not media_type:
+            return None
+        return media_type if media_type in {
+            "application/json", "text/json", "text/html", "text/plain",
+            "application/octet-stream", "application/javascript", "text/javascript",
+        } else "other"
+
+    def _search_payload_diagnostics(self, result: Any) -> Dict[str, Any]:
+        """Describe an unusable response without exposing its body or error text."""
+        packet = result if isinstance(result, dict) else {}
+        payload = packet.get("data")
+        status = payload.get("status_code", payload.get("statusCode")) if isinstance(payload, dict) else None
+        if status is not None:
+            status = int(str(status)) if re.fullmatch(r"-?\d{1,12}", str(status)) else "unrecognized"
+        rows = self._search_rows(payload)
+        return {
+            "http": packet.get("http"),
+            "body_len": packet.get("bodyLen"),
+            "parsed_type": {
+                dict: "object", list: "array", str: "string", bool: "boolean",
+                int: "number", float: "number", type(None): "null_or_unparsed",
+            }.get(type(payload), "other"),
+            "status_code": status,
+            "row_count": len(rows),
+            "extractable_post_count": sum(bool(self._extract_video_from_search_item(row)) for row in rows),
+            "has_more": self._search_has_more(payload),
+            "content_type": self._search_content_type(packet.get("contentType")),
+        }
+
+    @staticmethod
+    def _search_has_more(payload: Any) -> Optional[bool]:
+        if not isinstance(payload, dict):
+            return None
+        containers = [payload]
+        if isinstance(payload.get("data"), dict):
+            containers.append(payload["data"])
+        for container in containers:
+            for key in ("has_more", "hasMore"):
+                if key not in container:
+                    continue
+                value = container.get(key)
+                if isinstance(value, bool):
+                    return value
+                if isinstance(value, (int, float)):
+                    return bool(value)
+                normalized = str(value or "").strip().casefold()
+                if normalized in {"0", "false", "no", "off"}:
+                    return False
+                if normalized in {"1", "true", "yes", "on"}:
+                    return True
+                return None
+        return None
+
+    @staticmethod
+    def _normalize_search_position(value: Any) -> str:
+        normalized = str(value if value is not None else "").strip()
+        if re.fullmatch(r"\d+", normalized):
+            return str(int(normalized))
+        return normalized
+
+    @classmethod
+    def _search_request_position(cls, query: Any) -> str:
+        query = query if isinstance(query, dict) else {}
+        for key in ("cursor", "offset"):
+            if key in query:
+                return cls._normalize_search_position(query.get(key))
+        # TikTok's first search request may omit both fields; only that packet
+        # is safely interpreted as the implicit zero cursor.
+        return "0"
+
+    def _search_next_position(
+        self,
+        payload: Any,
+        current_position: str,
+    ) -> str:
+        if not isinstance(payload, dict):
+            return ""
+        try:
+            current = int(current_position)
+        except (TypeError, ValueError):
+            return ""
+        containers = [payload]
+        if isinstance(payload.get("data"), dict):
+            containers.append(payload["data"])
+        for container in containers:
+            for key in ("cursor", "nextCursor", "next_cursor"):
+                if key not in container:
+                    continue
+                normalized = self._normalize_search_position(container.get(key))
+                try:
+                    candidate = int(normalized)
+                except (TypeError, ValueError):
+                    continue
+                if candidate > current:
+                    return str(candidate)
+        row_count = len(self._search_rows(payload))
+        return str(current + row_count) if row_count else ""
+
+    @staticmethod
+    def _normalize_rendered_search_post_url(value: Any) -> Optional[Dict[str, str]]:
+        raw_url = str(value or "").strip()
+        try:
+            parsed = urllib.parse.urlsplit(raw_url)
+            parsed_port = parsed.port
+        except ValueError:
+            return None
+        if (
+            parsed.scheme.casefold() != "https"
+            or (parsed.hostname or "").rstrip(".").casefold()
+            not in {"tiktok.com", "www.tiktok.com"}
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed_port is not None
+        ):
+            return None
+        match = re.fullmatch(
+            r"/@(?P<creator>[A-Za-z0-9._]+)/"
+            r"(?P<content_type>video|photo)/(?P<post_id>\d+)/?",
+            urllib.parse.unquote(parsed.path),
+            flags=re.IGNORECASE,
+        )
+        if match is None:
+            return None
+        creator = match.group("creator")
+        content_type = match.group("content_type").casefold()
+        post_id = match.group("post_id")
+        return {
+            "id": post_id,
+            "username": creator,
+            "content_type": content_type,
+            "url": (
+                f"https://www.tiktok.com/@{creator}/{content_type}/{post_id}"
+            ),
+        }
+
+    async def _discover_rendered_search_candidates(
+        self,
+        page,
+        keyword: str,
+        *,
+        target_count: int,
+        max_scroll_rounds: int,
+    ) -> List[Dict[str, Any]]:
+        """Read only canonical links from the already-open exact search page."""
+        if str(os.environ.get("SCRAPER_TRANSPORT_MODE") or "").strip().casefold() == (
+            "api-only"
+        ):
+            return []
+        expected = normalize_exact_search_keyword(keyword)
+        current_url = str(getattr(page, "url", "") or "")
+        navigation_binding = getattr(self, "_last_search_page_binding", {})
+        if not (
+            isinstance(navigation_binding, dict)
+            and navigation_binding.get("page_id") == id(page)
+            and navigation_binding.get("document_navigation_succeeded") is True
+            and normalize_exact_search_keyword(
+                navigation_binding.get("keyword")
+            ).casefold()
+            == expected.casefold()
+        ):
+            return []
+        try:
+            parsed = urllib.parse.urlsplit(current_url)
+            page_query = urllib.parse.parse_qs(
+                parsed.query,
+                keep_blank_values=True,
+            )
+            observed = normalize_exact_search_keyword(
+                (page_query.get("q") or [""])[0]
+            )
+        except Exception:
+            return []
+        if (
+            (parsed.hostname or "").rstrip(".").casefold()
+            not in {"tiktok.com", "www.tiktok.com"}
+            or not (parsed.path == "/search" or parsed.path.startswith("/search/"))
+            or not observed
+            or observed.casefold() != expected.casefold()
+        ):
+            return []
+
+        selector = (
+            '[data-e2e="search_video-item"] '
+            'a[href*="/video/"]:visible, '
+            '[data-e2e="search_video-item"] '
+            'a[href*="/photo/"]:visible'
+        )
+        candidates_by_id: Dict[str, Dict[str, Any]] = {}
+        limit = max(0, int(target_count or 0))
+        rounds = max(0, int(max_scroll_rounds or 0))
+        stall_rounds = 0
+
+        async def observe() -> int:
+            try:
+                hrefs = await page.locator(selector).evaluate_all(
+                    "elements => elements.map(element => element.href || '')"
+                )
+            except Exception:
+                return 0
+            before = len(candidates_by_id)
+            for href in hrefs if isinstance(hrefs, list) else []:
+                normalized = self._normalize_rendered_search_post_url(href)
+                if not normalized:
+                    continue
+                post_id = normalized["id"]
+                if post_id in candidates_by_id:
+                    continue
+                candidates_by_id[post_id] = {
+                    **normalized,
+                    "caption": "",
+                    "discovery_method": (
+                        "tiktok_search_dom_exact_query_fallback"
+                    ),
+                    "discovery_source": "tiktok_search_rendered_results",
+                    "metadata_method": "tiktok_search_dom_link_only",
+                    "fallback_used": True,
+                    "matched_queries": [expected],
+                    "matched_keywords": [expected],
+                }
+                if limit and len(candidates_by_id) >= limit:
+                    break
+            return len(candidates_by_id) - before
+
+        await observe()
+        while (
+            (not limit or len(candidates_by_id) < limit)
+            and rounds > 0
+            and stall_rounds < TIKTOK_SEARCH_STALL_ROUNDS
+        ):
+            rounds -= 1
+            try:
+                if hasattr(page, "mouse") and hasattr(page.mouse, "move"):
+                    await page.mouse.move(500, 500)
+            except Exception:
+                pass
+            try:
+                if hasattr(page, "mouse") and hasattr(page.mouse, "wheel"):
+                    await page.mouse.wheel(0, 2400)
+            except Exception:
+                pass
+            try:
+                await page.evaluate(
+                    "() => {"
+                    "  try {"
+                    '    const items = document.querySelectorAll(\'[data-e2e="search_video-item"], a[href*="/video/"]\');'
+                    "    if (items.length > 0) {"
+                    "      items[items.length - 1].scrollIntoView({ behavior: 'smooth', block: 'end' });"
+                    "    } else {"
+                    "      const docHeight = Math.max("
+                    "        document.body ? document.body.scrollHeight : 0,"
+                    "        document.documentElement ? document.documentElement.scrollHeight : 0"
+                    "      );"
+                    "      window.scrollTo(0, docHeight);"
+                    "      window.scrollBy(0, 1200);"
+                    "    }"
+                    "  } catch (e) {}"
+                    "}"
+                )
+            except Exception:
+                pass
+            try:
+                if hasattr(page, "keyboard") and hasattr(page.keyboard, "press"):
+                    await page.keyboard.press("PageDown")
+            except Exception:
+                pass
+            try:
+                await page.wait_for_timeout(
+                    int(TIKTOK_SEARCH_STALL_WAIT_SECONDS * 1000)
+                )
+            except Exception:
+                pass
+            if await observe():
+                stall_rounds = 0
+            else:
+                stall_rounds += 1
+        return list(candidates_by_id.values())
+
     async def _capture_search_api_pages(
         self,
         page,
@@ -2334,74 +3014,253 @@ class TikTokAPIIntegration:
         read from network responses, so this remains an API-derived transport
         and does not depend on rendered result cards.
         """
-        keyword = sanitize_search_keyword(keyword)
-        target_url = f"https://www.tiktok.com/search/video?q={urllib.parse.quote(keyword)}"
+        keyword = normalize_exact_search_keyword(keyword)
+        target_url = f"https://www.tiktok.com/search?q={urllib.parse.quote(keyword)}"
         captured: List[Dict[str, Any]] = []
-        seen_urls: Set[str] = set()
         tasks: Set[asyncio.Task] = set()
         response_event = asyncio.Event()
+        response_sequence = 0
+        self._last_search_page_binding = {}
 
-        async def capture(response) -> None:
-            if not any(path in response.url for path in TIKTOK_SEARCH_API_PATHS):
+        async def capture(
+            response,
+            sequence: int,
+            request_metadata: Dict[str, Any],
+        ) -> None:
+            url = str(getattr(response, "url", "") or "")
+            if not self._search_request_matches_keyword(url, keyword):
                 return
-            if response.url in seen_urls:
-                return
-            seen_urls.add(response.url)
             try:
-                text = await response.text()
+                data = await response.json()
             except Exception:
+                try:
+                    text = await response.text()
+                    data = json.loads(text) if text else None
+                except Exception:
+                    text = ""
+                    data = None
+            else:
                 text = ""
-            try:
-                data = json.loads(text) if text else None
-            except json.JSONDecodeError:
-                data = None
+            body_length: Optional[int] = len(text) if text else None
+            if body_length is None:
+                try:
+                    raw_length = dict(getattr(response, "headers", {}) or {}).get(
+                        "content-length"
+                    )
+                    body_length = int(raw_length) if raw_length else None
+                except (TypeError, ValueError):
+                    body_length = None
             captured.append({
-                "url": response.url,
-                "http": response.status,
-                "bodyLen": len(text),
+                "url": request_metadata["url"],
+                "query": dict(request_metadata["query"]),
+                "request_url": request_metadata["url"],
+                "request_query": dict(request_metadata["query"]),
+                "http": getattr(response, "status", None),
+                "bodyLen": body_length,
+                "contentType": self._search_content_type(
+                    dict(getattr(response, "headers", {}) or {}).get("content-type")
+                ),
                 "data": data,
+                "_sequence": sequence,
             })
             response_event.set()
 
         def schedule(response) -> None:
-            if not any(path in response.url for path in TIKTOK_SEARCH_API_PATHS):
+            nonlocal response_sequence
+            url = str(getattr(response, "url", "") or "")
+            try:
+                path = urllib.parse.urlsplit(url).path
+            except Exception:
+                path = ""
+            if not any(marker in path for marker in TIKTOK_SEARCH_API_PATHS):
                 return
-            task = asyncio.create_task(capture(response))
+            if not self._search_request_matches_keyword(url, keyword):
+                return
+            response_sequence += 1
+            request_metadata = self._search_request_metadata(url)
+            task = asyncio.create_task(
+                capture(response, response_sequence, request_metadata)
+            )
             tasks.add(task)
             task.add_done_callback(tasks.discard)
+
+        page_limit = max(1, int(max_pages))
+
+        def usable_pages() -> List[Dict[str, Any]]:
+            pages_by_position: Dict[str, Dict[str, Any]] = {}
+            for packet in sorted(captured, key=lambda row: row.get("_sequence", 0)):
+                if not self._search_payload_usable(
+                    packet.get("data"),
+                    packet.get("http"),
+                ):
+                    continue
+                query = packet.get("request_query") or {}
+                position = self._search_request_position(query)
+                if not re.fullmatch(r"\d+", position):
+                    continue
+                existing = pages_by_position.get(position)
+                if existing is None:
+                    pages_by_position[position] = packet
+                    continue
+                existing_rows = len(self._search_rows(existing.get("data")))
+                incoming_rows = len(self._search_rows(packet.get("data")))
+                if incoming_rows > existing_rows:
+                    pages_by_position[position] = packet
+
+            accepted: List[Dict[str, Any]] = []
+            expected_position = "0"
+            visited_positions: Set[str] = set()
+            while len(accepted) < page_limit:
+                if expected_position in visited_positions:
+                    break
+                packet = pages_by_position.get(expected_position)
+                if packet is None:
+                    break
+                accepted.append(packet)
+                visited_positions.add(expected_position)
+                has_more = self._search_has_more(packet.get("data"))
+                if has_more is not True:
+                    break
+                next_position = self._search_next_position(
+                    packet.get("data"),
+                    expected_position,
+                )
+                if not next_position or next_position in visited_positions:
+                    break
+                expected_position = next_position
+            return accepted
+
+        def terminal_page_seen() -> bool:
+            pages = usable_pages()
+            return bool(pages) and self._search_has_more(pages[-1].get("data")) is False
+
+        async def wait_for_page_progress(previous_count: int) -> None:
+            # A response can be a duplicate cursor or an invalid payload. Such
+            # noise must not consume a stall round immediately: give the next
+            # usable cursor the remainder of this same bounded wait interval.
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + TIKTOK_SEARCH_STALL_WAIT_SECONDS
+            while len(usable_pages()) <= previous_count and not terminal_page_seen():
+                remaining = deadline - loop.time()
+                if remaining <= 0:
+                    return
+                response_event.clear()
+                try:
+                    await asyncio.wait_for(response_event.wait(), timeout=remaining)
+                except asyncio.TimeoutError:
+                    return
 
         try:
             page.on("response", schedule)
         except Exception:
             return []
         try:
-            try:
-                await page.goto(target_url, wait_until="domcontentloaded", timeout=45000)
-            except Exception as exc:
-                logger.debug("TikTok search navigation warning for '%s': %s", keyword, exc)
-
-            try:
-                await asyncio.wait_for(response_event.wait(), timeout=15)
-            except asyncio.TimeoutError:
-                pass
-
-            stall_rounds = 0
-            while len(captured) < max(1, max_pages) and stall_rounds < 3:
-                before = len(captured)
+            navigation_attempts = 1 + TIKTOK_SEARCH_INVALID_RESPONSE_RETRIES
+            for navigation_attempt in range(navigation_attempts):
+                before_navigation = len(captured)
                 response_event.clear()
                 try:
-                    await page.mouse.wheel(0, 2400)
-                    await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                except Exception:
-                    pass
-                try:
-                    await asyncio.wait_for(response_event.wait(), timeout=2.5)
-                except asyncio.TimeoutError:
-                    pass
-                if len(captured) == before:
-                    stall_rounds += 1
-                else:
-                    stall_rounds = 0
+                    navigation_response = await page.goto(
+                        target_url,
+                        wait_until="domcontentloaded",
+                        timeout=45000,
+                    )
+                    navigation_status = getattr(
+                        navigation_response,
+                        "status",
+                        None,
+                    )
+                    if navigation_status is None or 200 <= int(navigation_status) < 400:
+                        self._last_search_page_binding = {
+                            "page_id": id(page),
+                            "keyword": keyword,
+                            "target_url": target_url,
+                            "document_navigation_succeeded": True,
+                        }
+                except Exception as exc:
+                    logger.debug(
+                        "TikTok search navigation warning for '%s': %s",
+                        keyword,
+                        exc,
+                    )
+
+                if len(captured) == before_navigation:
+                    try:
+                        await asyncio.wait_for(
+                            response_event.wait(),
+                            timeout=TIKTOK_SEARCH_INITIAL_WAIT_SECONDS,
+                        )
+                    except asyncio.TimeoutError:
+                        pass
+
+                stall_rounds = 0
+                while (
+                    len(usable_pages()) < page_limit
+                    and not terminal_page_seen()
+                    and stall_rounds < TIKTOK_SEARCH_STALL_ROUNDS
+                ):
+                    before = len(usable_pages())
+                    response_event.clear()
+                    try:
+                        if hasattr(page, "mouse") and hasattr(page.mouse, "move"):
+                            await page.mouse.move(500, 500)
+                    except Exception:
+                        pass
+                    try:
+                        if hasattr(page, "mouse") and hasattr(page.mouse, "wheel"):
+                            await page.mouse.wheel(0, 2400)
+                    except Exception:
+                        pass
+                    try:
+                        await page.evaluate(
+                            "() => {"
+                            "  try {"
+                            '    const items = document.querySelectorAll(\'[data-e2e="search_video-item"], a[href*="/video/"]\');'
+                            "    if (items.length > 0) {"
+                            "      items[items.length - 1].scrollIntoView({ behavior: 'smooth', block: 'end' });"
+                            "    } else {"
+                            "      const docHeight = Math.max("
+                            "        document.body ? document.body.scrollHeight : 0,"
+                            "        document.documentElement ? document.documentElement.scrollHeight : 0"
+                            "      );"
+                            "      window.scrollTo(0, docHeight);"
+                            "      window.scrollBy(0, 1200);"
+                            "    }"
+                            "  } catch (e) {}"
+                            "}"
+                        )
+                    except Exception:
+                        pass
+                    try:
+                        if hasattr(page, "keyboard") and hasattr(page.keyboard, "press"):
+                            await page.keyboard.press("PageDown")
+                    except Exception:
+                        pass
+                    await wait_for_page_progress(before)
+                    if len(usable_pages()) == before:
+                        stall_rounds += 1
+                    else:
+                        stall_rounds = 0
+
+                if usable_pages():
+                    break
+                new_packets = captured[before_navigation:]
+                invalid_exact_response_seen = any(
+                    not self._search_payload_usable(
+                        packet.get("data"),
+                        packet.get("http"),
+                    )
+                    for packet in new_packets
+                )
+                if (
+                    not invalid_exact_response_seen
+                    or navigation_attempt + 1 >= navigation_attempts
+                ):
+                    break
+                logger.info(
+                    "Retrying TikTok's page-owned search navigation once for "
+                    "the same exact query after an invalid response"
+                )
 
             if tasks:
                 _, pending = await asyncio.wait(tasks, timeout=5)
@@ -2415,33 +3274,67 @@ class TikTokAPIIntegration:
             for task in list(tasks):
                 task.cancel()
 
-        return captured[:max(1, max_pages)]
+        valid_pages = usable_pages()
+        valid_packet_ids = {id(packet) for packet in valid_pages}
+        invalid_budget = max(1, page_limit)
+        # Return valid pages in their verified logical cursor order even if
+        # network callbacks completed out of order. Invalid exact-query
+        # packets follow only as bounded diagnostic evidence.
+        selected: List[Dict[str, Any]] = list(valid_pages)
+        invalid_selected = 0
+        for packet in sorted(captured, key=lambda row: row.get("_sequence", 0)):
+            if id(packet) not in valid_packet_ids and (
+                not self._search_payload_usable(
+                    packet.get("data"),
+                    packet.get("http"),
+                )
+                and invalid_selected < invalid_budget
+            ):
+                selected.append(packet)
+                invalid_selected += 1
+        return selected
 
     async def _get_search_template_url(self, page, keyword: str) -> Optional[str]:
         """Find TikTok's current full-search API request URL from the page."""
-        keyword = sanitize_search_keyword(keyword)
+        keyword = normalize_exact_search_keyword(keyword)
         urls = await page.evaluate("""() => {
             const paths = ['/api/search/item/full/', '/api/search/general/full/'];
             return performance.getEntriesByType('resource')
                 .map(e => e.name)
                 .filter(name => paths.some(path => name.includes(path)));
         }""")
-        if urls:
-            return urls[-1]
+        exact_urls = [
+            url
+            for url in (urls if isinstance(urls, list) else [])
+            if self._search_request_matches_keyword(url, keyword)
+        ]
+        if exact_urls:
+            return exact_urls[-1]
 
-        search_url = f"https://www.tiktok.com/search/video?q={urllib.parse.quote(keyword)}"
+        search_url = f"https://www.tiktok.com/search?q={urllib.parse.quote(keyword)}"
         captured = []
 
-        async def on_response(response):
-            if any(path in response.url for path in TIKTOK_SEARCH_API_PATHS):
-                captured.append(response.url)
+        def on_response(response):
+            url = str(getattr(response, "url", "") or "")
+            if self._search_request_matches_keyword(url, keyword):
+                captured.append(url)
 
         page.on("response", on_response)
         try:
-            await page.goto(search_url, wait_until="domcontentloaded", timeout=30000)
-        except Exception:
-            pass
-        await page.wait_for_timeout(8000)
+            try:
+                await page.goto(
+                    search_url,
+                    wait_until="domcontentloaded",
+                    timeout=30000,
+                )
+            except Exception:
+                pass
+            await page.wait_for_timeout(8000)
+        finally:
+            try:
+                page.remove_listener("response", on_response)
+            except Exception:
+                pass
 
         if captured:
             return captured[-1]
@@ -2452,7 +3345,12 @@ class TikTokAPIIntegration:
                 .map(e => e.name)
                 .filter(name => paths.some(path => name.includes(path)));
         }""")
-        return urls[-1] if urls else None
+        exact_urls = [
+            url
+            for url in (urls if isinstance(urls, list) else [])
+            if self._search_request_matches_keyword(url, keyword)
+        ]
+        return exact_urls[-1] if exact_urls else None
 
     def _search_url_with_updates(self, template_url: str, updates: Dict[str, Any]) -> str:
         """Build a search API URL from the browser template with fresh params."""
@@ -2507,10 +3405,28 @@ class TikTokAPIIntegration:
         max_offsets: int = 25,
         include_related_queries: bool = False,
         target_count: int = 0,
+        collect_all: bool = False,
     ) -> List[Dict[str, str]]:
-        """Discover TikTok videos by calling the browser-backed search API."""
-        normalized = sanitize_search_keyword(keyword)
-        candidate_target = max(0, int(target_count or 0))
+        """Discover TikTok videos through one finite browser-backed search probe.
+
+        ``collect_all`` removes the candidate-count stop, not the probe's page
+        budget. Callers may enlarge that budget until ``terminal_verified`` is
+        true; a stalled or unknown frontier never establishes a full inventory.
+        """
+        if collect_all and include_related_queries:
+            raise ValueError("collect_all requires one exact search query")
+        if collect_all and (
+            isinstance(max_offsets, bool)
+            or not isinstance(max_offsets, int)
+            or max_offsets <= 0
+        ):
+            raise ValueError("collect_all requires a positive finite page budget per probe")
+        normalized = (
+            sanitize_search_keyword(keyword)
+            if include_related_queries
+            else normalize_exact_search_keyword(keyword)
+        )
+        candidate_target = 0 if collect_all else max(0, int(target_count or 0))
         self.last_search_diagnostics = {
             "keyword": normalized,
             "max_pages": int(max_offsets),
@@ -2521,6 +3437,10 @@ class TikTokAPIIntegration:
             "has_more": None,
             "stop_reason": "not_started",
             "candidate_count": 0,
+            "collect_all": bool(collect_all),
+            "terminal_verified": False,
+            "inventory_complete": False,
+            "source_exhausted": False,
         }
         variants = (
             self._build_search_variants(
@@ -2534,6 +3454,44 @@ class TikTokAPIIntegration:
         self.last_search_diagnostics["query_budget_limit"] = len(variants)
         self.last_search_diagnostics["query_variants_planned"] = len(variants)
         videos_by_id: Dict[str, Dict[str, str]] = {}
+
+        def completion_stop_reason(default: str) -> str:
+            current = str(
+                self.last_search_diagnostics.get("stop_reason") or ""
+            )
+            if current == "invalid_search_session":
+                return current
+            if collect_all:
+                if self.last_search_diagnostics["terminal_verified"]:
+                    return "source_exhausted"
+                if self.last_search_diagnostics.get("has_more") is not True:
+                    return "frontier_not_terminal"
+            if (
+                not include_related_queries
+                and self.last_search_diagnostics.get("has_more") is False
+            ):
+                return "source_exhausted"
+            if candidate_target and len(videos_by_id) >= candidate_target:
+                return "candidate_target_reached"
+            if include_related_queries:
+                return (
+                    "query_budget_exhausted"
+                    if candidate_target and len(videos_by_id) < candidate_target
+                    else default
+                )
+            if current in {"source_exhausted", "cursor_did_not_advance"}:
+                return current
+            has_more = self.last_search_diagnostics.get("has_more")
+            if has_more is False:
+                return "source_exhausted"
+            if has_more is True:
+                return (
+                    "page_cap_reached"
+                    if self.last_search_diagnostics["pages_received"]
+                    >= int(max_offsets)
+                    else "pagination_stalled"
+                )
+            return default
 
         def remember_video(
             video: Dict[str, Any],
@@ -2600,6 +3558,8 @@ class TikTokAPIIntegration:
         capture_seen = False
         valid_capture_seen = False
         capture_errors: List[Dict[str, Any]] = []
+        capture_chain_successful = True
+        capture_expected_position = "0"
         for variant in variants:
             self.last_search_diagnostics["queries_attempted"] += 1
             captured_pages = await self._capture_search_api_pages(page, variant, max_offsets)
@@ -2608,27 +3568,43 @@ class TikTokAPIIntegration:
             capture_seen = True
             for page_number, result in enumerate(captured_pages, start=1):
                 data = result.get("data") if isinstance(result, dict) else None
-                status_code = data.get("status_code", data.get("statusCode", 0)) if isinstance(data, dict) else None
                 rows = self._search_rows(data) if isinstance(data, dict) else []
                 extracted_videos = [
                     video
                     for row in rows
                     if (video := self._extract_video_from_search_item(row))
                 ]
-                result_bearing_error = (
-                    status_code != 0
-                    and isinstance(result, dict)
-                    and result.get("http") == 200
-                    and bool(extracted_videos)
-                )
-                if not isinstance(data, dict) or (status_code != 0 and not result_bearing_error):
+                if not self._search_payload_usable(
+                    data,
+                    result.get("http") if isinstance(result, dict) else None,
+                ):
                     capture_errors.append(result)
                     continue
                 valid_capture_seen = True
                 self.last_search_diagnostics["pages_received"] += 1
-                self.last_search_diagnostics["has_more"] = bool(
-                    data.get("has_more", data.get("hasMore", False))
-                )
+                has_more = self._search_has_more(data)
+                if collect_all or has_more is not None:
+                    self.last_search_diagnostics["has_more"] = has_more
+                if collect_all:
+                    request_url = str(result.get("request_url") or result.get("url") or "")
+                    request_metadata = self._search_request_metadata(request_url)
+                    capture_chain_successful = capture_chain_successful and (
+                        self._search_request_matches_keyword(request_url, normalized)
+                        and self._search_request_position(request_metadata["query"])
+                        == capture_expected_position
+                        and data.get("status_code", data.get("statusCode", 0))
+                        in (None, "", 0, "0")
+                    )
+                    terminal_verified = capture_chain_successful and has_more is False
+                    self.last_search_diagnostics.update({
+                        "terminal_verified": terminal_verified,
+                        "inventory_complete": terminal_verified,
+                        "source_exhausted": terminal_verified,
+                    })
+                    capture_expected_position = (
+                        self._search_next_position(data, capture_expected_position)
+                        if has_more is True else ""
+                    )
                 for video in extracted_videos:
                     remember_video(
                         video,
@@ -2656,48 +3632,70 @@ class TikTokAPIIntegration:
                 {
                     "method": "live_capture",
                     "candidate_count": len(videos),
-                    "stop_reason": (
-                        "candidate_target_reached"
-                        if candidate_target and len(videos) >= candidate_target
-                        else "query_budget_exhausted"
-                        if (
-                            candidate_target
-                            and len(videos) < candidate_target
-                            and len(variants)
-                            >= self.last_search_diagnostics[
-                                "query_budget_limit"
-                            ]
-                        )
-                        else "query_frontier_exhausted"
-                        if candidate_target and len(videos) < candidate_target
-                        else "page_cap_reached"
-                        if self.last_search_diagnostics["has_more"]
-                        and self.last_search_diagnostics["pages_received"]
-                        >= int(max_offsets)
-                        else "source_exhausted"
-                        if self.last_search_diagnostics["has_more"] is False
-                        else "capture_complete"
-                    ),
+                    "stop_reason": completion_stop_reason("capture_complete"),
                 }
             )
             logger.info("Discovered %s unique TikTok videos from live Search API responses", len(videos))
             return videos
 
+        if not include_related_queries and not collect_all:
+            rendered_candidates = await self._discover_rendered_search_candidates(
+                page,
+                normalized,
+                target_count=candidate_target,
+                max_scroll_rounds=max_offsets,
+            )
+            for video in rendered_candidates:
+                remember_video(
+                    video,
+                    variant=normalized,
+                    discovery_method=(
+                        "tiktok_search_dom_exact_query_fallback"
+                    ),
+                    metadata_method="tiktok_search_dom_link_only",
+                )
+            if videos_by_id:
+                videos = list(videos_by_id.values())
+                stop_reason = (
+                    "candidate_target_reached"
+                    if candidate_target and len(videos) >= candidate_target
+                    else "rendered_search_frontier_stalled"
+                )
+                self.last_search_diagnostics.update(
+                    {
+                        "method": "rendered_search_fallback",
+                        "candidate_count": len(videos),
+                        "rendered_search_candidates": len(videos),
+                        "fallback_used": True,
+                        "stop_reason": stop_reason,
+                    }
+                )
+                logger.info(
+                    "Discovered %s unique TikTok videos from rendered results "
+                    "for the same exact query",
+                    len(videos),
+                )
+                return videos
+
         if capture_seen:
             self.last_search_diagnostics["stop_reason"] = "invalid_search_session"
             first_error = capture_errors[0] if capture_errors else {}
             diagnostics = await self._search_session_diagnostics(page)
+            payload_diagnostics = self._search_payload_diagnostics(first_error)
+            self.last_search_diagnostics["response"] = payload_diagnostics
             raise TikTokSearchSessionError(
-                "TikTok emitted search requests but returned no valid JSON: "
-                f"http={first_error.get('http')}, body_len={first_error.get('bodyLen')}, "
-                f"authenticated={diagnostics['authenticated']}, "
+                "TikTok emitted search requests but returned no usable search payload: "
+                + ", ".join(f"{key}={value}" for key, value in payload_diagnostics.items())
+                + ", "
+                f"session_cookie_present={diagnostics['authenticated']}, "
                 f"page_no_results={diagnostics['page_no_results']}, "
                 f"login_prompt={diagnostics['login_prompt']}. "
-                "This is a blocked or invalid search session, not a confirmed zero-result query."
+                "This is not a confirmed zero-result query; these signals do not "
+                "establish a CAPTCHA or access block."
             )
 
         logger.warning("No live TikTok Search API response was captured; trying exact signed replay fallback")
-        template_url = await self._get_search_template_url(page, keyword)
+        template_url = await self._get_search_template_url(page, normalized)
         if not template_url:
             self.last_search_diagnostics["stop_reason"] = "no_search_request_captured"
             diagnostics = await self._search_session_diagnostics(page)
@@ -2725,6 +3723,7 @@ class TikTokAPIIntegration:
             return {
                 http: response.status,
                 bodyLen: text.length,
+                contentType: response.headers.get('content-type'),
                 data
             };
         }"""
@@ -2733,6 +3732,7 @@ class TikTokAPIIntegration:
             self.last_search_diagnostics["queries_attempted"] += 1
             cursor = 0
             search_id = ""
+            replay_chain_verified = True
 
             for page_number in range(1, max_offsets + 1):
                 updates = {
@@ -2795,33 +3795,69 @@ class TikTokAPIIntegration:
                         and result.get("http") == 200
                         and bool(extracted_videos)
                     )
-                if not isinstance(data, dict) or (status_code != 0 and not result_bearing_error):
+                if (
+                    not self._search_payload_usable(
+                            data, result.get("http") if isinstance(result, dict) else None,
+                    )
+                    if collect_all else (
+                        not isinstance(data, dict)
+                        or (status_code != 0 and not result_bearing_error)
+                    )
+                ):
+                    if collect_all:
+                        self.last_search_diagnostics["stop_reason"] = "invalid_search_session"
+                    payload_diagnostics = self._search_payload_diagnostics(result)
+                    self.last_search_diagnostics["response"] = payload_diagnostics
                     logger.warning(
                         "Search API returned invalid data for '%s' page %s: http=%s status_code=%s body_len=%s signed_replay=%s",
                         variant,
                         page_number,
                         result.get("http") if isinstance(result, dict) else None,
-                        status_code,
+                        payload_diagnostics["status_code"],
                         result.get("bodyLen") if isinstance(result, dict) else None,
                         exact_signed_replay,
                     )
                     diagnostics = await self._search_session_diagnostics(page)
                     raise TikTokSearchSessionError(
-                        f"TikTok search access failed for '{variant}': "
-                        f"http={result.get('http') if isinstance(result, dict) else None}, "
-                        f"body_len={result.get('bodyLen') if isinstance(result, dict) else None}, "
-                        f"status_code={status_code}, "
-                        f"authenticated={diagnostics['authenticated']}, "
+                        f"TikTok returned no usable search payload for '{variant}': "
+                        + ", ".join(f"{key}={value}" for key, value in payload_diagnostics.items())
+                        + ", "
+                        f"session_cookie_present={diagnostics['authenticated']}, "
                         f"page_no_results={diagnostics['page_no_results']}, "
                         f"login_prompt={diagnostics['login_prompt']}. "
-                        "This is a blocked or invalid search session, not a confirmed zero-result query."
+                        "This is not a confirmed zero-result query; these signals do not "
+                        "establish a CAPTCHA or access block."
                     )
                     break
 
                 self.last_search_diagnostics["pages_received"] += 1
+                if collect_all:
+                    request_metadata = self._search_request_metadata(url)
+                    replay_chain_verified = replay_chain_verified and (
+                        self._search_request_matches_keyword(url, normalized)
+                        and self._search_request_position(request_metadata["query"])
+                        == str(cursor)
+                        and result.get("http") == 200
+                        and status_code in (None, "", 0, "0")
+                    )
+                    has_more = self._search_has_more(data)
+                    terminal_verified = replay_chain_verified and has_more is False
+                    self.last_search_diagnostics.update({
+                        "has_more": has_more,
+                        "terminal_verified": terminal_verified,
+                        "inventory_complete": terminal_verified,
+                        "source_exhausted": terminal_verified,
+                    })
                 if not rows:
-                    self.last_search_diagnostics["has_more"] = False
-                    self.last_search_diagnostics["stop_reason"] = "source_exhausted"
+                    if collect_all:
+                        self.last_search_diagnostics["stop_reason"] = (
+                            "source_exhausted" if terminal_verified
+                            else "pagination_stalled" if has_more is True
+                            else "frontier_not_terminal"
+                        )
+                    else:
+                        self.last_search_diagnostics["has_more"] = False
+                        self.last_search_diagnostics["stop_reason"] = "source_exhausted"
                     logger.info(f"Search API returned no rows for '{variant}' page {page_number} cursor {cursor}")
                     break
 
@@ -2838,14 +3874,17 @@ class TikTokAPIIntegration:
                         metadata_method="tiktok_search_api",
                     )
 
+                has_more = (
+                    self._search_has_more(data) if collect_all
+                    else bool(data.get("has_more", data.get("hasMore", False)))
+                )
+                self.last_search_diagnostics["has_more"] = has_more
                 if candidate_target and len(videos_by_id) >= candidate_target:
                     self.last_search_diagnostics["stop_reason"] = (
-                        "candidate_target_reached"
+                        "candidate_target_reached" if has_more else "source_exhausted"
                     )
                     break
 
-                has_more = bool(data.get("has_more", data.get("hasMore", False)))
-                self.last_search_diagnostics["has_more"] = has_more
                 logger.info(
                     "Search API '%s' page %s cursor %s returned %s rows; has_more=%s; total unique=%s",
                     variant,
@@ -2857,7 +3896,11 @@ class TikTokAPIIntegration:
                 )
 
                 if not has_more:
-                    self.last_search_diagnostics["stop_reason"] = "source_exhausted"
+                    self.last_search_diagnostics["stop_reason"] = (
+                        "frontier_not_terminal"
+                        if collect_all and not terminal_verified
+                        else "source_exhausted"
+                    )
                     break
 
                 next_cursor = data.get("cursor")
@@ -2880,30 +3923,9 @@ class TikTokAPIIntegration:
                 break
 
         videos = list(videos_by_id.values())
-        if candidate_target and len(videos) >= candidate_target:
-            self.last_search_diagnostics["stop_reason"] = (
-                "candidate_target_reached"
-            )
-        elif (
-            candidate_target
-            and len(videos) < candidate_target
-            and len(variants)
-            >= self.last_search_diagnostics["query_budget_limit"]
-        ):
-            self.last_search_diagnostics["stop_reason"] = (
-                "query_budget_exhausted"
-            )
-        elif candidate_target and len(videos) < candidate_target:
-            self.last_search_diagnostics["stop_reason"] = (
-                "query_frontier_exhausted"
-            )
-        elif (
-            self.last_search_diagnostics["has_more"]
-            and self.last_search_diagnostics["pages_received"] >= int(max_offsets)
-        ):
-            self.last_search_diagnostics["stop_reason"] = "page_cap_reached"
-        elif self.last_search_diagnostics["stop_reason"] == "not_started":
-            self.last_search_diagnostics["stop_reason"] = "search_complete"
+        self.last_search_diagnostics["stop_reason"] = completion_stop_reason(
+            "search_complete"
+        )
         self.last_search_diagnostics.update(
             {
                 "method": "signed_replay",

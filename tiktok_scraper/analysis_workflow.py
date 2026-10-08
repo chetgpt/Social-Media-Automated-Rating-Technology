@@ -20,7 +20,7 @@ from typing import Any, Iterable
 import requests
 
 
-ANALYSIS_SCHEMA_VERSION = "1.2"
+ANALYSIS_SCHEMA_VERSION = "1.3"
 DEFAULT_ANALYSIS_VERSION = "native-text-v4"
 DEFAULT_FORMULA_VERSION = "social-review-v1"
 UNAVAILABLE_TEXT_MARKERS = {
@@ -207,6 +207,56 @@ def _stable_id(*parts: Any, length: int = 32) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()[:length]
 
 
+def _migrate_publication_queue_history(conn: sqlite3.Connection) -> None:
+    """Retain superseded ENGAGE rows without relaxing the active queue fence."""
+    schema = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='publication_queue'"
+    ).fetchone()[0]
+    replacement, changed = re.subn(
+        r",\s*UNIQUE\s*\(\s*platform\s*,\s*target_url\s*,\s*draft_hash\s*\)",
+        "", schema, flags=re.IGNORECASE,
+    )
+    conn.execute("SAVEPOINT publication_queue_history_migration")
+    try:
+        if changed:
+            # SQLite cannot drop a table-level UNIQUE constraint. Copy the exact
+            # current columns and user-defined indexes/triggers transactionally.
+            objects = conn.execute(
+                "SELECT sql FROM sqlite_master WHERE tbl_name='publication_queue' "
+                "AND type IN ('index','trigger') AND sql IS NOT NULL"
+            ).fetchall()
+            replacement = re.sub(
+                r"^CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[\"`\[]?publication_queue[\"`\]]?",
+                "CREATE TABLE publication_queue_history_migration", replacement,
+                count=1, flags=re.IGNORECASE,
+            )
+            conn.execute(replacement)
+            columns = ", ".join(
+                '"' + row[1].replace('"', '""') + '"'
+                for row in conn.execute("PRAGMA table_info(publication_queue)")
+            )
+            conn.execute(
+                f"INSERT INTO publication_queue_history_migration ({columns}) "
+                f"SELECT {columns} FROM publication_queue"
+            )
+            conn.execute("DROP TABLE publication_queue")
+            conn.execute(
+                "ALTER TABLE publication_queue_history_migration RENAME TO publication_queue"
+            )
+            for obj in objects:
+                conn.execute(obj[0])
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_publication_queue_active_text "
+            "ON publication_queue(platform, target_url, draft_hash) "
+            "WHERE status <> 'superseded'"
+        )
+        conn.execute("RELEASE publication_queue_history_migration")
+    except BaseException:
+        conn.execute("ROLLBACK TO publication_queue_history_migration")
+        conn.execute("RELEASE publication_queue_history_migration")
+        raise
+
+
 def ensure_analysis_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(
         """
@@ -325,6 +375,10 @@ def ensure_analysis_schema(conn: sqlite3.Connection) -> None:
             engage_run_id TEXT NOT NULL DEFAULT '',
             engage_post_id TEXT NOT NULL DEFAULT '',
             engage_handoff_hash TEXT NOT NULL DEFAULT '',
+            supersedes_publication_id TEXT NOT NULL DEFAULT '',
+            superseded_by_publication_id TEXT NOT NULL DEFAULT '',
+            superseded_status TEXT NOT NULL DEFAULT '',
+            superseded_at TEXT NOT NULL DEFAULT '',
             not_before TEXT NOT NULL DEFAULT '',
             attempts INTEGER NOT NULL DEFAULT 0,
             last_attempt_at TEXT NOT NULL DEFAULT '',
@@ -335,8 +389,7 @@ def ensure_analysis_schema(conn: sqlite3.Connection) -> None:
             error TEXT NOT NULL DEFAULT '',
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
-            UNIQUE (project, platform, content_key, analysis_id),
-            UNIQUE (platform, target_url, draft_hash)
+            UNIQUE (project, platform, content_key, analysis_id)
         );
         CREATE INDEX IF NOT EXISTS idx_publication_queue_project_status
             ON publication_queue(project, status, platform, created_at);
@@ -420,10 +473,15 @@ def ensure_analysis_schema(conn: sqlite3.Connection) -> None:
         "engage_post_id": "TEXT NOT NULL DEFAULT ''",
         "engage_handoff_hash": "TEXT NOT NULL DEFAULT ''",
         "master_attempt_id": "TEXT NOT NULL DEFAULT ''",
+        "supersedes_publication_id": "TEXT NOT NULL DEFAULT ''",
+        "superseded_by_publication_id": "TEXT NOT NULL DEFAULT ''",
+        "superseded_status": "TEXT NOT NULL DEFAULT ''",
+        "superseded_at": "TEXT NOT NULL DEFAULT ''",
     }
     for column, definition in publication_additions.items():
         if column not in publication_columns:
             conn.execute(f"ALTER TABLE publication_queue ADD COLUMN {column} {definition}")
+    _migrate_publication_queue_history(conn)
     receipt_columns = {
         row[1] for row in conn.execute("PRAGMA table_info(publication_receipts)").fetchall()
     }

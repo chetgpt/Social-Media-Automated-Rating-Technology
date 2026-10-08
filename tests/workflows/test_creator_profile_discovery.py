@@ -467,6 +467,32 @@ def test_cursor_gap_and_cycle_never_become_verified_terminal(monkeypatch):
     assert cycle.last_creator_profile_diagnostics["stop_reason"] == "cursor_cycle"
 
 
+def test_duplicate_cursor_response_does_not_break_cursor_chain(monkeypatch):
+    integration = TikTokAPIIntegration(enable_api=False)
+    _install_capture(
+        monkeypatch,
+        integration,
+        pages=[
+            _post_page([_item("100")], True, request_cursor="0", next_cursor="20"),
+            # Duplicate response for the same cursor="0" on initial page render
+            _post_page([_item("100")], True, request_cursor="0", next_cursor="20"),
+            _post_page([_item("101")], False, request_cursor="20", next_cursor="20"),
+        ],
+        identities=[_identity_page()],
+        stop_reason="source_exhausted",
+    )
+    records = asyncio.run(
+        integration.discover_creator_profile_posts(
+            object(),
+            "Creator.Name",
+            collect_all=True,
+        )
+    )
+    assert [record["id"] for record in records] == ["100", "101"]
+    assert integration.last_creator_profile_diagnostics["terminal_verified"] is True
+    assert integration.last_creator_profile_diagnostics["stop_reason"] == "source_exhausted"
+
+
 def test_missing_request_identity_binding_is_not_a_verified_empty_profile(monkeypatch):
     integration = TikTokAPIIntegration(enable_api=False)
     page = _post_page([], False)

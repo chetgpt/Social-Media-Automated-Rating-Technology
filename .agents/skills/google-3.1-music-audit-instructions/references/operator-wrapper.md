@@ -7,6 +7,23 @@ real durable `engage_*` run ID, and generates the evidence review from local and
 master state. It never calls `social_browser.py`, starts Edge directly, or
 accepts arbitrary browser flags.
 
+MusicBrainz is retired. A new guarded run has an empty catalog-provider set;
+TikTok declarations, contained-recording metadata, and eligible Apple exact-ID
+resolution remain active. Do not add MusicBrainz to a new run. A preserved
+handoff retains its original provider set and evidence hashes. If that set
+contains `musicbrainz`, only new or repaired records receive its terminal
+`unsupported` outcome with reason `provider_retired`, without a network request.
+Offline validation/export preserves historical MusicBrainz evidence unchanged.
+See the workspace `docs/contracts/MUSICBRAINZ_RETIREMENT.md` contract.
+
+Each operator child accepts exactly one topic, creator, or URL source. For a
+new topic child it freezes `topic_query_policy=exact`: the normalized
+user-supplied topic is the sole TikTok query, and pagination/retries repeat that
+same query. Neither `--posts`, the candidate reserve, nor a page/retry budget
+may generate related terms or modifiers. A saved legacy
+`related_variants_v1` handoff resumes unchanged as a compatibility path; never
+use that policy for a new child.
+
 Set the workspace and interpreter once:
 
 ~~~powershell
@@ -20,6 +37,11 @@ $Operator = '.\.agents\skills\google-3.1-music-audit-instructions\scripts\music_
 ~~~powershell
 & $AuditPython $Operator start --run-label 'test' --topic 'music' --posts 1
 ~~~
+
+This searches only the normalized query `music`. A larger `--posts N` changes
+the exact-count target and same-query pagination work; it does not create
+count-scaled keyword combinations. Exhaustion or platform refusal produces an
+honest `collection_incomplete: X/N` review.
 
 When `--project` is omitted, the operator creates a unique semantic project
 name from the optional label, collection policy, actual source type and target,
@@ -121,9 +143,18 @@ Always obey the returned `next_action`. In particular, an exhausted epoch is
 reported budget and cannot prove exhaustion. A Gemini task/server/app restart
 is not a Windows restart.
 
+For an explicit multi-topic MUSIC AUDIT, do not place several topics in one
+operator command or concatenate them into one query. First resolve the user's
+TOTAL, EACH, or CUSTOM quota semantics, then use `music_audit_topics.py plan`.
+That coordinator invokes these single-topic guarded children sequentially,
+preserves their exact handoffs, and exposes
+`collect|continue|status|validate --run-dir`. See the skill's multi-topic
+section and `docs/contracts/MULTI_TOPIC_MUSIC_AUDIT.md`.
+
 Use the same `start` command shape for another scope:
 
 - topic: `--topic '<topic>' --posts N`;
+- topic ALL: `--topic '<topic>' --all-posts`;
 - creator: `--creator '<@handle-or-profile-url>' --posts N`;
 - creator ALL: `--creator '<target>' --all-posts`;
 - direct URL: `--url '<canonical-url>' --posts 1`.
@@ -139,6 +170,17 @@ Creator ALL has one exhaustive guarded shape:
 or another finite discovery bound; use `--posts N` when the requested scope is
 bounded. The operator rejects the capped-ALL combination before creating a
 project.
+
+Topic ALL uses `start --topic '<topic>' --all-posts` with the same prohibition
+on `--posts` and `--max-pages`. It retains `topic_query_policy=exact` and
+`new_only`: traverse that query without an artificial total-page or post-count
+cap, freeze a verified terminal search inventory and hash, then hydrate every
+eligible globally-new post. Record topic-relevance exclusions explicitly.
+Stalls, challenges, access denials, and failed hydration remain incomplete;
+never relabel them as exhaustion or shrink the target to the successes. Resume
+preserves the frozen selection. This is coverage of the observed terminal
+search, not a promise of every matching TikTok post. Topic REFRESH, POSTS
+DISCOVERY, and multi-topic coordinator counts remain finite.
 
 Add `--collection-policy refresh_known` only for an explicit MUSIC AUDIT
 REFRESH request. The operator rejects incompatible source, cardinality, and
@@ -169,6 +211,10 @@ frontier, `has_more=false`, `frontier_stop_reason=source_exhausted`, unique
 exact-owner inventory count, selected-new count, `new_only` exclusion count,
 and an uncapped page bound. Never infer the live profile total from `0 new` or
 a master-registry creator count.
+For topic ALL, also require verified terminal search coverage, its frozen
+inventory/hash, globally-known and relevance exclusions, an uncapped page bound,
+and evidence for every eligible selected post. A verified empty selection may
+complete as `0/0`; a missing terminal response may not.
 
 ## Resume after ordinary bounded recovery
 

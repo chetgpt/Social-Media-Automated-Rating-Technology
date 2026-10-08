@@ -29,6 +29,12 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
+from tiktok_scraper.source_identity import (
+    ensure_source_alias_schema,
+    resolve_registered_source,
+    source_id_for_path,
+)
+
 
 DEFAULT_MASTER_DATABASE = (
     Path("comments_data")
@@ -36,7 +42,7 @@ DEFAULT_MASTER_DATABASE = (
     / "state"
     / "tiktok_master.sqlite"
 )
-MASTER_SCHEMA_VERSION = "7"
+MASTER_SCHEMA_VERSION = "8"
 MASTER_SCHEMA_NAMES = frozenset({"main", "master"})
 MUSIC_BACKFILL_RUN_STATUSES = frozenset(
     {"planned", "running", "backfill_complete", "backfill_incomplete", "failed"}
@@ -723,6 +729,7 @@ def ensure_master_schema(
     ]
     for statement in statements:
         conn.execute(statement)
+    ensure_source_alias_schema(conn, schema)
 
     run_columns = _columns(conn, schema, "tiktok_master_runs")
     run_additions = {
@@ -1087,7 +1094,9 @@ def register_source(
     imported: bool = False,
 ) -> str:
     path = _normalize_path(source_path)
-    source_id = stable_id("tiktok-engage-source", path)
+    registered = resolve_registered_source(conn, schema, path)
+    source_id = registered["source_id"] if registered else source_id_for_path(path)
+    identity_path = registered["identity_path"] if registered else path
     timestamp = now_iso()
     conn.execute(
         f"""
@@ -1104,7 +1113,7 @@ def register_source(
         """,
         (
             source_id,
-            path,
+            identity_path,
             timestamp,
             timestamp,
             timestamp if imported else "",
@@ -1412,10 +1421,7 @@ def store_audit_report(
         run_id,
         source_path,
     )
-    source_id = stable_id(
-        "tiktok-engage-source",
-        _normalize_path(source_path),
-    )
+    source_id = register_source(conn, schema, source_path)
     existing = conn.execute(
         f"""
         SELECT source_id, local_run_id, schema_version, rubric_version,
@@ -1555,10 +1561,8 @@ def audit_report_for_run(
         source_path = source_path or _main_database_path(conn)
         if not str(source_path or "").strip():
             raise ValueError("source_path is required with a local run_id")
-        source_id = stable_id(
-            "tiktok-engage-source",
-            _normalize_path(source_path),
-        )
+        source = resolve_registered_source(conn, schema, source_path)
+        source_id = source["source_id"] if source else source_id_for_path(source_path)
         master_run_id = stable_id(source_id, run_id)
     row = conn.execute(
         f"""
@@ -2996,8 +3000,8 @@ def _music_backfill_catalogs(values: Iterable[Any]) -> tuple[str, ...]:
             if str(value or "").strip()
         )
     )
-    if not normalized:
-        raise ValueError("at least one music backfill catalog is required")
+    # New runs have no configured catalog provider after MusicBrainz retirement.
+    # Explicit frozen legacy lists remain valid and retain their original hash.
     unsupported = sorted(set(normalized) - MUSIC_BACKFILL_SUPPORTED_CATALOGS)
     if unsupported:
         raise ValueError(
@@ -3434,7 +3438,7 @@ def register_music_backfill_run(
     target_schema_version: str,
     retryable_statuses: Sequence[str],
     candidates: Sequence[dict[str, Any]],
-    configured_catalogs: Sequence[str] = ("musicbrainz",),
+    configured_catalogs: Sequence[str] = (),
     force: bool = False,
     expected_account: str = "",
     observed_account: str = "",
@@ -5691,16 +5695,19 @@ def _import_legacy_publications(
             if status in {"published", "deleted"}
             else "uncertain"
         )
+        attempt_number = int(item.get("attempts") or 0)
         attempt_id = "legacy_" + stable_id(source_id, publication_id)
         existing_attempt = conn.execute(
             f"""
-            SELECT state
+            SELECT state, attempt_id
             FROM {_table(schema, "tiktok_master_comment_attempts")}
-            WHERE attempt_id=?
+            WHERE attempt_id=? OR (source_id=? AND publication_id=? AND local_attempt_number=?)
             """,
-            (attempt_id,),
+            (attempt_id, source_id, publication_id, attempt_number),
         ).fetchone()
         prior_state = str(existing_attempt[0] or "") if existing_attempt else ""
+        if existing_attempt:
+            attempt_id = str(existing_attempt[1] or attempt_id)
         inserted = existing_attempt is None
         upgraded = (
             existing_attempt is not None

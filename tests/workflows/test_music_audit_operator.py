@@ -1,6 +1,7 @@
 import asyncio
 import importlib.util
 import json
+import sqlite3
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -8,6 +9,8 @@ from types import SimpleNamespace
 import pytest
 
 import engage_tiktok as engage
+import tiktok_master_database as master_registry
+from tiktok_scraper.source_identity import insert_source_path_alias, source_id_for_path
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -26,7 +29,7 @@ sys.modules[SPEC.name] = operator
 SPEC.loader.exec_module(operator)
 
 
-def terminal_record(post_id: str) -> dict:
+def terminal_record(post_id: str, *, music_catalogs=()) -> dict:
     record = {
         "id": post_id,
         "url": f"https://www.tiktok.com/@maker/video/{post_id}",
@@ -38,8 +41,8 @@ def terminal_record(post_id: str) -> dict:
         "like_count": 2,
         "comment_count": 0,
         "share_count": 0,
-        "music_id": "music-1",
-        "music_title": "Known Song",
+        "music_id": "6817155068127610882",
+        "music_title": "France Accordion Swing",
         "music_author": "Known Artist",
         "music_duration_seconds": 180,
         "post_duration_seconds": 15,
@@ -61,8 +64,8 @@ def terminal_record(post_id: str) -> dict:
     )
     record["music_evidence"] = engage.build_music_evidence(
         record,
-        configured_catalogs=("musicbrainz",),
-        musicbrainz_result=musicbrainz,
+        configured_catalogs=music_catalogs,
+        musicbrainz_result=musicbrainz if "musicbrainz" in music_catalogs else None,
     )
     return record
 
@@ -98,17 +101,17 @@ class ReplacementCollector:
     ):
         assert tuple(existing_post_ids) == ()
         assert initial_evidence_ready_count == 0
-        assert tuple(music_catalogs) == ("musicbrainz",)
+        assert tuple(music_catalogs) in ((), ("musicbrainz",))
         records = []
         for post_id in ("101", "102", "103"):
-            record = terminal_record(post_id)
+            record = terminal_record(post_id, music_catalogs=music_catalogs)
             record["topic_relevance_required"] = True
             record["topic_relevance"] = {"decision": "review"}
             assert candidate_reserver is not None
             assert candidate_reserver(post_id, record)
             record_callback(record)
             records.append(record)
-        accepted = terminal_record("104")
+        accepted = terminal_record("104", music_catalogs=music_catalogs)
         accepted["topic_relevance_required"] = True
         accepted["topic_relevance"] = {"decision": "accept"}
         assert candidate_reserver("104", accepted)
@@ -144,12 +147,56 @@ class DirectCollector:
         assert tuple(refresh_candidates) == ()
         assert source_mode == "url"
         assert direct_post_url == "https://www.tiktok.com/@maker/video/123"
-        assert tuple(music_catalogs) == ("musicbrainz",)
-        record = terminal_record("123")
+        assert tuple(music_catalogs) in ((), ("musicbrainz",))
+        record = terminal_record("123", music_catalogs=music_catalogs)
         assert candidate_reserver is not None
         assert candidate_reserver("123", record)
         assert record_callback(record) is True
         return [record]
+
+
+class TopicAllCollector(ReplacementCollector):
+    last_diagnostics = {
+        "keyword": "music",
+        "collect_all": True,
+        "terminal_verified": True,
+        "inventory_complete": True,
+        "has_more": False,
+        "stop_reason": "source_exhausted",
+        "source_exhausted": True,
+        "limit_reached": False,
+        "page_budget": 0,
+    }
+
+    def __init__(self, *, empty=False):
+        self.empty = empty
+
+    async def collect(
+        self, *, record_callback, existing_post_ids=(), initial_evidence_ready_count=0,
+        collection_policy="new_only", global_known_post_ids=(), current_run_post_ids=(),
+        candidate_reserver=None, source_mode="topic", topic_query_policy="exact",
+        cardinality_mode="fixed", topic_inventory=None, topic_excluded_post_ids=(),
+        topic_inventory_callback=None, max_pages=0, music_catalogs=(), **kwargs,
+    ):
+        assert max_pages == 0
+        assert cardinality_mode == "all"
+        candidates = [] if self.empty else [terminal_record(str(n)) for n in range(101, 105)]
+        assert topic_inventory_callback is not None
+        assert topic_inventory_callback(
+            candidates,
+            {
+                **self.last_diagnostics,
+                "terminal": True,
+                "selected_post_ids": [row["id"] for row in candidates],
+            },
+        ) == len(candidates)
+        return [] if self.empty else await super().collect(
+            record_callback=record_callback,
+            existing_post_ids=existing_post_ids,
+            initial_evidence_ready_count=initial_evidence_ready_count,
+            candidate_reserver=candidate_reserver,
+            music_catalogs=music_catalogs,
+        )
 
 
 class CreatorCollector:
@@ -186,8 +233,8 @@ class CreatorCollector:
         assert tuple(creator_inventory) == ()
         assert creator_inventory_terminal is False
         assert tuple(creator_selected_post_ids) == ()
-        assert tuple(music_catalogs) == ("musicbrainz",)
-        record = terminal_record("201")
+        assert tuple(music_catalogs) in ((), ("musicbrainz",))
+        record = terminal_record("201", music_catalogs=music_catalogs)
         assert creator_inventory_callback is not None
         assert (
             creator_inventory_callback(
@@ -210,7 +257,7 @@ class CreatorCollector:
 
 
 @pytest.fixture
-def completed_operator_run(tmp_path):
+def completed_operator_run(tmp_path, request):
     paths = operator.OperatorPaths(
         workspace=tmp_path.resolve(),
         python=operator.REQUIRED_PYTHON.resolve(),
@@ -242,6 +289,15 @@ def completed_operator_run(tmp_path):
         args=args,
         paths=paths,
     )
+    assert handoff["intent"]["music_catalogs"] == list(engage.DEFAULT_MUSIC_CATALOGS) == []
+    assert "--music-catalog" not in operator.build_start_arguments(handoff)
+    if getattr(request, "param", ()):
+        # Construct a pre-retirement fixture before any durable run/ledger exists.
+        handoff["intent"]["music_catalogs"] = list(request.param)
+        handoff["intent_hash"] = operator.json_hash(handoff["intent"])
+        operator.write_handoff(handoff_path, handoff)
+    assert handoff["topic_query_policy"] == "exact"
+    assert handoff["intent"]["topic_query_policy"] == "exact"
     database = Path(handoff["database"])
     conn = engage.connect_database(
         database,
@@ -251,6 +307,7 @@ def completed_operator_run(tmp_path):
     try:
         run_id = engage.create_run(
             conn,
+            music_catalogs=tuple(handoff["intent"]["music_catalogs"]),
             project="operator_test",
             topic="music",
             requested_count=1,
@@ -301,6 +358,74 @@ def completed_operator_run(tmp_path):
 
 
 @pytest.fixture
+def completed_topic_all_operator_run(tmp_path, request):
+    paths = operator.OperatorPaths(
+        workspace=tmp_path.resolve(),
+        python=operator.REQUIRED_PYTHON.resolve(),
+        engage_script=(ROOT / "engage_tiktok.py").resolve(),
+        master_database=(tmp_path / "master.sqlite").resolve(),
+    )
+    args = operator.build_parser().parse_args(["start", "--topic", "music", "--all-posts"])
+    source_mode, target, requested, all_posts = operator.validate_start_scope(args)
+    operator.freeze_start_options(
+        args, source_mode=source_mode, source_target=target, requested_count=requested
+    )
+    handoff_path, handoff = operator.new_handoff(
+        project="operator_topic_all_test",
+        source_mode=source_mode,
+        source_target=target,
+        requested_count=requested,
+        all_posts=all_posts,
+        args=args,
+        paths=paths,
+    )
+    conn = engage.connect_database(
+        Path(handoff["database"]), master_database=paths.master_database, sync_master=True
+    )
+    try:
+        run_id = engage.create_run(
+            conn,
+            project=handoff["project"],
+            topic=target,
+            requested_count=0,
+            collect_all=True,
+            max_comments=20,
+            max_pages=0,
+            mode="shadow",
+            workflow="listen",
+            source_mode="topic",
+            collection_policy="new_only",
+            master_database=str(paths.master_database),
+        )
+        status = asyncio.run(
+            engage.collect_exact(
+                conn,
+                run_id=run_id,
+                preflight=ReadyPreflight(),
+                collector=TopicAllCollector(empty=getattr(request, "param", False)),
+            )
+        )
+        assert status["status"] == "collection_complete"
+        engage.export_listen_evidence(conn, run_id, Path(handoff["export_file"]))
+    finally:
+        conn.close()
+    handoff["run_id"] = run_id
+    operator.capture_frozen_selection(handoff)
+    handoff["state"] = "collection_complete"
+    handoff["last_status"] = operator.status_summary(status)
+    operator.write_handoff(handoff_path, handoff)
+    operator.append_ledger(
+        handoff,
+        action="fixture-topic-all-complete",
+        stage="collection",
+        paths=paths,
+        status=status,
+        next_action="validate",
+    )
+    return paths, handoff_path, handoff
+
+
+@pytest.fixture
 def blocked_operator_run(tmp_path):
     paths = operator.OperatorPaths(
         workspace=tmp_path.resolve(),
@@ -341,6 +466,7 @@ def blocked_operator_run(tmp_path):
     try:
         run_id = engage.create_run(
             conn,
+            music_catalogs=tuple(handoff["intent"]["music_catalogs"]),
             project="operator_blocked_test",
             topic="music",
             requested_count=1,
@@ -437,6 +563,7 @@ def completed_direct_operator_run(tmp_path):
     try:
         run_id = engage.create_run(
             conn,
+            music_catalogs=tuple(handoff["intent"]["music_catalogs"]),
             project="operator_direct_test",
             topic="",
             requested_count=1,
@@ -525,6 +652,7 @@ def completed_creator_operator_run(tmp_path):
     try:
         run_id = engage.create_run(
             conn,
+            music_catalogs=tuple(handoff["intent"]["music_catalogs"]),
             project="operator_creator_test",
             topic="creator:@maker",
             requested_count=1,
@@ -628,6 +756,7 @@ def refresh_selection_run(tmp_path):
     try:
         run_id = engage.create_run(
             conn,
+            music_catalogs=tuple(handoff["intent"]["music_catalogs"]),
             project="operator_refresh_binding_test",
             topic="music",
             requested_count=1,
@@ -649,6 +778,121 @@ def refresh_selection_run(tmp_path):
     return paths, handoff_path, handoff
 
 
+@pytest.fixture
+def relocated_completed_operator_run(completed_operator_run):
+    paths, handoff_path, handoff = completed_operator_run
+    current = Path(handoff["database"])
+    historical = paths.workspace / "previous-workspace" / current.relative_to(paths.workspace)
+    historical_source_id = source_id_for_path(historical)
+    conn = sqlite3.connect(paths.master_database)
+    conn.row_factory = sqlite3.Row
+    try:
+        original = conn.execute(
+            "SELECT source_id,master_run_id FROM tiktok_master_runs WHERE local_run_id=?",
+            (handoff["run_id"],),
+        ).fetchone()
+        historical_run_id = master_registry.stable_id(historical_source_id, handoff["run_id"])
+        snapshots = conn.execute(
+            "SELECT * FROM tiktok_master_snapshots WHERE source_id=?",
+            (original["source_id"],),
+        ).fetchall()
+        snapshot_mapping = {
+            row["snapshot_id"]: master_registry.stable_id(
+                historical_source_id, row["local_run_id"], row["post_id"],
+                row["evidence_hash"], row["observed_at"],
+            ) for row in snapshots
+        }
+        # Construct a coherent historical fixture before recording relocation.
+        # All local evidence and the exact current handoff remain untouched.
+        table_names = [row[0] for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        )]
+        for table in table_names:
+            assert table.isidentifier()
+            columns = {row[1] for row in conn.execute(f'PRAGMA table_info("{table}")')}
+            for column in columns & {"source_id", "first_source_id", "last_source_id"}:
+                conn.execute(f'UPDATE "{table}" SET "{column}"=? WHERE "{column}"=?',
+                             (historical_source_id, original["source_id"]))
+            if "master_run_id" in columns:
+                conn.execute(f'UPDATE "{table}" SET master_run_id=? WHERE master_run_id=?',
+                             (historical_run_id, original["master_run_id"]))
+            for column in columns & {
+                "snapshot_id", "latest_snapshot_id", "first_snapshot_id",
+                "last_snapshot_id", "previous_snapshot_id", "base_snapshot_id",
+            }:
+                for original_id, historical_id in snapshot_mapping.items():
+                    conn.execute(f'UPDATE "{table}" SET "{column}"=? WHERE "{column}"=?',
+                                 (historical_id, original_id))
+        conn.execute(
+            "UPDATE tiktok_master_sources SET database_path=? WHERE source_id=?",
+            (str(historical.resolve()), historical_source_id),
+        )
+        insert_source_path_alias(
+            conn, "main", source_id=historical_source_id,
+            identity_path=str(historical.resolve()), database_path=current,
+            migration_id="verified-offline-operator-test-relocation",
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return paths, handoff_path, handoff
+
+
+def test_completed_validation_accepts_verified_alias_without_changing_handoff(
+    relocated_completed_operator_run,
+):
+    paths, handoff_path, handoff = relocated_completed_operator_run
+    stored_handoff = handoff_path.read_bytes()
+    frozen_handoff = operator.canonical_json(handoff)
+    exact_handoff = operator.load_handoff(handoff_path, paths)
+
+    review = operator.validate_completed_artifacts(exact_handoff, paths=paths)
+
+    assert review["executor_compliance"] == "PASS"
+    assert review["task_outcome"] == "COMPLETE"
+    assert review["status"]["evidence_ready"] == 1
+    assert review["output_layout"]["workflow_database"] == handoff["database"]
+    assert review["output_layout"]["handoff"] == str(handoff_path)
+    assert review["artifacts"]["evidence_export"]["path"] == handoff["export_file"]
+    assert review["ai_actions"] == review["outbound_actions"] == []
+    assert handoff_path.read_bytes() == stored_handoff
+    assert operator.canonical_json(handoff) == frozen_handoff
+
+
+@pytest.mark.parametrize(
+    ("table", "column", "message"),
+    [
+        ("tiktok_master_snapshots", "evidence_hash", "master snapshot evidence hash"),
+        ("tiktok_master_source_path_aliases", "binding_hash", "alias checksum mismatch"),
+    ],
+)
+def test_verified_alias_does_not_bypass_evidence_or_binding_integrity(
+    relocated_completed_operator_run, table, column, message,
+):
+    paths, _handoff_path, handoff = relocated_completed_operator_run
+    conn = sqlite3.connect(paths.master_database)
+    try:
+        conn.execute(f'UPDATE "{table}" SET "{column}"=?', ("0" * 64,))
+        conn.commit()
+    finally:
+        conn.close()
+
+    with pytest.raises(operator.OperatorError, match=message):
+        operator.validate_completed_artifacts(handoff, paths=paths)
+
+
+def test_verified_alias_does_not_authorize_changing_the_exact_handoff_path(
+    relocated_completed_operator_run,
+):
+    paths, handoff_path, handoff = relocated_completed_operator_run
+    modified = dict(handoff)
+    modified["database"] = str(paths.workspace / "different-project.sqlite")
+    modified["handoff_hash"] = operator._handoff_hash(modified)
+
+    with pytest.raises(operator.OperatorError, match="database does not match the canonical path"):
+        operator.validate_handoff(modified, path=handoff_path, paths=paths)
+
+
 def test_completed_validation_accepts_replacement_candidate_history(
     completed_operator_run,
 ):
@@ -662,6 +906,19 @@ def test_completed_validation_accepts_replacement_candidate_history(
     assert review["status"]["unique_collected"] == 4
     assert review["status"]["failed"] == 3
     assert review["artifacts"]["evidence_export"]["records"] == 1
+    assert review["posts"][0]["music"]["music_page"] == {
+        "schema_version": "tiktok-music-page-locator-v1",
+        "status": "derived",
+        "music_id": "6817155068127610882",
+        "slug": "France-Accordion-Swing",
+        "url": (
+            "https://www.tiktok.com/music/"
+            "France-Accordion-Swing-6817155068127610882"
+        ),
+        "source": "derived_from_platform_music",
+        "online_verification": "not_attempted",
+        "reason": "derived_from_music_id_and_title",
+    }
     assert review["output_layout"] == {
         "schema_version": "tiktok-music-audit-project-layout-v2",
         "artifact_stem": handoff["artifact_stem"],
@@ -674,9 +931,63 @@ def test_completed_validation_accepts_replacement_candidate_history(
         "machine_result": handoff["review_json"],
         "review_log": handoff["review_markdown"],
     }
-    assert "## Project output" in operator.review_markdown(review)
+    markdown = operator.review_markdown(review)
+    assert "## Project output" in markdown
+    assert (
+        "https://www.tiktok.com/music/"
+        "France-Accordion-Swing-6817155068127610882"
+    ) in markdown
     assert review["ai_actions"] == []
     assert review["outbound_actions"] == []
+
+
+@pytest.mark.parametrize(
+    "completed_operator_run", [(), ("musicbrainz",)], indirect=True
+)
+def test_catalog_scope_survives_offline_validation_and_child_commands(
+    completed_operator_run,
+):
+    paths, handoff_path, handoff = completed_operator_run
+    frozen_catalogs = handoff["intent"]["music_catalogs"]
+    protected = [handoff_path, Path(handoff["export_file"]), Path(handoff["database"])]
+    before = {path: path.read_bytes() for path in protected}
+    loaded = operator.load_handoff(handoff_path, paths)
+    review = operator.validate_completed_artifacts(loaded, paths=paths)
+
+    assert review["task_outcome"] == "COMPLETE"
+    assert review["offline_validation"] is True
+    assert review["posts"][0]["music"]["catalogs"] == {
+        provider: "unsupported" for provider in frozen_catalogs
+    }
+    assert loaded["intent"]["music_catalogs"] == frozen_catalogs
+    assert loaded["intent_hash"] == handoff["intent_hash"]
+    argv = operator.build_start_arguments(loaded)
+    assert [argv[index + 1] for index, value in enumerate(argv) if value == "--music-catalog"] == frozen_catalogs
+    assert "--music-catalog" not in operator.build_resume_arguments(loaded)
+    assert {path: path.read_bytes() for path in protected} == before
+
+
+@pytest.mark.parametrize("invalid_scope", [None, "", {}])
+def test_empty_catalog_support_still_requires_explicit_list_scope(invalid_scope):
+    packet = terminal_record("123")
+    music = packet["music_evidence"]
+    music["configured_catalogs"] = invalid_scope
+    music["music_evidence_hash"] = operator.json_hash(
+        operator._without_hash(music, "music_evidence_hash")
+    )
+    with pytest.raises(operator.OperatorError, match="music catalog scope is missing"):
+        operator._validate_music(packet, engage)
+
+
+def test_empty_catalog_support_still_requires_terminal_apple_outcome():
+    packet = terminal_record("123")
+    music = packet["music_evidence"]
+    music["tt2dsp_resolution"]["status"] = "pending"
+    music["music_evidence_hash"] = operator.json_hash(
+        operator._without_hash(music, "music_evidence_hash")
+    )
+    with pytest.raises(operator.OperatorError, match="tt2dsp resolution outcome is not terminal"):
+        operator._validate_music(packet, engage)
 
 
 def test_legacy_project_layout_remains_fixed_for_existing_handoffs(tmp_path):
@@ -1470,12 +1781,13 @@ def test_project_slug_cannot_be_used_as_run_id(completed_operator_run):
         operator.load_handoff(handoff_path, paths)
 
 
-def test_guarded_creator_all_rejects_a_finite_page_bound():
+@pytest.mark.parametrize("source,target", [("creator", "@maker"), ("topic", "indie music")])
+def test_guarded_all_rejects_a_finite_page_bound(source, target):
     args = operator.build_parser().parse_args(
         [
             "start",
-            "--creator",
-            "@maker",
+            f"--{source}",
+            target,
             "--all-posts",
             "--max-pages",
             "10",
@@ -1486,9 +1798,10 @@ def test_guarded_creator_all_rejects_a_finite_page_bound():
         operator.validate_start_scope(args)
 
 
-def test_guarded_creator_all_is_uncapped_and_omits_max_pages():
+@pytest.mark.parametrize("source,target", [("creator", "@maker"), ("topic", "indie music")])
+def test_guarded_all_is_uncapped_and_omits_max_pages(source, target):
     args = operator.build_parser().parse_args(
-        ["start", "--creator", "@maker", "--all-posts"]
+        ["start", f"--{source}", target, "--all-posts"]
     )
 
     source_mode, source_target, requested, all_posts = operator.validate_start_scope(
@@ -1517,9 +1830,89 @@ def test_guarded_creator_all_is_uncapped_and_omits_max_pages():
     arguments = operator.build_start_arguments(handoff)
 
     assert args.resolved_max_pages == 0
+    assert requested == 0
+    assert arguments[arguments.index(f"--{source}") + 1] == target
     assert "--all-posts" in arguments
     assert "--posts" not in arguments
     assert "--max-pages" not in arguments
+
+    handoff["intent"]["resolved_max_pages"] = 3
+    with pytest.raises(operator.OperatorError, match="finite page bound"):
+        operator.build_start_arguments(handoff)
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        ["--collection-policy", "refresh_known"],
+        ["--published-after", "2026-09-01T00:00:00Z", "--published-before", "2026-09-02T00:00:00Z"],
+    ],
+)
+def test_guarded_topic_all_preserves_existing_scope_exclusions(extra):
+    args = operator.build_parser().parse_args(["start", "--topic", "music", "--all-posts", *extra])
+    with pytest.raises(operator.OperatorError):
+        operator.validate_start_scope(args)
+
+
+@pytest.mark.parametrize("completed_topic_all_operator_run", [False, True], indirect=True)
+def test_completed_topic_all_operator_reports_proven_coverage(
+    completed_topic_all_operator_run, capsys,
+):
+    paths, handoff_path, handoff = completed_topic_all_operator_run
+    review = operator.validate_completed_artifacts(handoff, paths=paths)
+    coverage = review["topic_inventory"]
+    assert review["task_outcome"] == "COMPLETE"
+    assert coverage["terminal_verified"] is True
+    assert coverage["inventory_count"] == coverage["selected_count"]
+    assert coverage["selected_count"] in (0, 4)
+    assert coverage["relevance_excluded_count"] == (3 if coverage["selected_count"] else 0)
+    assert coverage["eligible_target"] == review["status"]["evidence_ready"]
+    assert review["artifacts"]["evidence_export"]["records"] == coverage["eligible_target"]
+    markdown = operator.review_markdown(review)
+    assert "## Topic inventory coverage" in markdown
+    assert "not TikTok-wide completeness" in markdown
+    assert "## Creator inventory" not in markdown
+
+    assert operator.poll_command(SimpleNamespace(handoff=handoff_path), paths) == 0
+    progress = json.loads(capsys.readouterr().out)
+    assert progress["operator_status"] == "COLLECTION_COMPLETE_NEEDS_FINALIZE"
+    assert progress["topic_inventory"] == coverage
+
+
+@pytest.mark.parametrize("completed_topic_all_operator_run", [True], indirect=True)
+def test_topic_all_unproven_zero_count_cannot_complete_or_export(
+    completed_topic_all_operator_run, monkeypatch, capsys,
+):
+    paths, handoff_path, handoff = completed_topic_all_operator_run
+    conn = sqlite3.connect(handoff["database"])
+    try:
+        conn.execute(
+            "UPDATE engage_tiktok_runs SET topic_inventory_json='{}', topic_inventory_hash='' WHERE run_id=?",
+            (handoff["run_id"],),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    handoff["state"] = "complete"
+    operator.write_handoff(handoff_path, handoff)
+
+    with pytest.raises(operator.OperatorError, match="topic ALL inventory validation failed"):
+        operator.validate_completed_artifacts(handoff, paths=paths)
+    assert operator.poll_command(SimpleNamespace(handoff=handoff_path), paths) == 0
+    progress = json.loads(capsys.readouterr().out)
+    assert progress["operator_status"] == "BLOCKED"
+    assert progress["next_action"] == "inspect_topic_inventory_binding"
+
+    status = handoff["last_status"]
+    result = operator.CommandResult((), 0, 0.0, status, "")
+    monkeypatch.setattr(operator, "canonical_status", lambda *args, **kwargs: (status, result))
+    monkeypatch.setattr(operator, "append_ledger", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        operator, "run_engage",
+        lambda *args, **kwargs: pytest.fail("unproven ALL must fail before export"),
+    )
+    with pytest.raises(operator.OperatorError, match="topic ALL inventory validation failed"):
+        operator.finalize(handoff, paths=paths)
 
 
 def test_legacy_capped_creator_all_is_reported_as_noncompliant():
@@ -2193,6 +2586,7 @@ def test_poll_is_read_only(blocked_operator_run, capsys):
 
     result = json.loads(capsys.readouterr().out)
     assert result["run_id"] == handoff["run_id"]
+    assert result["topic_query_policy"] == "exact"
     assert result["durable_status"] == "browser_blocked"
     assert result["operator_status"] == "RESUME_READY"
     assert result["same_handoff_resume_available"] is True
@@ -2219,6 +2613,54 @@ def test_poll_is_read_only(blocked_operator_run, capsys):
     assert result["replacement_project_allowed"] is False
     assert handoff_path.read_bytes() == handoff_before
     assert ledger_path.read_bytes() == ledger_before
+
+
+def test_precolumn_legacy_topic_run_polls_before_engine_migration(
+    completed_operator_run,
+    capsys,
+):
+    paths, handoff_path, _handoff = completed_operator_run
+    handoff = operator.load_handoff(handoff_path, paths)
+    handoff.pop("topic_query_policy")
+    intent = dict(handoff["intent"])
+    intent.pop("topic_query_policy")
+    handoff["intent"] = intent
+    handoff["intent_hash"] = operator.json_hash(intent)
+    operator.write_handoff(handoff_path, handoff)
+
+    connection = sqlite3.connect(handoff["database"])
+    connection.row_factory = sqlite3.Row
+    try:
+        created = connection.execute(
+            """
+            SELECT event_id, payload_json
+            FROM engage_tiktok_events
+            WHERE run_id=? AND stage='run' AND event='created'
+            """,
+            (handoff["run_id"],),
+        ).fetchone()
+        payload = json.loads(created["payload_json"])
+        payload.pop("topic_query_policy")
+        connection.execute(
+            "UPDATE engage_tiktok_events SET payload_json=? WHERE event_id=?",
+            (json.dumps(payload), created["event_id"]),
+        )
+        connection.execute(
+            "ALTER TABLE engage_tiktok_runs DROP COLUMN topic_query_policy"
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    verified = operator.validate_run_intent(
+        operator.load_handoff(handoff_path, paths), paths=paths
+    )
+    assert verified["topic_query_policy"] == "related_variants_v1"
+
+    assert operator.poll_command(SimpleNamespace(handoff=handoff_path), paths) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["topic_query_policy"] == "related_variants_v1"
+    assert result["operator_status"] == "COLLECTION_COMPLETE_NEEDS_FINALIZE"
 
 
 def test_poll_requires_finalize_when_collection_is_only_durably_complete(
