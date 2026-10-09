@@ -45,6 +45,237 @@ def reply_connection():
     return payload
 
 
+def relay_post_page():
+    root = raw_post()
+    reply = raw_post("124", "responder")
+    reply["text_post_app_info"].update(is_reply=True, reply_to_author={"username": "creator"})
+    followup = raw_post("125", "responder")
+    followup["text_post_app_info"].update(is_reply=True, reply_to_author={"username": "responder"})
+    root["text_post_app_info"]["direct_replies"] = {
+        "edges": [{"node": {"posts": {
+            "edges": [{"node": reply}, {"node": followup}],
+            "page_info": {"has_next_page": False, "end_cursor": None},
+        }}}],
+        "page_info": {"has_next_page": True, "end_cursor": "next-reply-thread"},
+    }
+    return {"data": {"media": root}}
+
+
+def test_relay_post_page_binds_chains_to_exact_root_and_uses_outer_pagination():
+    payload = relay_post_page()
+    replies = conversation_posts(payload, "123")
+    assert [(p["id"], p["parent_id"], p["root_id"]) for p in replies] == [
+        ("124", "123", "123"), ("125", "124", "123"),
+    ]
+    assert conversation_posts(payload, "999") == []
+    assert connection_info(payload) == [
+        {"has_next_page": True, "cursor": "next-reply-thread", "ids": ["123", "124", "125"]},
+    ]
+
+
+@pytest.mark.parametrize("change", ["wrong_author", "wrong_parent", "missing_predecessor", "quoted"])
+def test_relay_post_page_does_not_bind_ambiguous_replies(change):
+    payload = relay_post_page()
+    edges = payload["data"]["media"]["text_post_app_info"]["direct_replies"]["edges"][0]["node"]["posts"]["edges"]
+    if change == "wrong_author":
+        edges[0]["node"]["text_post_app_info"]["reply_to_author"] = {"username": "someone_else"}
+    elif change == "wrong_parent":
+        edges[0]["node"]["text_post_app_info"]["parent_id"] = "999"
+    elif change == "missing_predecessor":
+        edges[0] = {"node": None}
+    else:
+        payload = {"quoted_post": payload}
+    assert conversation_posts(payload, "123") == []
+
+
+def test_relay_missing_visibility_flag_is_not_complete_visibility_evidence():
+    from social_engage.threads_browser import reply_visibility
+    payload = relay_post_page()
+    assert reply_visibility(payload) == {"unavailable_replies": False, "reply_visibility_unknown": True}
+    payload["data"]["media"]["text_post_app_info"]["direct_replies"]["show_unavailable_replies_disclaimer"] = False
+    assert reply_visibility(payload) == {"unavailable_replies": False, "reply_visibility_unknown": False}
+
+
+def coverage_fixture():
+    from social_engage.threads_browser import comment_coverage, post_reply_state
+    from social_engage.threads_data import project_post
+    payload = relay_post_page()
+    raw = payload["data"]["media"]
+    raw["text_post_app_info"].update(direct_reply_count=1, has_unavailable_replies=False)
+    replies = raw["text_post_app_info"]["direct_replies"]
+    replies["page_info"] = {"has_next_page": False, "end_cursor": None}
+    replies["edges"][0]["node"]["posts"]["edges"].pop()
+    root = project_post(raw)
+    comments = conversation_posts(payload, "123")
+    state = post_reply_state(payload, "123")
+    return payload, root, comments, state, comment_coverage
+
+
+def test_target_root_visibility_survives_omitted_fields_and_unrelated_metadata():
+    from social_engage.threads_browser import post_reply_state
+    payload, root, comments, states, coverage = coverage_fixture()
+    raw = payload["data"]["media"]
+    partial = {"data": {"media": {"id": raw["id"], "text_post_app_info": {
+        "direct_replies": raw["text_post_app_info"]["direct_replies"]}}}}
+    payload["unrelated"] = {"data": {"media": raw_post("999")}}
+    assert len(post_reply_state(payload, "123")) == 1
+    assert post_reply_state({"data": {"media": raw_post()}}, "123") == []
+    later = post_reply_state(partial, "123", page_root_hint=raw)
+    assert later[0]["root_unavailable_replies"] is None
+    result = coverage(root, comments, [{"reply_state": states}, {"reply_state": later}], 10)
+    assert result["complete"] and result["visibility_verified"]
+    assert result["reasons"] == []
+
+
+@pytest.mark.parametrize("change, reason", [
+    ("missing_visibility", "reply_visibility_unverified"),
+    ("hidden", "unavailable_replies"),
+    ("child_open", "nested_reply_pages_remaining"),
+    ("child_unknown", "nested_reply_pagination_unverified"),
+    ("later_outer_open", "outer_reply_pagination_unverified"),
+])
+def test_coverage_retains_actual_unknown_hidden_nested_and_latest_outer_limits(change, reason):
+    _, root, comments, states, coverage = coverage_fixture()
+    states = copy.deepcopy(states)
+    events = [{"reply_state": states}]
+    if change == "missing_visibility":
+        states[0]["root_unavailable_replies"] = states[0]["unavailable_replies"] = None
+    elif change == "hidden":
+        hidden = copy.deepcopy(states)
+        hidden[0]["unavailable_replies"] = True
+        events.insert(0, {"reply_state": hidden})
+    elif change.startswith("child_"):
+        states[0]["nested_pages"][0]["has_next_page"] = True if change == "child_open" else None
+    else:
+        later = copy.deepcopy(states)
+        later[0]["has_next_page"] = True
+        events.append({"reply_state": later})
+    result = coverage(root, comments, events, 10)
+    assert not result["complete"] and reason in result["reasons"]
+
+
+def test_only_target_outer_connection_controls_post_pagination():
+    from social_engage.threads_browser import post_connections, post_reply_state
+    payload = relay_post_page()
+    unrelated = raw_post("999")
+    unrelated["text_post_app_info"]["direct_replies"] = {"edges": [], "page_info": {"has_next_page": False}}
+    payload["other"] = {"data": {"media": unrelated}}
+    states = post_reply_state(payload, "123")
+    assert post_connections(states) == [{"has_next_page": True, "cursor": "next-reply-thread", "ids": ["123"]}]
+    assert states[0]["nested_pages"] == [{"id": "124", "has_next_page": False}]
+
+
+def test_legacy_reply_page_needs_root_or_exact_query_hint():
+    from social_engage.threads_browser import post_connections, post_reply_state
+    from social_engage.threads_data import project_post
+    payload = reply_connection()
+    root = project_post(payload["edges"][0]["node"]["thread_items"][0]["post"])
+    assert post_connections(post_reply_state(payload, "123"))[0]["ids"] == ["123"]
+    payload["edges"].pop(0)
+    assert post_reply_state(payload, "123") == []
+    assert post_reply_state(payload, "123", root_hint=root)[0]["unavailable_replies"] is False
+    del payload["show_unavailable_replies_disclaimer"]
+    assert post_reply_state(payload, "123", root_hint=root) == []
+
+
+def test_ancillary_legacy_terminal_cannot_override_current_outer_connection():
+    from social_engage.threads_browser import comment_coverage, post_reply_state
+    from social_engage.threads_data import project_post
+    payload, root, comments, _, _ = coverage_fixture()
+    raw = payload["data"]["media"]
+    raw["text_post_app_info"]["direct_replies"]["page_info"] = {"has_next_page": True, "end_cursor": "outer-next"}
+    ancillary = {"show_unavailable_replies_disclaimer": False, "edges": [],
+                 "page_info": {"has_next_page": False, "end_cursor": None}}
+    payload["ancillary"] = ancillary
+    states = post_reply_state(payload, "123", root_hint=root)
+    assert len(states) == 1 and states[0]["has_next_page"] is True
+    assert not comment_coverage(root, comments, [{"reply_state": states}], 10)["complete"]
+    assert post_reply_state(ancillary, "123", root_hint=root) == []
+    unrelated = reply_connection()
+    unrelated["edges"][0]["node"]["thread_items"][0]["post"] = raw_post("999", "someone_else")
+    unrelated["edges"][1]["node"]["thread_items"][0]["post"]["text_post_app_info"]["reply_to_author"] = {"username": "someone_else"}
+    assert post_reply_state(unrelated, "123", root_hint=project_post(raw)) == []
+
+
+@pytest.mark.parametrize("known_owner", [True, False])
+@pytest.mark.parametrize("visibility_verified", [True, False])
+def test_collect_relay_exact_post_route_and_complete_visibility(known_owner, visibility_verified):
+    from social_engage.threads_browser import reply_visibility
+    from social_engage.threads_data import collect_posts
+    payload = relay_post_page()
+    raw_root = payload["data"]["media"]
+    info = raw_root["text_post_app_info"]
+    info["direct_reply_count"] = 1
+    connection = info["direct_replies"]
+    connection["page_info"] = {"has_next_page": False, "end_cursor": None}
+    connection["edges"][0]["node"]["posts"]["edges"].pop()
+    if visibility_verified:
+        connection["show_unavailable_replies_disclaimer"] = False
+    actor = {"id": "99", "username": "operator"}
+    payload["viewer"] = actor.copy()
+    adapter = ThreadsBrowserAdapter.__new__(ThreadsBrowserAdapter)
+    adapter.page = SimpleNamespace(url="")
+    visited = []
+
+    async def navigate(url, kind):
+        visited.append(url)
+        adapter.page.url = url
+        bound = {p["id"]: p for p in conversation_posts(payload, "123")}
+        adapter.events = [{"posts": [bound.get(p["id"], p) for p in collect_posts(payload)],
+                           "connections": connection_info(payload), **reply_visibility(payload)}]
+        return payload
+
+    async def paginate(enough):
+        assert enough(adapter._posts())
+
+    adapter._navigate, adapter._paginate = navigate, paginate
+    scope = {"source": "post", "account": "operator", "target": "123", "comments": 1}
+    if known_owner:
+        scope["target_owner"] = "creator"
+    result = asyncio.run(adapter._collect("123", scope, actor))
+    path = "/@creator/post/" if known_owner else "/t/"
+    assert visited == ["https://www.threads.com" + path + id_to_shortcode("123")]
+    assert result["id"] == "123" and [p["id"] for p in result["comments"]] == ["124"]
+    assert result["comments"][0]["parent_id"] == "123"
+    assert result["comments_complete"] is visibility_verified
+
+
+def test_collect_stops_at_comment_cap_including_nested_replies():
+    from social_engage.threads_browser import reply_visibility
+    from social_engage.threads_data import collect_posts
+
+    payload = relay_post_page()
+    info = payload["data"]["media"]["text_post_app_info"]
+    info["direct_reply_count"] = 10
+    info["direct_replies"]["edges"][0]["node"]["posts"]["edges"][0]["node"]["text_post_app_info"]["direct_reply_count"] = 1
+    actor = {"id": "99", "username": "operator"}
+    payload["viewer"] = actor.copy()
+    adapter = ThreadsBrowserAdapter.__new__(ThreadsBrowserAdapter)
+
+    async def forbidden_page_fetch(*args):
+        pytest.fail("the verified direct and nested replies already fill the comment cap")
+
+    async def guard():
+        pass
+
+    adapter.page = SimpleNamespace(url="", evaluate=forbidden_page_fetch,
+                                   mouse=SimpleNamespace(wheel=forbidden_page_fetch))
+    adapter._page_guard, adapter._replay = guard, forbidden_page_fetch
+
+    async def navigate(url, kind):
+        adapter.page.url = url
+        bound = {p["id"]: p for p in conversation_posts(payload, "123")}
+        adapter.events = [{"posts": [bound.get(p["id"], p) for p in collect_posts(payload)],
+                           "connections": connection_info(payload), **reply_visibility(payload)}]
+        return payload
+
+    adapter._navigate = navigate
+    scope = {"source": "post", "account": "operator", "target": "123", "comments": 2}
+    result = asyncio.run(adapter._collect("123", scope, actor))
+    assert [(p["id"], p["parent_id"]) for p in result["comments"]] == [("124", "123"), ("125", "124")]
+    assert result["comments_complete"] is False
+
+
 def test_post_connection_binds_reply_without_inventing_a_feed_parent():
     payload = reply_connection()
     result = conversation_posts(payload, "123")

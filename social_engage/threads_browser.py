@@ -14,7 +14,7 @@ import re
 from urllib.parse import parse_qs, quote, urlencode, urlsplit
 
 from .adapters import AdapterError, eligible_time, now_iso, numeric, username
-from .threads_data import collect_posts, find_viewer, id_to_shortcode, project_post, _walk
+from .threads_data import collect_posts, find_viewer, id_to_shortcode, post_page_connections, project_post, _walk
 
 
 HOSTS = {"www.threads.com", "threads.com", "www.threads.net", "threads.net"}
@@ -57,9 +57,18 @@ def read_template(url, method, body, headers):
         return None
 
 
-def connection_info(payload):
+def connection_info(payload, root_hint=None):
     """Project cursors only from connections containing Threads post items."""
     result = []
+    for connection in post_page_connections(payload, root_hint):
+        info = connection["page_info"]
+        if isinstance(info, dict) and isinstance(info.get("has_next_page"), bool):
+            root = project_post(connection["root"])
+            replies = collect_posts([{"thread_items": items} for items in connection["threads"]])
+            cursor = info.get("end_cursor")
+            result.append({"has_next_page": info["has_next_page"],
+                           "cursor": cursor if isinstance(cursor, str) and len(cursor) <= 4096 else None,
+                           "ids": list(dict.fromkeys([root["id"], *(p["id"] for p in replies)]))})
     for obj in _walk(payload):
         if isinstance(obj, dict):
             info = obj.get("page_info")
@@ -73,14 +82,18 @@ def connection_info(payload):
     return result
 
 
-def conversation_posts(payload, target_id, root_hint=None):
+def conversation_posts(payload, target_id, root_hint=None, page_root_hint=None, *, conversation_root_id=None):
     """Bind replies only inside the site's observed post-page connection.
 
     The observed connection includes the root thread and reply-thread edges,
     plus an explicit unavailable-replies flag. Other feeds/quoted attachments
     cannot assign a parent. A pagination caller must separately bind its query.
     """
-    output = {}
+    output, chains = {}, []
+    for connection in post_page_connections(payload, page_root_hint):
+        root = project_post(connection["root"])
+        if root["id"] == target_id:
+            chains.extend((root, items) for items in connection["threads"])
     for node in _walk(payload):
         if not isinstance(node, dict) or "show_unavailable_replies_disclaimer" not in node:
             continue
@@ -93,27 +106,164 @@ def conversation_posts(payload, target_id, root_hint=None):
             continue
         for edge in edges:
             items = (edge.get("node") or {}).get("thread_items") if isinstance(edge, dict) else None
-            if not isinstance(items, list) or not items:
-                continue
-            chain = collect_posts({"thread_items": items})
-            if len(chain) != len(items):
-                continue  # Never promote a child when an earlier item was unavailable.
-            # A containing/ancestor thread does not establish direct replies.
-            if any(p["id"] == target_id for p in chain):
-                continue
-            previous = root
-            for index, post in enumerate(chain):
-                item = items[index] if index < len(items) else {}
-                if (post.get("is_reply") is not True or post.get("reply_to_author") != previous["author"]
-                        or item.get("parent_post_unavailable_reason") not in (None, "")
-                        or post.get("parent_id") not in ("", previous["id"])
-                        or post.get("root_id") not in ("", target_id)):
-                    break
-                post = {**post, "parent_id": previous["id"], "root_id": target_id,
-                        "parent_binding": "observed_post_connection_thread_order"}
-                output[post["id"]] = post
-                previous = post
+            chains.append((root, items))
+    for root, items in chains:
+        if not isinstance(items, list) or not items:
+            continue
+        chain = collect_posts({"thread_items": items})
+        if len(chain) != len(items):
+            continue  # Never promote a child when an earlier item was unavailable.
+        # A containing/ancestor thread does not establish direct replies.
+        if any(p["id"] == target_id for p in chain):
+            continue
+        previous = root
+        for index, post in enumerate(chain):
+            item = items[index]
+            if (post.get("is_reply") is not True or post.get("reply_to_author") != previous["author"]
+                    or item.get("parent_post_unavailable_reason") not in (None, "")
+                    or post.get("parent_id") not in ("", previous["id"])
+                    or post.get("root_id") not in ("", target_id, conversation_root_id)):
+                break
+            post = {**post, "parent_id": previous["id"], "root_id": target_id,
+                    "parent_binding": "observed_post_connection_thread_order"}
+            output[post["id"]] = post
+            previous = post
     return list(output.values())
+
+
+def reply_visibility(payload, root_hint=None):
+    """A missing visibility flag cannot prove that every reply was exposed."""
+    connections = [c for c in post_page_connections(payload, root_hint) if c["has_reply_connection"]]
+    return {
+        "unavailable_replies": any(isinstance(n, dict) and n.get("show_unavailable_replies_disclaimer") is True for n in _walk(payload))
+            or any(c["unavailable_replies"] is True for c in connections),
+        "reply_visibility_unknown": any(c["unavailable_replies"] is None for c in connections),
+    }
+
+
+def post_reply_state(payload, target_id, root_hint=None, page_root_hint=None, *, conversation_root_id=None):
+    """Exact-root outer pagination and coverage; child cursors never drive it."""
+    result = []
+    for connection in post_page_connections(payload, page_root_hint):
+        root = project_post(connection["root"])
+        if root["id"] != target_id or not connection["has_reply_connection"]:
+            continue
+        info = connection["page_info"] if isinstance(connection["page_info"], dict) else {}
+        nested = []
+        for chain, page in zip(connection["threads"], connection["thread_page_info"]):
+            try:
+                identity = project_post(chain[0]["post"])["id"]
+            except (AdapterError, IndexError):
+                identity = None
+            nested.append({"id": identity, "has_next_page": page["has_next_page"]})
+        cursor = info.get("end_cursor")
+        result.append({"root_id": target_id, "has_next_page": info.get("has_next_page") if type(info.get("has_next_page")) is bool else None,
+                       "cursor": cursor if isinstance(cursor, str) and len(cursor) <= 4096 else None,
+                       "nested_pages": nested, "unavailable_replies": connection["unavailable_replies"],
+                       "root_unavailable_replies": connection["root_unavailable_replies"]})
+    # A validated current-format outer connection cannot be replaced by a
+    # nested/ancillary legacy-shaped disclaimer elsewhere in the same payload.
+    if result:
+        return result
+    legacy = [n for n in _walk(payload) if isinstance(n, dict)
+              and "show_unavailable_replies_disclaimer" in n and isinstance(n.get("edges"), list)]
+    for node in legacy:
+        chains = [e["node"]["thread_items"] for e in node["edges"]
+                  if isinstance(e, dict) and isinstance(e.get("node"), dict)
+                  and isinstance(e["node"].get("thread_items"), list)]
+        posts = collect_posts([{"thread_items": chain} for chain in chains])
+        root = next((p for p in posts if p["id"] == target_id), None)
+        # A query hint alone does not identify an empty/ambiguous connection.
+        # Preserve the observed legacy nonempty reply-page path only when it
+        # is the sole candidate and its direct chains actually bind to the root.
+        if root is None and len(legacy) == 1 and root_hint and chains:
+            candidate = {"edges": [{"node": {"thread_items": chain}} for chain in chains],
+                         "show_unavailable_replies_disclaimer": node["show_unavailable_replies_disclaimer"]}
+            if conversation_posts(candidate, target_id, root_hint, conversation_root_id=conversation_root_id):
+                root = root_hint
+        if not root or root["id"] != target_id:
+            continue
+        info = node.get("page_info") if isinstance(node.get("page_info"), dict) else {}
+        cursor, unavailable = info.get("end_cursor"), node.get("show_unavailable_replies_disclaimer")
+        result.append({"root_id": target_id, "has_next_page": info.get("has_next_page") if type(info.get("has_next_page")) is bool else None,
+                       "cursor": cursor if isinstance(cursor, str) and len(cursor) <= 4096 else None,
+                       "nested_pages": [], "unavailable_replies": unavailable if type(unavailable) is bool else None,
+                       "root_unavailable_replies": None})
+    return result
+
+
+def post_connections(states):
+    return [{"has_next_page": s["has_next_page"], "cursor": s["cursor"], "ids": [s["root_id"]]}
+            for s in states if type(s["has_next_page"]) is bool]
+
+
+def comment_coverage(root, comments, events, limit):
+    """Explain bounded evidence without treating a child/stale cursor as final."""
+    target_id = root["id"]
+    states = [s for e in events for s in e.get("reply_state", []) if s["root_id"] == target_id]
+    nested = {}
+    if any("reply_state" in e for e in events):
+        terminal = bool(states) and states[-1]["has_next_page"] is False
+        hidden = any(s["unavailable_replies"] is True or s["root_unavailable_replies"] is True for s in states)
+        declared_visible = any(s["root_unavailable_replies"] is False for s in states)
+        unknown = not states or (not declared_visible and any(s["unavailable_replies"] is None for s in states))
+    else:
+        # Compatibility for legacy in-memory event producers. Only the latest
+        # connection containing the root itself can establish terminality.
+        infos = [i for e in events for i in e.get("connections", []) if target_id in i["ids"]]
+        terminal = bool(infos) and infos[-1]["has_next_page"] is False
+        hidden = any(e.get("unavailable_replies") for e in events)
+        unknown = any(e.get("reply_visibility_unknown") for e in events)
+    members = {p["id"] for p in comments if p.get("root_id") == target_id}
+    child_states = {}
+    for event in events:
+        for state in event.get("reply_state", []):
+            if state["root_id"] == target_id:
+                for page in state["nested_pages"]:
+                    # Keep chronological updates, including a native refresh
+                    # that reports more replies after a child read finished.
+                    key = page["id"] if page["id"] else ("unknown", len(nested))
+                    nested[key] = page["has_next_page"]
+        for state in event.get("nested_reply_state", []):
+            identity = state["root_id"]
+            if identity not in members:
+                continue
+            child_states.setdefault(identity, []).append(state)
+            nested[identity] = state["has_next_page"]
+            for page in state["nested_pages"]:
+                key = page["id"] if page["id"] else ("unknown", len(nested))
+                nested[key] = page["has_next_page"]
+    for observed in child_states.values():
+        hidden |= any(s["unavailable_replies"] is True or s["root_unavailable_replies"] is True for s in observed)
+        visible = any(s["root_unavailable_replies"] is False for s in observed)
+        unknown |= not visible and any(s["unavailable_replies"] is None for s in observed)
+    direct = sum(p.get("parent_id") == target_id for p in comments)
+    child_counts = {}
+    for post in comments:
+        parent = post.get("parent_id")
+        child_counts[parent] = child_counts.get(parent, 0) + 1
+    child_counts_match = all(type(p.get("direct_reply_count")) is int
+                             and p["direct_reply_count"] == child_counts.get(p["id"], 0) for p in comments)
+    pending, unverified = sum(v is True for v in nested.values()), sum(v is None for v in nested.values())
+    count = root.get("direct_reply_count")
+    reasons = []
+    if len(comments) > limit or (len(comments) == limit and (not terminal or pending or unverified or not child_counts_match)):
+        reasons.append("comment_limit_reached")
+    if not terminal: reasons.append("outer_reply_pagination_unverified")
+    if pending: reasons.append("nested_reply_pages_remaining")
+    if unverified: reasons.append("nested_reply_pagination_unverified")
+    if type(count) is not int: reasons.append("reply_count_unavailable")
+    elif count != direct: reasons.append("reply_count_mismatch")
+    if not child_counts_match: reasons.append("nested_reply_count_mismatch")
+    if hidden: reasons.append("unavailable_replies")
+    if unknown: reasons.append("reply_visibility_unverified")
+    return {"complete": not reasons, "returned_comments": min(len(comments), limit),
+            "observed_comments": len(comments), "observed_direct_replies": direct,
+            "observed_nested_replies": len(comments) - direct, "declared_direct_reply_count": count,
+            "outer_pagination_terminal": terminal, "nested_threads_with_more": pending,
+            "nested_threads_queried": len(child_states),
+            "nested_threads_unverified": unverified, "visibility_verified": not unknown,
+            "unavailable_replies": hidden, "reasons": reasons}
 
 
 def query_targets_post(template, target_id):
@@ -176,6 +326,9 @@ class ThreadsBrowserAdapter:
         self.prepared = None
         self.post_target = None
         self.root_hint = None
+        self.page_root_hint = None
+        self.replay_waiter = None
+        self.reply_roots = {}
 
     def _run(self, method, *args):
         if self.closed:
@@ -216,15 +369,36 @@ class ThreadsBrowserAdapter:
         self.page.on("response", self._schedule_response)
 
     def _schedule_response(self, response):
-        if len(self.tasks) >= 40:
+        request = response.request
+        if (self.kind == "identity"
+                or read_template(response.url, request.method, request.post_data, request.headers) is None):
             return
+        waiter = self._matching_replay(response, self.generation)
+        priority = waiter is not None and not waiter.get("scheduled")
+        if len(self.tasks) >= 40 and not priority:
+            return
+        if priority:
+            waiter["scheduled"] = True  # At most one reserved parser slot.
         task = self.loop.create_task(self._response(response, self.generation))
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)
 
+    def _matching_replay(self, response, generation):
+        pending = self.replay_waiter
+        request = response.request
+        if (pending and generation == pending["generation"] == self.generation
+                and response.url == pending["url"] and request.method == "POST"
+                and request.post_data == pending["body"]):
+            return pending
+        return None
+
     async def _response(self, response, generation):
+        waiter, consumed = None, False
         try:
             request = response.request
+            waiter = self._matching_replay(response, generation)
+            if waiter:
+                waiter["task"] = asyncio.current_task()
             template = read_template(response.url, request.method, request.post_data, request.headers)
             if template is None or self.kind == "identity" or generation != self.generation:
                 return
@@ -240,18 +414,69 @@ class ThreadsBrowserAdapter:
             if isinstance(payload, dict) and payload.get("errors"):
                 self.events.append({"error": "threads_query_unavailable"})
                 return
-            posts = collect_posts(payload)
-            if self.post_target:
-                hint = self.root_hint if query_targets_post(template, self.post_target) else None
-                bound = {p["id"]: p for p in conversation_posts(payload, self.post_target, hint)}
+            child_raw = waiter.get("reply_root") if waiter else None
+            child = project_post(child_raw) if child_raw is not None else None
+            target = child["id"] if child else self.post_target
+            exact_query = target and query_targets_post(template, target)
+            page_hint = (child_raw if child else self.page_root_hint) if exact_query else None
+            posts = collect_posts(payload, page_hint)
+            hint = (child if child else self.root_hint) if exact_query else None
+            if target:
+                bound = {p["id"]: p for p in conversation_posts(payload, target, hint, page_hint,
+                         conversation_root_id=self.post_target if child else None)}
                 posts = [bound.get(p["id"], p) for p in posts]
+                if child:
+                    # Only an exact response to this verified descendant query
+                    # may extend the original conversation's parent graph.
+                    states = post_reply_state(payload, target, hint, page_hint, conversation_root_id=self.post_target)
+                    if not states:
+                        return
+                    existing = {p["id"]: p for p in self._posts()}
+                    posts = [{**p, "root_id": self.post_target} for p in bound.values()]
+                    if any(p["id"] == self.post_target
+                           or existing.get(p["id"], {}).get("parent_id") not in (None, "", p["parent_id"])
+                           for p in posts):
+                        return
+                    if len(self.events) < 100:
+                        self._remember_reply_roots(payload, target, page_hint, bound)
+                        self.events.append({"posts": posts, "connections": [], "reply_state": [],
+                                            "nested_reply_state": states, "template": template})
+                        consumed = bool(post_connections(states))
+                    return
+                self._remember_reply_roots(payload, target, page_hint, bound)
                 self.root_hint = next((p for p in posts if p["id"] == self.post_target), self.root_hint)
+                if self.page_root_hint is None:
+                    self.page_root_hint = next((c["root"] for c in post_page_connections(payload)
+                                                if project_post(c["root"])["id"] == self.post_target), None)
             if posts and len(self.events) < 100:
-                self.events.append({"posts": posts, "connections": connection_info(payload), "template": template,
-                                    "unavailable_replies": any(isinstance(n, dict) and n.get("show_unavailable_replies_disclaimer") is True for n in _walk(payload))})
+                states = post_reply_state(payload, self.post_target, self.root_hint if exact_query else None, page_hint) if self.post_target else None
+                event = {"posts": posts, "connections": post_connections(states) if states is not None else connection_info(payload), "template": template,
+                         **reply_visibility(payload, page_hint)}
+                if states is not None:
+                    event["reply_state"] = states
+                self.events.append(event)
+                consumed = bool(event["connections"])
         except Exception:
             # No provider exception, raw request, response or header may escape.
             return
+        finally:
+            if waiter and not waiter["future"].done():
+                waiter["future"].set_result(consumed)
+
+    def _remember_reply_roots(self, payload, target, page_hint, bound):
+        if not hasattr(self, "reply_roots"):
+            self.reply_roots = {}
+        for connection in post_page_connections(payload, page_hint):
+            if project_post(connection["root"])["id"] != target:
+                continue
+            for chain in connection["threads"]:
+                for item in chain:
+                    try:
+                        post = project_post(item["post"])
+                    except AdapterError:
+                        continue
+                    if post["id"] in bound:
+                        self.reply_roots[post["id"]] = item["post"]
 
     async def _settle(self):
         await self.page.wait_for_timeout(1500)
@@ -286,6 +511,8 @@ class ThreadsBrowserAdapter:
         self.generation += 1
         self.kind, self.events = kind, []
         self.root_hint = None
+        self.page_root_hint = None
+        self.reply_roots = {}
         from .threads_data import browser_post_id
         self.post_target = browser_post_id(url) if kind == "post" else None
         await self.page.goto(url, wait_until="domcontentloaded", timeout=60000)
@@ -296,11 +523,18 @@ class ThreadsBrowserAdapter:
             posts = collect_posts(bootstrap)
             if self.post_target:
                 self.root_hint = next((p for p in posts if p["id"] == self.post_target), None)
+                self.page_root_hint = next((c["root"] for c in post_page_connections(bootstrap)
+                                            if project_post(c["root"])["id"] == self.post_target), None)
                 bound = {p["id"]: p for p in conversation_posts(bootstrap, self.post_target)}
                 posts = [bound.get(p["id"], p) for p in posts]
+                self._remember_reply_roots(bootstrap, self.post_target, None, bound)
             if posts:
-                self.events.insert(0, {"posts": posts, "connections": connection_info(bootstrap), "template": None,
-                                      "unavailable_replies": any(isinstance(n, dict) and n.get("show_unavailable_replies_disclaimer") is True for n in _walk(bootstrap))})
+                states = post_reply_state(bootstrap, self.post_target) if self.post_target else None
+                event = {"posts": posts, "connections": post_connections(states) if states is not None else connection_info(bootstrap),
+                         "template": None, **reply_visibility(bootstrap)}
+                if states is not None:
+                    event["reply_state"] = states
+                self.events.insert(0, event)
         return bootstrap
 
     async def _identity(self, expected=None):
@@ -328,38 +562,98 @@ class ThreadsBrowserAdapter:
                 result[post["id"]] = {**post, **{k: old[k] for k in ("parent_id", "root_id", "parent_binding") if old.get(k) and not post.get(k)}}
         return list(result.values())
 
-    async def _replay(self, event, cursor):
+    async def _replay(self, event, cursor, *, reply_root=None):
+        target = self.post_target
+        if reply_root is not None:
+            child = project_post(reply_root)
+            known = next((p for p in self._posts() if p["id"] == child["id"]
+                          and p.get("root_id") == self.post_target and p.get("parent_id")), None)
+            if (not known or child["id"] == self.post_target
+                    or any(child[k] != known[k] for k in ("id", "author", "url"))
+                    or child["id"] not in getattr(self, "reply_roots", {})
+                    or self.reply_roots[child["id"]] != reply_root):
+                raise AdapterError("unverified_nested_reply_root")
+            target = child["id"]
+        def usable(template):
+            return (template and "after" in template.get("variables", {})
+                    and (not target or query_targets_post(template, target)))
+
         template = event.get("template")
-        if not template or "after" not in template.get("variables", {}):
+        if not usable(template):
             template = next((e.get("template") for e in reversed(self.events)
-                             if e.get("template") and "after" in e["template"].get("variables", {})), None)
-        if not template or "after" not in template["variables"]:
+                             if usable(e.get("template"))), None)
+        if not usable(template):
             return False
         parts = urlsplit(self.page.url)
         if urlsplit(template["url"]).netloc != parts.netloc:
             return False
         variables = {**template["variables"], "after": cursor}
         form = {**template["form"], "variables": json.dumps(variables, separators=(",", ":"))}
-        outcome = await self.page.evaluate("""async ({url,body,headers}) => {
-            const result = await fetch(url, {method:'POST', credentials:'include',
-                redirect:'error', headers, body});
-            return {status:result.status};
-        }""", {"url": template["url"], "headers": template["headers"], "body": urlencode(form)})
-        if outcome.get("status") != 200:
-            raise AdapterError("threads_pagination_unavailable")
-        await self._settle()
-        return True
+        waiter = {"generation": self.generation, "url": template["url"], "body": urlencode(form),
+                  "future": asyncio.get_running_loop().create_future(), "reply_root": reply_root}
+        self.replay_waiter = waiter
+        try:
+            outcome = await self.page.evaluate("""async ({url,body,headers}) => {
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), 12000);
+                let status = 0, bytes = 0;
+                try {
+                    const result = await fetch(url, {method:'POST', credentials:'include',
+                        redirect:'error', headers, body, signal:controller.signal});
+                    status = result.status;
+                    if (status !== 200) { controller.abort(); return {status}; }
+                    // Drain the body so the browser exposes a finished response
+                    // to the parser. Discard chunks; never return raw data.
+                    const reader = result.body.getReader();
+                    while (true) {
+                        const part = await reader.read();
+                        if (part.done) break;
+                        bytes += part.value.byteLength;
+                        if (bytes > 8000000) {
+                            controller.abort(); return {status, body_read:false};
+                        }
+                    }
+                    return {status, body_read:true};
+                } catch { return {status, body_read:false}; }
+                finally { clearTimeout(timer); }
+            }""", {"url": template["url"], "headers": template["headers"], "body": waiter["body"]})
+            if outcome.get("status") in (401, 403, 429):
+                raise AdapterError("threads_access_denied_or_rate_limited")
+            if outcome.get("status") != 200:
+                raise AdapterError("threads_pagination_unavailable")
+            consumed = False
+            if outcome.get("body_read") is not False:
+                try:
+                    consumed = await asyncio.wait_for(waiter["future"], timeout=12)
+                except asyncio.TimeoutError:
+                    pass
+            await self._page_guard()
+            self._posts()  # Surface an observed denial/query error before another request.
+            if self.generation != waiter["generation"]:
+                raise AdapterError("threads_pagination_context_changed")
+            return consumed
+        finally:
+            self.replay_waiter = None
+            if not waiter["future"].done():
+                waiter["future"].cancel()
+            parser = waiter.get("task")
+            if parser and parser is not asyncio.current_task() and not parser.done():
+                parser.cancel()
+                await asyncio.gather(parser, return_exceptions=True)
 
     async def _paginate(self, enough):
         seen = set()
         idle_rounds = 0
+        def relevant(event):
+            target = getattr(self, "post_target", None)
+            return [i for i in event.get("connections", []) if not target or target in i["ids"]]
         for _ in range(40):
             await self._page_guard()
             if enough(self._posts()):
                 return
-            latest = next((e for e in reversed(self.events) if e.get("connections")), None)
+            latest = next((e for e in reversed(self.events) if relevant(e)), None)
             if latest:
-                infos = latest["connections"]
+                infos = relevant(latest)
                 if all(not info["has_next_page"] for info in infos):
                     return
                 cursor = next((info["cursor"] for info in infos if info["has_next_page"] and info["cursor"]), None)
@@ -386,6 +680,52 @@ class ThreadsBrowserAdapter:
                     continue
             idle_rounds = 0
 
+    async def _collect_nested_replies(self, limit):
+        """Read only verified descendants through the observed direct-reply query."""
+        if not getattr(self, "post_target", None):
+            return
+        def comments():
+            return [p for p in self._posts() if p["id"] != self.post_target
+                    and (p.get("root_id") == self.post_target or p.get("parent_id") == self.post_target)]
+
+        if len(comments()) >= limit:
+            return
+        template = next((e["template"] for e in reversed(self.events) if e.get("template")
+                         and e["template"]["operation"] == "BarcelonaPostPageDirectRepliesRefetchQuery"
+                         and str(e["template"]["variables"].get("postID")) == self.post_target
+                         and "after" in e["template"]["variables"]), None)
+        if not template:
+            return
+        attempted, requests = set(), 0
+        while len(comments()) < limit and requests < 40:
+            observed = comments()
+            members = {self.post_target, *(p["id"] for p in observed)}
+            pending = {p["id"] for e in self.events for s in [*e.get("reply_state", []), *e.get("nested_reply_state", [])]
+                       if s["root_id"] in members for p in s["nested_pages"] if p["has_next_page"] is True}
+            child = next((p for p in observed if p["id"] not in attempted and p["id"] in self.reply_roots
+                          and (p["id"] in pending or (type(p.get("direct_reply_count")) is int
+                               and p["direct_reply_count"] > sum(c.get("parent_id") == p["id"] for c in observed)))), None)
+            if child is None:
+                return
+            attempted.add(child["id"])
+            raw = self.reply_roots[child["id"]]
+            event = {"template": {**template, "variables": {**template["variables"], "postID": child["id"]}}}
+            cursor, seen = None, set()
+            while len(comments()) < limit and requests < 40:
+                await self._page_guard()
+                requests += 1
+                if not await self._replay(event, cursor, reply_root=raw):
+                    return
+                event = next((e for e in reversed(self.events) if any(s["root_id"] == child["id"]
+                              for s in e.get("nested_reply_state", []))), None)
+                if event is None:
+                    return
+                state = next(s for s in reversed(event["nested_reply_state"]) if s["root_id"] == child["id"])
+                if state["has_next_page"] is not True or not state["cursor"] or state["cursor"] in seen:
+                    break
+                cursor = state["cursor"]
+                seen.add(cursor)
+
     async def _discover(self, scope):
         if scope["source"] == "post":
             return [numeric(scope["target"])]
@@ -409,7 +749,12 @@ class ThreadsBrowserAdapter:
         return self._run(self._discover, scope)
 
     async def _collect(self, post_id, scope, actor):
-        bootstrap = await self._navigate("https://www.threads.com/t/" + id_to_shortcode(numeric(post_id)), "post")
+        owner = scope.get("target_owner") or (scope["account"] if scope["source"] == "own"
+                                              else scope["target"] if scope["source"] == "creator" else None)
+        code = id_to_shortcode(numeric(post_id))
+        post_url = ("https://www.threads.com/@" + username(owner) + "/post/" + code
+                    if owner else "https://www.threads.com/t/" + code)
+        bootstrap = await self._navigate(post_url, "post")
         if find_viewer(bootstrap) != actor:
             raise AdapterError("account_mismatch")
         roots = [p for p in self._posts() if p["id"] == post_id]
@@ -428,18 +773,15 @@ class ThreadsBrowserAdapter:
             raise AdapterError("exact_post_owner_mismatch")
         if not eligible_time(root, scope):
             raise AdapterError("publication_time_outside_scope")
-        await self._paginate(lambda posts: len([p for p in posts if p.get("parent_id") == post_id]) >= scope["comments"])
+        await self._paginate(lambda posts: len([p for p in posts if p["id"] != post_id
+                                               and (p.get("parent_id") == post_id or p.get("root_id") == post_id)]) >= scope["comments"])
+        await self._collect_nested_replies(scope["comments"])
         comments = [p for p in self._posts() if p["id"] != post_id and (p.get("parent_id") == post_id or p.get("root_id") == post_id)]
-        count = root.get("direct_reply_count")
-        direct = [p for p in comments if p.get("parent_id") == post_id]
-        terminal = any(not i["has_next_page"] for e in self.events for i in e.get("connections", [])
-                       if post_id in i["ids"] or any(c["id"] in i["ids"] for c in comments))
-        nested_complete = all(type(p.get("direct_reply_count")) is int and p["direct_reply_count"] == sum(c.get("parent_id") == p["id"] for c in comments) for p in comments)
-        hidden = any(e.get("unavailable_replies") for e in self.events)
-        complete = (not hidden and terminal and type(count) is int and count == len(direct)
-                    and nested_complete and len(comments) <= scope["comments"])
+        coverage = comment_coverage(root, comments, self.events, scope["comments"])
+        complete = coverage["complete"]
         return {**root, "platform": "threads", "authority": "threads_authenticated_browser_api", "observed_at": now_iso(),
                 "comments": comments[:scope["comments"]], "comments_complete": complete,
+                "comments_coverage": coverage,
                 "comments_status": "available" if complete else "bounded_or_parent_link_unavailable",
                 "metrics_status": "browser_declared" if root["metrics"] else "not_provided",
                 "collection_method": "observed_website_api_and_embedded_json"}
@@ -558,3 +900,5 @@ class ThreadsBrowserAdapter:
                 self.loop.close()
                 self.events.clear()
                 self.prepared = None
+                self.root_hint = self.page_root_hint = self.replay_waiter = None
+                self.reply_roots = {}

@@ -217,8 +217,125 @@ def _walk(payload):
         stack.extend((child, depth + 1) for child in reversed(children))
 
 
-def collect_posts(payload):
-    """Return ordered unique valid thread-item posts, excluding attached quotes."""
+def post_page_connections(payload, root_hint=None):
+    """Bind data.media reply fragments to a validated local or prior raw root.
+
+    Callers may supply a prior root only for an observed, exact-post reply query.
+    The hint stays in memory, is revalidated, and supplies no unobserved fields
+    to a fragment. A hint alone never produces a connection or metadata result.
+    """
+    carriers, carrier_ids, roots, validated, ambiguous = [], set(), {}, {}, set()
+    for node in _walk(payload):
+        data = node.get("data") if isinstance(node, dict) else None
+        raw = data.get("media") if isinstance(data, dict) else None
+        if not isinstance(raw, dict) or id(raw) in carrier_ids:
+            continue
+        carrier_ids.add(id(raw))
+        carriers.append(raw)
+        try:
+            post = project_post(raw)
+        except AdapterError:
+            continue
+        owner_id = _numeric(raw["user"].get("pk", raw["user"].get("id")))
+        identity = post["id"]
+        if identity in roots and (roots[identity][1] != post or roots[identity][2] != owner_id):
+            ambiguous.add(identity)
+        else:
+            roots.setdefault(identity, (raw, post, owner_id))
+        validated[id(raw)] = identity
+
+    hint = None
+    if root_hint is not None:
+        try:
+            post = project_post(root_hint)
+            owner_id = _numeric(root_hint["user"].get("pk", root_hint["user"].get("id")))
+            hint = (root_hint, post, owner_id)
+        except AdapterError:
+            pass
+
+    count, connected = 0, set()
+    for fragment in carriers:
+        info = fragment.get("text_post_app_info") or {}
+        if not isinstance(info, dict):
+            continue
+        replies = info.get("direct_replies")
+        if not isinstance(replies, dict) or not isinstance(replies.get("edges"), list):
+            continue
+        try:
+            identity = validated.get(id(fragment))
+            if identity is None:
+                raw_id = fragment.get("id")
+                parts = raw_id.split("_") if isinstance(raw_id, str) else [raw_id]
+                if len(parts) not in (1, 2):
+                    continue
+                identity = _numeric(parts[0])
+                composite_owner = _numeric(parts[1]) if len(parts) == 2 else None
+            else:
+                composite_owner = None  # project_post already checked the full root.
+            if identity in ambiguous:
+                continue
+            if identity in roots:
+                root, post, owner_id = roots[identity]
+                if (hint is not None and hint[1]["id"] == identity
+                        and (hint[1]["author"] != post["author"] or hint[2] != owner_id)):
+                    continue
+            elif hint is not None and hint[1]["id"] == identity:
+                root, post, owner_id = hint
+            else:
+                continue
+            if composite_owner is not None and composite_owner != owner_id:
+                continue
+            if "pk" in fragment and _numeric(fragment["pk"]) != identity:
+                continue
+            user = fragment.get("user")
+            if user is not None:
+                if not isinstance(user, dict):
+                    continue
+                if any(_numeric(user[key]) != owner_id for key in ("pk", "id") if key in user):
+                    continue
+                if "username" in user and _username(user["username"]) != post["author"]:
+                    continue
+        except AdapterError:
+            continue
+        threads, thread_page_info = [], []
+        for edge in replies["edges"]:
+            count += 1
+            if count > _MAX_NODES:
+                raise AdapterError("browser_payload_traversal_limit")
+            thread = edge.get("node") if isinstance(edge, dict) else None
+            posts = thread.get("posts") if isinstance(thread, dict) else None
+            edges = posts.get("edges") if isinstance(posts, dict) else None
+            page = posts.get("page_info") if isinstance(posts, dict) else None
+            page = page if isinstance(page, dict) else {}
+            cursor = page.get("end_cursor")
+            thread_page_info.append({"has_next_page": _bool(page.get("has_next_page")),
+                                     "end_cursor": cursor if isinstance(cursor, str) and len(cursor) <= 4096 else None})
+            if not isinstance(edges, list):
+                threads.append([{"post": None}])
+                continue
+            count += len(edges)
+            if count > _MAX_NODES:
+                raise AdapterError("browser_payload_traversal_limit")
+            # Keep every position: a missing/invalid predecessor cannot make a
+            # later post appear to be a direct reply to the root.
+            threads.append([{"post": item.get("node") if isinstance(item, dict) else None}
+                            for item in edges])
+        flags = [container.get(key) for container in (replies, info)
+                 for key in ("show_unavailable_replies_disclaimer", "has_unavailable_replies")]
+        observed = [flag for flag in flags if type(flag) is bool]
+        connected.add(identity)
+        yield {"root": root, "threads": threads, "page_info": replies.get("page_info"),
+               "thread_page_info": thread_page_info, "has_reply_connection": True,
+               "root_unavailable_replies": _bool(info.get("has_unavailable_replies")),
+               "unavailable_replies": any(observed) if observed else None}
+    for identity, (root, _, _) in roots.items():
+        if identity not in connected and identity not in ambiguous:
+            yield {"root": root, "threads": [], "page_info": None, "thread_page_info": [],
+                   "has_reply_connection": False, "root_unavailable_replies": None, "unavailable_replies": None}
+
+
+def collect_posts(payload, root_hint=None):
+    """Return unique legacy thread items and observed post-page connection posts."""
     results, seen, count = [], set(), 0
     for node in _walk(payload):
         items = node.get("thread_items") if isinstance(node, dict) else None
@@ -232,6 +349,20 @@ def collect_posts(payload):
                 continue
             try:
                 post = project_post(item.get("post"))
+            except AdapterError:
+                continue
+            if post["id"] not in seen:
+                seen.add(post["id"])
+                results.append(post)
+    for connection in post_page_connections(payload, root_hint=root_hint):
+        raw_posts = [connection["root"]]
+        raw_posts.extend(item["post"] for chain in connection["threads"] for item in chain)
+        for raw in raw_posts:
+            count += 1
+            if count > _MAX_NODES:
+                raise AdapterError("browser_payload_traversal_limit")
+            try:
+                post = project_post(raw)
             except AdapterError:
                 continue
             if post["id"] not in seen:
