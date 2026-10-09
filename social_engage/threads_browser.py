@@ -329,6 +329,7 @@ class ThreadsBrowserAdapter:
         self.page_root_hint = None
         self.replay_waiter = None
         self.reply_roots = {}
+        self.observed_requests = []
 
     def _run(self, method, *args):
         if self.closed:
@@ -366,22 +367,69 @@ class ThreadsBrowserAdapter:
             raise AdapterError("threads_login_required")
         self.page = await self.context.new_page()
         self.page.set_default_timeout(10000)
+        self.page.on("request", self._observe_request)
+        self.page.on("requestfailed", self._request_failed)
         self.page.on("response", self._schedule_response)
+
+    def _clear_observed_requests(self):
+        for entry in getattr(self, "observed_requests", []):
+            if not entry["future"].done():
+                entry["future"].set_result(False)
+        self.observed_requests = []
+
+    def _observe_request(self, request):
+        template = read_template(request.url, request.method, request.post_data, request.headers)
+        if template is None:
+            return
+        # Keep the navigation stamp on the request itself, even after its
+        # sensitive cached template is cleared. Late responses cannot rebind.
+        request._threads_adapter_generation = self.generation
+        if (getattr(self, "kind", None) != "post" or not self.post_target
+                or template["operation"] != "BarcelonaPostPageDirectRepliesRefetchQuery"
+                or str(template["variables"].get("postID")) != self.post_target
+                or "after" not in template["variables"]):
+            return
+        if not hasattr(self, "observed_requests"):
+            self.observed_requests = []
+        if any(e["request"] is request for e in self.observed_requests):
+            return
+        if len(self.observed_requests) >= 40:
+            completed = next((e for e in self.observed_requests if e["future"].done()), None)
+            if completed is None:
+                return
+            self.observed_requests.remove(completed)
+        self.observed_requests.append({"request": request, "template": template,
+                                       "generation": self.generation,
+                                       "future": asyncio.get_running_loop().create_future()})
+
+    def _observed_request(self, request):
+        return next((e for e in getattr(self, "observed_requests", []) if e["request"] is request), None)
+
+    def _request_failed(self, request):
+        entry = self._observed_request(request)
+        if entry and not entry["future"].done():
+            entry["future"].set_result(False)
 
     def _schedule_response(self, response):
         request = response.request
+        generation = getattr(request, "_threads_adapter_generation", self.generation)
+        if generation != self.generation:
+            self._request_failed(request)
+            return
         if (self.kind == "identity"
                 or read_template(response.url, request.method, request.post_data, request.headers) is None):
             return
         waiter = self._matching_replay(response, self.generation)
         priority = waiter is not None and not waiter.get("scheduled")
         if len(self.tasks) >= 40 and not priority:
+            self._request_failed(request)
             return
         if priority:
             waiter["scheduled"] = True  # At most one reserved parser slot.
-        task = self.loop.create_task(self._response(response, self.generation))
+        task = self.loop.create_task(self._response(response, generation))
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)
+        task.add_done_callback(lambda _: self._request_failed(request))
 
     def _matching_replay(self, response, generation):
         pending = self.replay_waiter
@@ -394,6 +442,7 @@ class ThreadsBrowserAdapter:
 
     async def _response(self, response, generation):
         waiter, consumed = None, False
+        observed = self._observed_request(response.request)
         try:
             request = response.request
             waiter = self._matching_replay(response, generation)
@@ -462,6 +511,8 @@ class ThreadsBrowserAdapter:
         finally:
             if waiter and not waiter["future"].done():
                 waiter["future"].set_result(consumed)
+            if observed and not observed["future"].done():
+                observed["future"].set_result(consumed and observed["generation"] == generation == self.generation)
 
     def _remember_reply_roots(self, payload, target, page_hint, bound):
         if not hasattr(self, "reply_roots"):
@@ -508,6 +559,7 @@ class ThreadsBrowserAdapter:
             raise AdapterError("threads_human_verification_required")
 
     async def _navigate(self, url, kind):
+        self._clear_observed_requests()
         self.generation += 1
         self.kind, self.events = kind, []
         self.root_hint = None
@@ -582,12 +634,35 @@ class ThreadsBrowserAdapter:
         if not usable(template):
             template = next((e.get("template") for e in reversed(self.events)
                              if usable(e.get("template"))), None)
+        if not usable(template) and reply_root is None:
+            template = next((e["template"] for e in reversed(getattr(self, "observed_requests", []))
+                             if e["generation"] == self.generation and usable(e["template"])), None)
         if not usable(template):
             return False
         parts = urlsplit(self.page.url)
         if urlsplit(template["url"]).netloc != parts.netloc:
             return False
         variables = {**template["variables"], "after": cursor}
+        # A native request may already be fetching this exact page. Reuse its
+        # normalized result instead of issuing a second fetch alongside it.
+        if reply_root is None:
+            key = json.dumps(variables, sort_keys=True, separators=(",", ":"))
+            existing = next((e for e in reversed(getattr(self, "observed_requests", []))
+                             if e["generation"] == self.generation
+                             and e["template"]["url"] == template["url"]
+                             and e["template"]["operation"] == template["operation"]
+                             and e["template"]["form"].get("doc_id") == template["form"].get("doc_id")
+                             and json.dumps(e["template"]["variables"], sort_keys=True, separators=(",", ":")) == key), None)
+            if existing:
+                try:
+                    consumed = await asyncio.wait_for(asyncio.shield(existing["future"]), timeout=12)
+                except asyncio.TimeoutError:
+                    consumed = False
+                await self._page_guard()
+                self._posts()
+                if existing["generation"] != self.generation:
+                    raise AdapterError("threads_pagination_context_changed")
+                return consumed
         form = {**template["form"], "variables": json.dumps(variables, separators=(",", ":"))}
         waiter = {"generation": self.generation, "url": template["url"], "body": urlencode(form),
                   "future": asyncio.get_running_loop().create_future(), "reply_root": reply_root}
@@ -878,6 +953,7 @@ class ThreadsBrowserAdapter:
         return self._run(self._publish, evidence, actor, text, guard)
 
     async def _close(self):
+        self._clear_observed_requests()
         try:
             if self.page is not None:
                 await self.page.close()
@@ -902,3 +978,4 @@ class ThreadsBrowserAdapter:
                 self.prepared = None
                 self.root_hint = self.page_root_hint = self.replay_waiter = None
                 self.reply_roots = {}
+                self.observed_requests = []

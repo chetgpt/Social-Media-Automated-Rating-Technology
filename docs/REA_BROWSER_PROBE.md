@@ -62,6 +62,19 @@ Native navigation/scroll settling is unchanged. Requests, credentials, root
 hints and raw responses remain in memory; the REA probe is not a collector
 dependency. Existing Profile 7 configuration and TikTok workflows are unchanged.
 
+Root pagination also keeps a bounded in-memory cache of observed read requests
+for the current navigation. An exact match on URL, operation, document ID and
+all query variables can share a pending or completed normalized response. This
+avoids fetching a page the website is already loading. Failures and denials
+remain failures; navigation clears the cache, and late responses from an older
+navigation are rejected. Child queries retain their separate verified context.
+
+The one-post follow-up retained 52 unique, parent-bound replies with five outer
+page requests and no duplicate page requests; the earlier trace had eight outer
+requests. One initial automated scroll was still needed to observe the first
+request template. This is a request-count observation, not a general speed
+benchmark or a browser-free collection path.
+
 The comment limit counts verified direct and nested replies together, avoiding
 another page request when the requested sample is already loaded. Post
 pagination follows the exact root's outer reply connection; its latest state
