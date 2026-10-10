@@ -68,6 +68,10 @@ all query variables can share a pending or completed normalized response. This
 avoids fetching a page the website is already loading. Failures and denials
 remain failures; navigation clears the cache, and late responses from an older
 navigation are rejected. Child queries retain their separate verified context.
+Each observed request gets one 12-second wait budget. If it stalls, later
+pagination passes skip another wait on that same pending request. Its native
+response remains active: a late valid result can still be used, and a late
+access denial still stops collection.
 
 The one-post follow-up retained 52 unique, parent-bound replies with five outer
 page requests and no duplicate page requests; the earlier trace had eight outer

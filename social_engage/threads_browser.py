@@ -654,10 +654,16 @@ class ThreadsBrowserAdapter:
                              and e["template"]["form"].get("doc_id") == template["form"].get("doc_id")
                              and json.dumps(e["template"]["variables"], sort_keys=True, separators=(",", ":")) == key), None)
             if existing:
-                try:
-                    consumed = await asyncio.wait_for(asyncio.shield(existing["future"]), timeout=12)
-                except asyncio.TimeoutError:
+                if existing.get("wait_exhausted") and not existing["future"].done():
                     consumed = False
+                else:
+                    try:
+                        consumed = await asyncio.wait_for(asyncio.shield(existing["future"]), timeout=12)
+                    except asyncio.TimeoutError:
+                        # Do not spend another full wait on this same stalled
+                        # request. A late parsed response can still be reused.
+                        existing["wait_exhausted"] = True
+                        consumed = False
                 await self._page_guard()
                 self._posts()
                 if existing["generation"] != self.generation:

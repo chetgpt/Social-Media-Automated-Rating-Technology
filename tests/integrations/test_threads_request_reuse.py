@@ -106,6 +106,41 @@ def test_failed_native_request_does_not_trigger_an_automatic_duplicate():
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize("late_status", [200, 403])
+def test_stalled_native_request_is_waited_once_but_late_response_remains_usable(monkeypatch, late_status):
+    async def scenario():
+        adapter, event, response = await fixture()
+        request = native_request()
+        adapter._observe_request(request)
+        pending = adapter.observed_requests[0]["future"]
+        waits = []
+        real_wait_for = asyncio.wait_for
+
+        async def bounded_wait(awaitable, *, timeout):
+            if pending.done():
+                return await real_wait_for(awaitable, timeout=timeout)
+            waits.append(timeout)
+            awaitable.cancel()  # Match wait_for's cancellation of the shield only.
+            raise asyncio.TimeoutError
+
+        monkeypatch.setattr(asyncio, "wait_for", bounded_wait)
+        for _ in range(3):
+            assert await adapter._replay(event, "next") is False
+        assert waits == [12]
+        assert not pending.done()  # The native request can finish independently.
+
+        await adapter._response(response(request, late_status), adapter.generation)
+        if late_status == 200:
+            assert await adapter._replay(event, "next") is True
+            assert [p["id"] for p in adapter._posts()] == ["123", "124"]
+        else:
+            with pytest.raises(AdapterError, match="^threads_access_denied_or_rate_limited$"):
+                await adapter._replay(event, "next")
+        assert waits == [12]
+
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize("different", [
     {"cursor": "other"}, {"target": "999"}, {"first": 3}, {"doc_id": "98765"},
 ])
